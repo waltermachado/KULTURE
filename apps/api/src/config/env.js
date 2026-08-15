@@ -13,7 +13,13 @@ const schema = z.object({
   HOST: z.string().default("127.0.0.1"),
   LOG_LEVEL: z.enum(["fatal", "error", "warn", "info", "debug", "trace", "silent"]).default("info"),
 
-  DATABASE_URL: z.string().min(1).default("file:./dev.db"),
+  DATABASE_URL: z.string().min(1),
+  DIRECT_URL: z.string().min(1).optional(),
+
+  // ---- auth ----
+  JWT_SECRET: z.string().min(32),
+  JWT_EXPIRES_IN: z.string().default("15m"),
+  REFRESH_EXPIRES_DAYS: z.coerce.number().int().positive().default(7),
 
   SCRAPER_URL: z.string().url().default("http://localhost:3001"),
   CORS_ORIGINS: z.string().default("").transform(csv),

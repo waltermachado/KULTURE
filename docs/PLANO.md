@@ -10,7 +10,7 @@ Decisões tomadas em 2026-08-15:
 | 1 | Frontend que segue | **React/Vite** (origem: `Projetos Trae/BuscadorTenis`), migrando o visual do esboço vanilla |
 | 2 | Regra de preço | **30% comissão + frete + imposto**, modular por produto/faixa (ver §4) |
 | 3 | Checkout | **Convidado liberado**, carrinho mesclado ao logar |
-| 4 | Banco / repo | **Postgres no Supabase** (Prisma); SQLite ficou só como histórico. **Um único repo git** em `~/Desktop/KULTURE` com npm workspaces |
+| 4 | Banco / repo | **Postgres no Supabase** (Prisma); Postgres para persistência de jobs. **Um único repo git** em `~/Desktop/KULTURE` com npm workspaces |
 | 5 | `kulture-api/` residual | Apagado na Fase 0 |
 | 6 | Gateway | **InfinitePay (CloudWalk)**; "Mercado Pago" sai do site |
 | 7 | Bling | **Mock** por enquanto (adapter real atrás de flag quando houver app registrado) |
@@ -22,7 +22,7 @@ Decisões tomadas em 2026-08-15:
 ```
 KULTURE/                         (git, npm workspaces)
 ├─ apps/
-│  ├─ web/                       React + Vite + Tailwind (ex-BuscadorTenis)  :5173  → proxy /api,/media → :3000
+│  ├─ web/                       React + Vite + CSS próprio (ex-BuscadorTenis)  :5173  → proxy /api,/media → :3000
 │  └─ api/                       "kulture-core": Fastify + Prisma/Postgres(Supabase) :3000
 │       src/modules/
 │         catalog/               busca, detalhe, filtro tênis, cache SWR, espelho de imagens
@@ -32,7 +32,7 @@ KULTURE/                         (git, npm workspaces)
 │         orders/                pedidos + máquina de estados + checkout
 │         payments/              PaymentGateway → InfinitePayMock | InfinitePay
 │         invoices/              InvoiceProvider → BlingMock | Bling
-│         jobs/                  fila in-process persistida em SQLite (retry/backoff)
+│         jobs/                  fila in-process persistida no próprio Postgres (retry/backoff)
 │         admin/                 rotas de operação (role admin)
 ├─ services/
 │  └─ nike-scraper/              ex-"kulture-api 2": SÓ fala com a Nike, devolve USD cru   :3001
@@ -43,7 +43,7 @@ KULTURE/                         (git, npm workspaces)
 
 **Por que o scraper continua um processo separado:** é a peça frágil (endpoint não-oficial da Nike, risco de 403 / mudança de formato). Isolado, ele não derruba auth/checkout. Todo o resto é um **monólito modular** com um único banco.
 
-**Fluxo de uma busca:** navegador → `apps/api /api/search?q=` → normaliza query (PT→EN, acentos) → cache SQLite (SWR 1h, stale 24h, single-flight) → `nike-scraper /search` → filtro **só tênis** → precificação (§4) → espelho de imagem → resposta.
+**Fluxo de uma busca:** navegador → `apps/api /api/search?q=` → normaliza query (PT→EN, acentos) → cache Postgres (SWR 1h, stale 24h, single-flight) → `nike-scraper /search` → filtro **só tênis** → precificação (§4) → espelho de imagem → resposta.
 
 ---
 
@@ -86,7 +86,7 @@ KULTURE/                         (git, npm workspaces)
 
 ### 2.7 Transversal
 - `.env` validado por Zod na subida; erros `{ code, message, details }`; pino + request-id; `/health`; OpenAPI em `/docs`; vitest + supertest.
-- `jobs` (tabela SQLite + worker in-process, `attempts`, `run_at`, backoff exponencial).
+- `jobs` (tabela Postgres + worker in-process, `attempts`, `run_at`, backoff exponencial).
 - Admin mínimo (role admin): listar pedidos, forçar transição, reprocessar job de NF, editar regras de preço.
 
 ---
@@ -134,7 +134,7 @@ Fórmula: `subtotalUsd = produto + frete` → `×câmbio` → `imposto = subtota
 | Fase | Entrega | Pronto quando |
 |---|---|---|
 | **0** | Repo git único, workspaces, `services/nike-scraper`, `apps/api` (Fastify + Prisma/Postgres Supabase) com paridade das rotas do BFF antigo, `apps/web` copiado, `packages/shared`, `.env.example`, `kulture-api/` removido | `npm run dev` sobe web+api+scraper; `/health` ok; rotas antigas respondem |
-| **1** | Filtro tênis + query PT→EN + `productType` no scraper + detalhe do produto (tamanhos) + motor de preço modular + cache em SQLite | busca "tênis" só devolve calçado; testes do filtro e do pricing |
+| **1** | Filtro tênis + query PT→EN + `productType` no scraper + detalhe do produto (tamanhos) + motor de preço modular + cache em Postgres | busca "tênis" só devolve calçado; testes do filtro e do pricing |
 | **2** | Auth | registro/login/refresh/me com testes |
 | **3** | Carrinho guest + merge, por styleColor+tamanho | fluxo add → login → carrinho preservado |
 | **4** | Pedidos + checkout + InfinitePay mock + webhook + jobs | pedido chega a `paid` pela página de simulação |

@@ -1,6 +1,6 @@
 import { useState } from "react";
 
-export default function Header({ cartCount, onOpenCart, onOpenLogin, onSearch }) {
+export default function Header({ cartCount, onOpenCart, onOpenLogin, onSearch, user, onLogout }) {
   const [q, setQ] = useState("");
 
   function submit(e) {
@@ -38,9 +38,20 @@ export default function Header({ cartCount, onOpenCart, onOpenLogin, onSearch })
             &#128722;
             <span className="cart-count">{cartCount}</span>
           </button>
-          <button className="btn-login" onClick={onOpenLogin}>
-            Entrar
-          </button>
+          {user ? (
+            <div className="user-menu">
+              <span className="user-greeting" title={user.email}>
+                {user.name.split(" ")[0]}
+              </span>
+              <button className="btn-login btn-logout" onClick={onLogout} title="Sair">
+                Sair
+              </button>
+            </div>
+          ) : (
+            <button className="btn-login" onClick={onOpenLogin}>
+              Entrar
+            </button>
+          )}
         </div>
       </div>
     </header>

@@ -4,7 +4,7 @@ Tênis importados originais. Backend com **Postgres no Supabase** (Prisma ORM).
 Plano completo em [`docs/PLANO.md`](docs/PLANO.md).
 
 ```
-apps/web               React + Vite + Tailwind           http://localhost:5173  (proxy /api,/media → :3000)
+apps/web               React + Vite + CSS próprio         http://localhost:5173  (proxy /api,/media → :3000)
 apps/api               kulture-core: Fastify + Prisma    http://localhost:3000  (docs em /docs)
 services/nike-scraper  busca Nike US + câmbio (isolado)  http://localhost:3001
 packages/shared        motor de precificação, contratos

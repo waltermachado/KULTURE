@@ -3,6 +3,9 @@ import cors from "@fastify/cors";
 import fastifyStatic from "@fastify/static";
 import swagger from "@fastify/swagger";
 import swaggerUi from "@fastify/swagger-ui";
+import fastifyJwt from "@fastify/jwt";
+import fastifyCookie from "@fastify/cookie";
+import rateLimit from "@fastify/rate-limit";
 import { createRequire } from "node:module";
 import { DEFAULT_PRICING_RULES } from "@kulture/shared/pricing";
 
@@ -15,6 +18,7 @@ import { createScraperClient } from "./modules/catalog/scraper-client.js";
 import { createCatalogService } from "./modules/catalog/service.js";
 import { catalogRoutes } from "./modules/catalog/routes.js";
 import { healthRoutes } from "./modules/health/routes.js";
+import { authRoutes } from "./modules/auth/routes.js";
 
 const require = createRequire(import.meta.url);
 const pkg = require("../package.json");
@@ -64,6 +68,14 @@ export async function buildApp(overrides = {}) {
     await app.register(cors, { origin: env.CORS_ORIGINS, credentials: true });
   }
 
+  await app.register(fastifyCookie);
+  await app.register(fastifyJwt, { secret: env.JWT_SECRET });
+  await app.register(rateLimit, {
+    max: 30,
+    timeWindow: "1 minute",
+    keyGenerator: (req) => req.ip
+  });
+
   await app.register(fastifyStatic, {
     root: images.storageDir,
     prefix: `${env.MEDIA_BASE.replace(/\/$/, "")}/`,
@@ -86,6 +98,7 @@ export async function buildApp(overrides = {}) {
   // ---- módulos ----
   await app.register(healthRoutes);
   await app.register(catalogRoutes);
+  if (prisma) await app.register(authRoutes);
 
   // ---- ciclo de vida ----
   const warm = overrides.warmTop8 ?? env.TOP8_WARM;

@@ -1,5 +1,5 @@
-// Kulture core — Postgres no Supabase. Fase 0: só o cache persistente do catálogo.
-// Fases seguintes adicionam User, Cart, Order, Payment, Invoice, PricingRule, Job...
+// Kulture core — Postgres no Supabase.
+// Fase 0: cache persistente. Fase 2: auth (User + RefreshToken).
 
 generator client {
   provider = "prisma-client-js"
@@ -19,4 +19,42 @@ model CacheEntry {
   updatedAt DateTime @updatedAt
 
   @@map("cache_entries")
+}
+
+// ─── Auth (Fase 2) ───────────────────────────────────────────────────────────
+
+enum Role {
+  customer
+  admin
+}
+
+model User {
+  id            String         @id @default(cuid())
+  email         String         @unique
+  passwordHash  String         @map("password_hash")
+  name          String
+  cpf           String?
+  role          Role           @default(customer)
+  createdAt     DateTime       @default(now()) @map("created_at")
+  updatedAt     DateTime       @updatedAt @map("updated_at")
+  refreshTokens RefreshToken[]
+
+  @@map("users")
+}
+
+/// Refresh tokens com rotação: cada uso gera um novo token e revoga o anterior.
+/// `family` agrupa tokens da mesma sessão para revogar tudo se detectar reutilização.
+model RefreshToken {
+  id        String   @id @default(cuid())
+  token     String   @unique
+  family    String
+  userId    String   @map("user_id")
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  revoked   Boolean  @default(false)
+  expiresAt DateTime @map("expires_at")
+  createdAt DateTime @default(now()) @map("created_at")
+
+  @@index([userId])
+  @@index([family])
+  @@map("refresh_tokens")
 }

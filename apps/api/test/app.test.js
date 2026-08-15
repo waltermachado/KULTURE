@@ -37,10 +37,22 @@ function fakeScraper({ failSearch = false } = {}) {
   };
 }
 
+const TEST_SECRET = "test-jwt-secret-kulture-32chars-long!!";
 const fakeImages = { storageDir: process.cwd(), ensureImages: async (_id, urls) => urls };
 
+function testEnv() {
+  return loadEnv({
+    NODE_ENV: "test",
+    LOG_LEVEL: "silent",
+    TOP8_WARM: "false",
+    CORS_ORIGINS: "",
+    DATABASE_URL: "postgresql://test",
+    JWT_SECRET: TEST_SECRET
+  });
+}
+
 async function makeApp(scraper) {
-  const env = loadEnv({ NODE_ENV: "test", LOG_LEVEL: "silent", TOP8_WARM: "false", CORS_ORIGINS: "" });
+  const env = testEnv();
   const app = await buildApp({ env, scraper, images: fakeImages, persistCache: false, warmTop8: false, logger: false });
   await app.ready();
   return app;

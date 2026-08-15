@@ -36,13 +36,27 @@ function maskCep(v) {
 
 /**
  * Modal de conta: login / esqueci / cadastro / rastreio.
- * Fase 2 liga ao /api/auth; por enquanto os botões só avisam (toast).
+ * Fase 2: login e register ligados ao /api/auth.
  */
-export default function AuthModal({ open, view, onSwitch, onClose, notify }) {
+export default function AuthModal({ open, view, onSwitch, onClose, notify, auth }) {
   const [cep, setCep] = useState("");
   const [addr, setAddr] = useState({ endereco: "", bairro: "", cidade: "", uf: "" });
   const [cepStatus, setCepStatus] = useState("");
   const [tracked, setTracked] = useState(false);
+  const [busy, setBusy] = useState(false);
+
+  // Login fields
+  const [loginEmail, setLoginEmail] = useState("");
+  const [loginPw, setLoginPw] = useState("");
+
+  // Signup fields
+  const [signupName, setSignupName] = useState("");
+  const [signupEmail, setSignupEmail] = useState("");
+  const [signupPhone, setSignupPhone] = useState("");
+  const [signupCpf, setSignupCpf] = useState("");
+  const [signupPw, setSignupPw] = useState("");
+  const [signupPw2, setSignupPw2] = useState("");
+  const [signupTerms, setSignupTerms] = useState(false);
 
   async function buscaCEP() {
     const raw = cep.replace(/\D/g, "");
@@ -64,6 +78,53 @@ export default function AuthModal({ open, view, onSwitch, onClose, notify }) {
     onSwitch(v);
   };
 
+  async function handleLogin(e) {
+    e.preventDefault();
+    if (!loginEmail || !loginPw) return notify("Preencha email e senha");
+    setBusy(true);
+    try {
+      const user = await auth.login(loginEmail, loginPw);
+      notify(`Bem-vindo, ${user.name}! 🔥`);
+      setLoginEmail("");
+      setLoginPw("");
+      onClose();
+    } catch (err) {
+      notify(err.message || "Erro ao fazer login");
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function handleSignup(e) {
+    e.preventDefault();
+    if (!signupName || !signupEmail || !signupPw) return notify("Preencha nome, email e senha");
+    if (signupPw.length < 8) return notify("Senha deve ter no mínimo 8 caracteres");
+    if (signupPw !== signupPw2) return notify("As senhas não coincidem");
+    if (!signupTerms) return notify("Aceite os termos para continuar");
+    setBusy(true);
+    try {
+      const user = await auth.register({
+        email: signupEmail,
+        password: signupPw,
+        name: signupName,
+        cpf: signupCpf || undefined
+      });
+      notify(`Conta criada! Bem-vindo, ${user.name}! 🎉`);
+      setSignupName("");
+      setSignupEmail("");
+      setSignupPhone("");
+      setSignupCpf("");
+      setSignupPw("");
+      setSignupPw2("");
+      setSignupTerms(false);
+      onClose();
+    } catch (err) {
+      notify(err.message || "Erro ao criar conta");
+    } finally {
+      setBusy(false);
+    }
+  }
+
   return (
     <div className={`modal${open ? " open" : ""}`} role="dialog" aria-modal="true" aria-hidden={!open}>
       <div className="modal-header">
@@ -75,17 +136,17 @@ export default function AuthModal({ open, view, onSwitch, onClose, notify }) {
       <div className="modal-title">{TITLES[view]}</div>
 
       {view === "login" && (
-        <div className="tab-panel active">
-          <Field label="E-mail" type="email" placeholder="voce@email.com" />
-          <Field label="Senha" type="password" placeholder="••••••••" />
-          <button className="btn-full" onClick={() => notify("Login será conectado ao backend (Fase 2)")}>
-            Entrar
+        <form className="tab-panel active" onSubmit={handleLogin}>
+          <Field label="E-mail" type="email" placeholder="voce@email.com" value={loginEmail} onChange={(e) => setLoginEmail(e.target.value)} />
+          <Field label="Senha" type="password" placeholder="••••••••" value={loginPw} onChange={(e) => setLoginPw(e.target.value)} />
+          <button className="btn-full" type="submit" disabled={busy}>
+            {busy ? "Entrando..." : "Entrar"}
           </button>
           <div className="link-row">
             <a href="#" onClick={go("forgot")}>Esqueci minha senha</a>
             <a href="#" onClick={go("signup")}>Ainda não tenho cadastro</a>
           </div>
-        </div>
+        </form>
       )}
 
       {view === "forgot" && (
@@ -101,12 +162,12 @@ export default function AuthModal({ open, view, onSwitch, onClose, notify }) {
       )}
 
       {view === "signup" && (
-        <div className="tab-panel active">
-          <Field label="Nome completo" type="text" placeholder="Seu nome" />
-          <Field label="E-mail" type="email" placeholder="voce@email.com" />
+        <form className="tab-panel active" onSubmit={handleSignup}>
+          <Field label="Nome completo" type="text" placeholder="Seu nome" value={signupName} onChange={(e) => setSignupName(e.target.value)} />
+          <Field label="E-mail" type="email" placeholder="voce@email.com" value={signupEmail} onChange={(e) => setSignupEmail(e.target.value)} />
           <div className="row">
-            <Field label="Telefone / WhatsApp" type="tel" placeholder="(11) 90000-0000" />
-            <Field label="CPF" type="text" placeholder="000.000.000-00" />
+            <Field label="Telefone / WhatsApp" type="tel" placeholder="(11) 90000-0000" value={signupPhone} onChange={(e) => setSignupPhone(e.target.value)} />
+            <Field label="CPF" type="text" placeholder="000.000.000-00" value={signupCpf} onChange={(e) => setSignupCpf(e.target.value)} />
           </div>
           <div className="row">
             <Field label="CEP" type="text" placeholder="00000-000" maxLength={9} value={cep} onChange={(e) => setCep(maskCep(e.target.value))} onBlur={buscaCEP} />
@@ -123,21 +184,21 @@ export default function AuthModal({ open, view, onSwitch, onClose, notify }) {
           </div>
           {cepStatus && <small className="cep-status">{cepStatus}</small>}
           <div className="row">
-            <Field label="Senha" type="password" placeholder="Mínimo 8 caracteres" />
-            <Field label="Confirmar senha" type="password" placeholder="••••••••" />
+            <Field label="Senha" type="password" placeholder="Mínimo 8 caracteres" value={signupPw} onChange={(e) => setSignupPw(e.target.value)} />
+            <Field label="Confirmar senha" type="password" placeholder="••••••••" value={signupPw2} onChange={(e) => setSignupPw2(e.target.value)} />
           </div>
           <label className="check">
-            <input type="checkbox" required /> Li e aceito os <a href="#">Termos de Uso</a> e a <a href="#">Política de Privacidade</a>. Autorizo o
+            <input type="checkbox" checked={signupTerms} onChange={(e) => setSignupTerms(e.target.checked)} /> Li e aceito os <a href="#">Termos de Uso</a> e a <a href="#">Política de Privacidade</a>. Autorizo o
             tratamento dos meus dados pessoais para cadastro, processamento de compras e envio de e-mails transacionais (confirmação, rastreio e
             nota fiscal), conforme a LGPD (Lei 13.709/2018).
           </label>
-          <button className="btn-full" onClick={() => notify("Cadastro será conectado ao backend (Fase 2)")}>
-            Criar conta
+          <button className="btn-full" type="submit" disabled={busy}>
+            {busy ? "Criando conta..." : "Criar conta"}
           </button>
           <a className="back-link" href="#" onClick={go("login")}>
             &#8592; Já tenho conta, voltar para o login
           </a>
-        </div>
+        </form>
       )}
 
       {view === "track" && (
