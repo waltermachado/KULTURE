@@ -53,10 +53,16 @@ export async function buildApp(overrides = {}) {
     prisma,
     log: app.log
   });
+  const sizesCache = createSwrCache({
+    freshMs: env.SIZES_CACHE_MIN * 60_000,
+    staleMs: env.SIZES_CACHE_MIN * 60_000 * 2,
+    prisma: null, // TTL curto, não vale a pena persistir no banco (sizes expira rápido)
+    log: app.log
+  });
   const scraper = overrides.scraper ?? createScraperClient({ baseUrl: env.SCRAPER_URL });
   const images = overrides.images ?? createImageMirror({ publicBase: env.MEDIA_BASE, log: app.log });
   const rules = overrides.pricingRules ?? DEFAULT_PRICING_RULES; // Fase 1: tabela PricingRule
-  const catalog = createCatalogService({ scraper, cache, images, rules, top8Terms: env.TOP8_TERMS, log: app.log });
+  const catalog = createCatalogService({ scraper, cache, sizesCache, images, rules, top8Terms: env.TOP8_TERMS, log: app.log });
 
   app.decorate("prisma", prisma);
   app.decorate("cache", cache);

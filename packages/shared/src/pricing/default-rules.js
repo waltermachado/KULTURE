@@ -30,7 +30,7 @@ export const DEFAULT_PRICING_RULES = [
     scope: "global",
     match: null,
     commission: { rate: 0.3 },
-    shippingUsd: 15.0,
+    shippingUsd: 65.0,
     // ⚠️ valor de partida — ajustar com o contador (regime de importação real do negócio).
     importDutyRate: 0.0,
     paymentFeeRate: 0.0,

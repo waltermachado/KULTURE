@@ -10,13 +10,15 @@ import {
 const product = { brand: "Nike", name: "Nike Kobe 6 Protro", styleColor: "CW2288-111", priceUsd: 190 };
 
 describe("calculateFinalPrice (regra padrão)", () => {
-  it("aplica 30% de comissão + frete de US$15 sem imposto", () => {
+  it("aplica 30% de comissão + frete de US$65 sem imposto", () => {
     const r = calculateFinalPrice({ product, exchangeRate: 5 });
-    expect(r.costs.subtotalUsd).toBe(205);
-    expect(r.costs.subtotalBrl).toBe(1025);
+    // (190 + 65) = 255 USD → ×5 = 1275 BRL → +30% = 1657.5
+    expect(r.costs.shippingUsd).toBe(65);
+    expect(r.costs.subtotalUsd).toBe(255);
+    expect(r.costs.subtotalBrl).toBe(1275);
     expect(r.costs.importDutyBrl).toBe(0);
-    expect(r.costs.commissionBrl).toBe(307.5);
-    expect(r.costs.finalPriceBrl).toBe(1332.5);
+    expect(r.costs.commissionBrl).toBe(382.5);
+    expect(r.costs.finalPriceBrl).toBe(1657.5);
     expect(r.rulesApplied.commissionRate).toBe(0.3);
     expect(r.rulesApplied.matchedRuleIds).toEqual(["default"]);
   });

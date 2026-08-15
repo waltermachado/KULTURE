@@ -27,6 +27,7 @@ const schema = z.object({
   MEDIA_BASE: z.string().default("/media/produtos"),
   CACHE_FRESH_MIN: z.coerce.number().positive().default(60),
   CACHE_STALE_MIN: z.coerce.number().positive().default(1440),
+  SIZES_CACHE_MIN: z.coerce.number().positive().default(10),
   TOP8_TERMS: z
     .string()
     .default("Kobe 10 Protro,Kobe IX Elite Low EM Protro,Kobe III Protro,Sabrina 3,LeBron XXIII,Book 2,Air Jordan 1 Low OG,G.T. Cut 3")

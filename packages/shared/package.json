@@ -6,7 +6,8 @@
   "description": "Código compartilhado entre api e web: motor de precificação, contratos, utilitários.",
   "exports": {
     ".": "./src/index.js",
-    "./pricing": "./src/pricing/index.js"
+    "./pricing": "./src/pricing/index.js",
+    "./sizes": "./src/sizes/index.js"
   },
   "scripts": {
     "test": "vitest run"

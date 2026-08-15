@@ -79,9 +79,13 @@ export function createScraperClient({ baseUrl, timeoutMs = 20_000, fetchImpl = f
     };
   }
 
+  async function getProductDetail(styleColor) {
+    return get(`/product/${encodeURIComponent(styleColor)}`);
+  }
+
   async function health() {
     return get("/health");
   }
 
-  return { search, findOne, rate, health };
+  return { search, findOne, rate, getProductDetail, health };
 }

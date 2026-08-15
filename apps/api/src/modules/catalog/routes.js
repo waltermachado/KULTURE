@@ -62,13 +62,19 @@ export async function catalogRoutes(app) {
     {
       schema: {
         tags: ["catalog"],
-        summary: "Detalhe de um produto por termo/slug (Fase 1: por styleColor com tamanhos)",
+        summary: "Detalhe de um produto com tamanhos",
         params: { type: "object", properties: { term: { type: "string", minLength: 1 } } }
       }
     },
     async (req) => {
-      const result = await catalog.findOne(req.params.term);
+      // Usaremos o novo getProductSizes que traz os tamanhos
+      const result = await catalog.getProductSizes(req.params.term);
       if (!result.product) throw AppError.notFound("Produto não encontrado");
+      
+      // Filtra os indisponíveis a menos que ?all=true
+      if (req.query.all !== 'true') {
+        result.product.sizes = result.product.sizes.filter(s => s.available);
+      }
       return result;
     }
   );

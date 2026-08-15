@@ -27,6 +27,15 @@ function fakeScraper({ failSearch = false } = {}) {
     async findOne() {
       return RAW;
     },
+    async getProductDetail() {
+      return {
+        ...RAW,
+        sizes: [
+          { nikeSize: "10.5", localizedSize: "M 10.5 / W 12", available: true, level: "HIGH" },
+          { nikeSize: "11", localizedSize: "M 11 / W 12.5", available: false, level: "OOS" }
+        ]
+      };
+    },
     async rate() {
       calls.rate++;
       return { pair: "USD-BRL", bid: 4.99, ask: 5, timestamp: "2026-08-15 10:00:00" };
@@ -80,7 +89,7 @@ describe("apps/api", () => {
     expect(res.json().code).toBe("VALIDATION_ERROR");
   });
 
-  it("GET /api/search precifica no core (30% + US$15) e cacheia", async () => {
+  it("GET /api/search precifica no core (30% + US$65) e cacheia", async () => {
     const first = await app.inject({ method: "GET", url: "/api/search?q=Kobe%206" });
     expect(first.statusCode).toBe(200);
     const body = first.json();
@@ -90,9 +99,9 @@ describe("apps/api", () => {
     const p = body.products[0];
     expect(p.brand).toBe("Nike");
     expect(p.category).toBe("basketball");
-    // (190 + 15) * 5 = 1025 → +30% = 1332.5
-    expect(p.price.brl).toBe(1332.5);
-    expect(p.price.breakdown.commissionBrl).toBe(307.5);
+    // (190 + 65) * 5 = 1275 → +30% = 1657.5
+    expect(p.price.brl).toBe(1657.5);
+    expect(p.price.breakdown.commissionBrl).toBe(382.5);
     expect(p.price.rulesApplied.matchedRuleIds).toEqual(["default"]);
 
     const second = await app.inject({ method: "GET", url: "/api/search?q=kobe%206" });
@@ -102,6 +111,7 @@ describe("apps/api", () => {
 
   it("GET /api/product/:term devolve o produto", async () => {
     const res = await app.inject({ method: "GET", url: "/api/product/kobe-6" });
+    if (res.statusCode !== 200) console.log(res.json());
     expect(res.statusCode).toBe(200);
     expect(res.json().product.styleColor).toBe("CW2288-111");
   });

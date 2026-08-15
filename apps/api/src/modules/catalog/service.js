@@ -3,10 +3,11 @@
  */
 import { normalizeQuery } from "../../lib/normalize-query.js";
 import { toProduct } from "./normalize.js";
+import { convertUsToBr } from "@kulture/shared/sizes";
 
 const RATE_KEY = "rate:USD-BRL";
 
-export function createCatalogService({ scraper, cache, images, rules, top8Terms = [], log = null }) {
+export function createCatalogService({ scraper, cache, sizesCache, images, rules, top8Terms = [], log = null }) {
   async function getRate() {
     // câmbio fica no mesmo cache SWR (fresco 1h; stale se o scraper cair)
     const { value } = await cache.getOrFetch(RATE_KEY, () => scraper.rate());
@@ -77,5 +78,27 @@ export function createCatalogService({ scraper, cache, images, rules, top8Terms 
     }
   }
 
-  return { search, findOne, top8, warmTop8, getRate };
+  async function getProductSizes(styleColor) {
+    const { value, cached, stale } = await sizesCache.getOrFetch(`sizes:${styleColor}`, async () => {
+      const [raw, rate] = await Promise.all([scraper.getProductDetail(styleColor), getRate()]);
+      const enriched = await enrich(raw, rate);
+      // Converte os tamanhos usando o shared/sizes
+      const sizes = (raw.sizes || []).map(s => {
+        const { brSize, approximate } = convertUsToBr(s.nikeSize, s.localizedSize, raw.genders || []);
+        return {
+          nikeSize: s.nikeSize,
+          localizedSize: s.localizedSize,
+          brSize,
+          brLabel: brSize ? String(brSize) : null,
+          available: s.available,
+          level: s.level,
+          approximate
+        };
+      });
+      return { ...enriched, sizes };
+    });
+    return { cached, stale, product: value };
+  }
+
+  return { search, findOne, getProductSizes, top8, warmTop8, getRate };
 }
