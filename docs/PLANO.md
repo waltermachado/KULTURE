@@ -10,7 +10,7 @@ Decisões tomadas em 2026-08-15:
 | 1 | Frontend que segue | **React/Vite** (origem: `Projetos Trae/BuscadorTenis`), migrando o visual do esboço vanilla |
 | 2 | Regra de preço | **30% comissão + frete + imposto**, modular por produto/faixa (ver §4) |
 | 3 | Checkout | **Convidado liberado**, carrinho mesclado ao logar |
-| 4 | Banco / repo | **SQLite + Prisma**; **um único repo git** em `~/Desktop/KULTURE` com npm workspaces |
+| 4 | Banco / repo | **Postgres no Supabase** (Prisma); SQLite ficou só como histórico. **Um único repo git** em `~/Desktop/KULTURE` com npm workspaces |
 | 5 | `kulture-api/` residual | Apagado na Fase 0 |
 | 6 | Gateway | **InfinitePay (CloudWalk)**; "Mercado Pago" sai do site |
 | 7 | Bling | **Mock** por enquanto (adapter real atrás de flag quando houver app registrado) |
@@ -23,7 +23,7 @@ Decisões tomadas em 2026-08-15:
 KULTURE/                         (git, npm workspaces)
 ├─ apps/
 │  ├─ web/                       React + Vite + Tailwind (ex-BuscadorTenis)  :5173  → proxy /api,/media → :3000
-│  └─ api/                       "kulture-core": Fastify + Prisma/SQLite      :3000
+│  └─ api/                       "kulture-core": Fastify + Prisma/Postgres(Supabase) :3000
 │       src/modules/
 │         catalog/               busca, detalhe, filtro tênis, cache SWR, espelho de imagens
 │         pricing/               regras de preço modulares (§4)
@@ -91,7 +91,7 @@ KULTURE/                         (git, npm workspaces)
 
 ---
 
-## 3. Modelo de dados (Prisma / SQLite)
+## 3. Modelo de dados (Prisma / Postgres no Supabase)
 
 `User` · `RefreshToken` · `ProductCache` · `ExchangeRate` · `PricingRule` · `Cart` · `CartItem` · `Address` · `Order` · `OrderItem` · `OrderEvent` · `Payment` · `PaymentEvent` · `Invoice` · `IntegrationToken` · `Job` · `IdempotencyKey`
 
@@ -133,7 +133,7 @@ Fórmula: `subtotalUsd = produto + frete` → `×câmbio` → `imposto = subtota
 
 | Fase | Entrega | Pronto quando |
 |---|---|---|
-| **0** | Repo git único, workspaces, `services/nike-scraper`, `apps/api` (Fastify + Prisma/SQLite) com paridade das rotas do BFF antigo, `apps/web` copiado, `packages/shared`, `.env.example`, `kulture-api/` removido | `npm run dev` sobe web+api+scraper; `/health` ok; rotas antigas respondem |
+| **0** | Repo git único, workspaces, `services/nike-scraper`, `apps/api` (Fastify + Prisma/Postgres Supabase) com paridade das rotas do BFF antigo, `apps/web` copiado, `packages/shared`, `.env.example`, `kulture-api/` removido | `npm run dev` sobe web+api+scraper; `/health` ok; rotas antigas respondem |
 | **1** | Filtro tênis + query PT→EN + `productType` no scraper + detalhe do produto (tamanhos) + motor de preço modular + cache em SQLite | busca "tênis" só devolve calçado; testes do filtro e do pricing |
 | **2** | Auth | registro/login/refresh/me com testes |
 | **3** | Carrinho guest + merge, por styleColor+tamanho | fluxo add → login → carrinho preservado |

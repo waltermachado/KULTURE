@@ -1,4 +1,4 @@
-// Kulture core — SQLite local. Fase 0: só o cache persistente do catálogo.
+// Kulture core — Postgres no Supabase. Fase 0: só o cache persistente do catálogo.
 // Fases seguintes adicionam User, Cart, Order, Payment, Invoice, PricingRule, Job...
 
 generator client {
@@ -6,8 +6,9 @@ generator client {
 }
 
 datasource db {
-  provider = "sqlite"
-  url      = env("DATABASE_URL")
+  provider  = "postgresql"
+  url       = env("DATABASE_URL")
+  directUrl = env("DIRECT_URL")
 }
 
 /// Cache genérico chave→JSON usado pelo SWR do catálogo (sobrevive a restart).

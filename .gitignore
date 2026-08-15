@@ -21,3 +21,6 @@ services/nike-scraper/data/
 .codex/
 .impeccable/
 skills-lock.json
+
+# supabase CLI
+supabase/.temp/
