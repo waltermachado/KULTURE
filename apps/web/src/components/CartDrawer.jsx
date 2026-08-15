@@ -6,7 +6,7 @@ export default function CartDrawer({ open, onClose, cart, onCheckout }) {
   return (
     <aside className={`drawer${open ? " open" : ""}`} aria-hidden={!open} aria-label="Carrinho">
       <div className="drawer-header">
-        <h3>&#128722; Seu carrinho</h3>
+        <h3>Sua sacola</h3>
         <button className="modal-close" onClick={onClose} aria-label="Fechar carrinho">
           &#10005;
         </button>
@@ -22,10 +22,8 @@ export default function CartDrawer({ open, onClose, cart, onCheckout }) {
               </div>
               <div className="cart-item-info">
                 <b>{item.name}</b>
-                <div style={{ fontSize: '.75rem', color: '#999', margin: '2px 0 4px' }}>
-                  Tamanho: BR {sizeInfo?.brLabel || sizeInfo?.nikeSize} {sizeInfo?.approximate ? '(Aprox)' : ''}
-                </div>
-                <span>{brl(item.price)}</span>
+                <span>TAM BR {sizeInfo?.brLabel || sizeInfo?.nikeSize}{sizeInfo?.approximate ? ' (aprox.)' : ''} · QTD {qty}</span>
+                <span className="line-price">{brl(item.price * qty)}</span>
               </div>
               <div className="qty">
                 <button onClick={() => changeQty(key, -1)} aria-label="Diminuir">
@@ -50,7 +48,7 @@ export default function CartDrawer({ open, onClose, cart, onCheckout }) {
           <b>{brl(total)}</b>
         </div>
         <button className="btn-pay" onClick={onCheckout} disabled={list.length === 0}>
-          Pagar com InfinitePay <small>· Pix ou 12x</small>
+          <span>Finalizar compra</span><small>Pix ou cartão · frete grátis</small>
         </button>
       </div>
     </aside>

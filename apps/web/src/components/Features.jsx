@@ -1,26 +1,54 @@
-const FEATURES = [
-  { ico: "📦", title: "Rastreio integrado", text: "Acompanhe seu pedido logado na sua conta" },
-  { ico: "💳", title: "InfinitePay", text: "Pix, cartão e parcelamento em até 12x" },
-  { ico: "✅", title: "100% originais", text: "Comprados direto das lojas oficiais nos EUA" },
-  { ico: "🔥", title: "Drops semanais", text: "Estoque atualizado toda semana via API" }
+const PROMISES = [
+  { n: "01", t: "Comprado na loja oficial nos EUA", d: "Cada par é adquirido direto da Nike US — sem intermediário, sem réplica." },
+  { n: "02", t: "Preço final fechado", d: "Frete internacional já embutido. O valor do card é o valor que você paga." },
+  { n: "03", t: "Numeração brasileira", d: "Você escolhe no BR; convertemos pela tabela oficial da Nike Brasil." },
+  { n: "04", t: "Compra protegida", d: "Pagamento via InfinitePay (Pix ou cartão) e acompanhamento por e-mail." }
 ];
 
-export default function Features() {
+const CATS = [
+  { n: "01", label: "Basquete", q: "basketball shoes" },
+  { n: "02", label: "Casual", q: "lifestyle shoes" },
+  { n: "03", label: "Corrida", q: "running shoes" }
+];
+
+export default function Features({ onSearch }) {
   return (
-    <div className="features">
-      <div className="features-inner">
-        {FEATURES.map((f) => (
-          <div className="feature" key={f.title}>
-            <div className="ico" aria-hidden="true">
-              {f.ico}
-            </div>
+    <>
+      <div className="cats">
+        {CATS.map((c) => (
+          <button key={c.label} onClick={() => onSearch?.(c.q)}>
             <div>
-              <b>{f.title}</b>
-              <small>{f.text}</small>
+              <span className="n">{c.n}</span>
+              <span className="t">{c.label}</span>
             </div>
-          </div>
+            <span className="arr">↗</span>
+          </button>
         ))}
       </div>
-    </div>
+      <section className="features">
+        <div>
+          <div className="kicker">Garantia Kulture</div>
+          <h2>
+            100% original,
+            <br />
+            importado dos EUA,
+            <br />
+            na sua porta.
+          </h2>
+          <p>Cada par sai da loja oficial e chega com numeração BR e preço final fechado. Se não for original, devolvemos o valor integral.</p>
+        </div>
+        <div className="features-inner">
+          {PROMISES.map((pr) => (
+            <div className="feature" key={pr.n}>
+              <div className="ico">{pr.n}</div>
+              <div>
+                <b>{pr.t}</b>
+                <small>{pr.d}</small>
+              </div>
+            </div>
+          ))}
+        </div>
+      </section>
+    </>
   );
 }

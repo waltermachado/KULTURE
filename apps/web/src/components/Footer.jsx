@@ -1,31 +1,27 @@
-export default function Footer({ onOpenModal }) {
+export default function Footer({ onOpenModal, onSearch }) {
   const link = (view, label) => (
-    <a
-      href="#"
-      onClick={(e) => {
-        e.preventDefault();
-        onOpenModal(view);
-      }}
-    >
-      {label}
-    </a>
+    <button className="foot-link" key={label} onClick={() => onOpenModal(view)}>{label}</button>
+  );
+  const cat = (q, label) => (
+    <button className="foot-link" key={label} onClick={() => onSearch?.(q)}>{label}</button>
   );
   return (
     <footer>
       <div className="footer-inner">
         <div>
-          <span className="footer-logo">Kulture</span>
-          <p className="footer-note">Cultura de rua, basquete e os sneakers mais quentes dos EUA. Direto pra sua porta.</p>
+          <span className="footer-logo"><img src="/logo.png" alt="Kulture BR" /></span>
+          <p className="footer-note">Sneakers de basquete, corrida e casual — curadoria e autenticidade, importados dos EUA com envio para todo o Brasil.</p>
           <div className="footer-tag-wrap">
-            <span className="pay-tag">&#128274; Pagamentos via InfinitePay</span>
+            <a className="footer-btn" href="https://wa.me/5585992578888" target="_blank" rel="noreferrer">WhatsApp</a>
+            <a className="footer-btn" href="https://instagram.com/kulturebr" target="_blank" rel="noreferrer">Instagram</a>
           </div>
         </div>
         <div>
           <h4>Loja</h4>
-          <a href="#drops">Drops</a>
-          <a href="#drops">Basquete</a>
-          <a href="#drops">Lifestyle</a>
-          <a href="#drops">Promoções</a>
+          {cat("basketball shoes", "Basquete")}
+          {cat("lifestyle shoes", "Casual")}
+          {cat("running shoes", "Corrida")}
+          {cat("air jordan", "Jordan")}
         </div>
         <div>
           <h4>Conta</h4>
@@ -34,15 +30,18 @@ export default function Footer({ onOpenModal }) {
           {link("track", "Rastrear pedido")}
         </div>
         <div>
-          <h4>Ajuda</h4>
-          <a href="#">Trocas e devoluções</a>
-          <a href="#">Prazos de entrega</a>
-          <a href="#">Fale conosco</a>
+          <h4>Contato</h4>
+          <a href="tel:+5585992578888">(85) 99257-8888</a>
+          <a href="mailto:contato@kulturebr.com">contato@kulturebr.com</a>
+          <span className="foot-link" style={{ cursor: "default" }}>Seg a Sex · 9h às 18h</span>
+          <div className="pays">
+            {["PIX", "VISA", "MASTER", "ELO", "AMEX"].map((p) => <span key={p}>{p}</span>)}
+          </div>
         </div>
       </div>
       <div className="footer-bottom">
-        <span>© {new Date().getFullYear()} Kulture. Todos os direitos reservados.</span>
-        <span>Preços em BRL já incluem frete internacional e comissão · câmbio ao vivo</span>
+        <span>Kulture BR LTDA · 64.579.440/0001-28</span>
+        <span>© {new Date().getFullYear()} · Todos os direitos reservados</span>
       </div>
     </footer>
   );

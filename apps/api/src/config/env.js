@@ -7,6 +7,16 @@ const csv = (value) =>
     .map((s) => s.trim())
     .filter(Boolean);
 
+const cleanUrl = (v) => String(v ?? "").trim().replace(/^["']|["']$/g, "").replace(/\/+$/, "");
+const publicUrl = (fallback) =>
+  z.preprocess((v) => {
+    let cleaned = cleanUrl(v);
+    if (/[<>]/.test(cleaned)) cleaned = ""; // placeholder tipo https://<<dominio>> não é valor
+    if (cleaned) return /^https?:\/\//i.test(cleaned) ? cleaned : `https://${cleaned}`;
+    const railway = cleanUrl(process.env.RAILWAY_PUBLIC_DOMAIN);
+    return railway ? `https://${railway}` : fallback;
+  }, z.string().url());
+
 const schema = z.object({
   NODE_ENV: z.enum(["development", "test", "production"]).default("development"),
   PORT: z.coerce.number().int().positive().default(3000),
@@ -46,8 +56,10 @@ const schema = z.object({
   PAYMENT_PROVIDER: z.enum(["mock", "infinitepay"]).default("mock"),
   INFINITEPAY_HANDLE: z.string().default("kulture-br"),
   INFINITEPAY_API_BASE: z.string().url().default("https://api.checkout.infinitepay.io"),
-  PUBLIC_WEB_URL: z.string().url().default("http://localhost:5173"),
-  PUBLIC_API_URL: z.string().url().default("http://localhost:3000"),
+  // URLs públicas: tolera aspas/espaços/barra final; se vazias, usa o domínio que o Railway injeta
+  // (RAILWAY_PUBLIC_DOMAIN) e, por último, localhost.
+  PUBLIC_WEB_URL: publicUrl("http://localhost:5173"),
+  PUBLIC_API_URL: publicUrl("http://localhost:3000"),
 
   // ---- notifications ----
   // ---- e-mail transacional (MailerSend via API HTTP) ----

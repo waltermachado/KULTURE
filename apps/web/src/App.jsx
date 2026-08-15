@@ -126,12 +126,12 @@ export default function App() {
         onLogout={handleLogout}
       />
       <Routes>
-        <Route path="/" element={<Home grid={grid} setSelectedProductForSize={setSelectedProductForSize} />} />
+        <Route path="/" element={<Home grid={grid} setSelectedProductForSize={setSelectedProductForSize} onSearch={(q) => { search(q); document.getElementById("drops")?.scrollIntoView({ behavior: "smooth" }); }} />} />
         <Route path="/checkout" element={<Checkout cart={cart} auth={auth} notify={notify} />} />
         <Route path="/pedido/confirmacao" element={<Confirmation auth={auth} />} />
         <Route path="/mock/infinitepay/:number" element={<MockInfinitePay />} />
       </Routes>
-      <Footer onOpenModal={openModal} />
+      <Footer onOpenModal={openModal} onSearch={(q) => { search(q); navigate('/'); }} />
 
       <div className={`overlay${overlayOpen ? " open" : ""}`} onClick={closeAll} />
       <AuthModal open={modal.open} view={modal.view} onSwitch={(view) => setModal({ open: true, view })} onClose={closeAll} notify={notify} auth={auth} />

@@ -3,13 +3,15 @@ import Marquee from "../components/Marquee.jsx";
 import ProductGrid from "../components/ProductGrid.jsx";
 import Features from "../components/Features.jsx";
 
-export default function Home({ grid, setSelectedProductForSize }) {
+export default function Home({ grid, setSelectedProductForSize, onSearch }) {
+  // destaque do hero = 1º produto do top8 (só quando não é resultado de busca)
+  const featured = grid.status === "ok" && !grid.query ? grid.products[0] : null;
   return (
     <>
-      <Hero />
+      <Hero featured={featured} onPick={setSelectedProductForSize} />
       <Marquee />
       <ProductGrid state={grid} onAdd={setSelectedProductForSize} />
-      <Features />
+      <Features onSearch={onSearch} />
     </>
   );
 }

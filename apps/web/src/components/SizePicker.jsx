@@ -31,9 +31,9 @@ export function SizePicker({ item, onClose, onAdd }) {
   return (
     <>
       <div className="overlay open" onClick={onClose} aria-hidden="true"></div>
-      <div className="modal open" style={{ maxWidth: '400px' }} role="dialog" aria-modal="true" aria-labelledby="sz-title">
+      <div className="modal open modal-wide" role="dialog" aria-modal="true" aria-labelledby="sz-title">
         <div className="modal-header">
-          <h3 className="modal-title" id="sz-title" style={{ padding: 0 }}>Tamanho <em>Brasil</em></h3>
+          <h3 className="modal-title" id="sz-title" style={{ padding: 0, fontSize: 12, letterSpacing: ".24em", color: "var(--yellow)" }}>Escolha o tamanho <em>· numeração BR</em></h3>
           <button className="modal-close" onClick={onClose} aria-label="Fechar modal">×</button>
         </div>
         <div className="tab-panel active">
@@ -42,9 +42,23 @@ export function SizePicker({ item, onClose, onAdd }) {
           
           {product && (
             <div className="size-picker">
+              {/* foto do tênis escolhido no topo */}
+              <div className="sp-hero">
+                <div className="sp-hero-img">
+                  {(item.img || product.images?.[0]) ? (
+                    <img src={item.img || product.images[0]} alt={product.name} />
+                  ) : null}
+                </div>
+                <div className="sp-hero-info">
+                  <span className="card-brand">{item.brand || "Nike"}</span>
+                  <h4>{product.name}</h4>
+                  {product.subtitle && <span className="sp-sub">{product.subtitle}</span>}
+                  {item.price != null && <span className="price">{Number(item.price).toLocaleString("pt-BR", { style: "currency", currency: "BRL" })}</span>}
+                </div>
+              </div>
               <div className="sp-header">
-                <h4 style={{ margin: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', maxWidth: '240px' }}>{product.name}</h4>
-                <span>Numeração BR</span>
+                <span>Escolha o tamanho</span>
+                <span>Numeração BR (US abaixo)</span>
               </div>
               
               <div className="size-grid">
@@ -60,6 +74,7 @@ export function SizePicker({ item, onClose, onAdd }) {
                       aria-label={`Tamanho ${s.brLabel || s.nikeSize}${s.approximate ? ' (Aproximado)' : ''}`}
                     >
                       {s.brLabel ? s.brLabel : s.nikeSize}
+                      <span className="us">US {s.nikeSize}</span>
                       {s.approximate && <span className="approx">Aprox.</span>}
                     </button>
                   ))

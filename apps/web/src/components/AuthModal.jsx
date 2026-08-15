@@ -141,7 +141,7 @@ export default function AuthModal({ open, view, onSwitch, onClose, notify, auth 
   return (
     <div className={`modal${open ? " open" : ""}`} role="dialog" aria-modal="true" aria-hidden={!open}>
       <div className="modal-header">
-        <span className="logo">Kulture</span>
+        <span className="logo"><img src="/logo.png" alt="Kulture BR" /></span>
         <button className="modal-close" onClick={onClose} aria-label="Fechar">
           &#10005;
         </button>

@@ -15,6 +15,7 @@ export function toCard(p, i) {
     name: p.name,
     brand: brandLabel,
     subtitle: p.subtitle ?? null,
+    colorDescription: p.colorDescription ?? null,
     price: p.price?.brl ?? null,
     old: p.price?.fullBrl ?? null,
     priceUsd: p.priceUsd ?? null,
