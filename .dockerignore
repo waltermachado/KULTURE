@@ -1,0 +1,24 @@
+# deps e builds (reinstalados/rebuildados na imagem)
+node_modules
+**/node_modules
+apps/web/dist
+coverage
+
+# segredos e dados locais
+.env
+**/.env
+apps/api/storage
+apps/api/prisma/*.db
+services/nike-scraper/data
+*.log
+
+# não vai para a imagem
+.git
+.github
+docs
+supabase
+.DS_Store
+**/.DS_Store
+.agents
+.codex
+.impeccable

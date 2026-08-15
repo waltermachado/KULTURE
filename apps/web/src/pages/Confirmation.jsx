@@ -6,6 +6,11 @@ export default function Confirmation() {
   const [searchParams] = useSearchParams();
   const navigate = useNavigate();
   const orderNumber = searchParams.get("order");
+  // params que a InfinitePay anexa ao redirect_url após o pagamento
+  const transactionNsu = searchParams.get("transaction_nsu");
+  const slug = searchParams.get("slug");
+  const captureMethod = searchParams.get("capture_method");
+  const receiptUrl = searchParams.get("receipt_url");
   
   const [status, setStatus] = useState("loading"); // loading, paid, unpaid, error
   const pollTimer = useRef(null);
@@ -16,9 +21,26 @@ export default function Confirmation() {
       return;
     }
 
+    // 1) Se voltamos da InfinitePay com transaction_nsu/slug, confirmamos ATIVAMENTE via
+    //    POST /confirm (a api chama o payment_check oficial). É o caminho principal —
+    //    o webhook só chega quando a api tiver URL pública.
+    const confirmFromRedirect = async () => {
+      if (!transactionNsu || !slug) return;
+      try {
+        await fetch(`/api/orders/${encodeURIComponent(orderNumber)}/confirm`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ transaction_nsu: transactionNsu, slug, capture_method: captureMethod, receipt_url: receiptUrl })
+        });
+      } catch {
+        /* o polling abaixo continua tentando */
+      }
+    };
+
+    // 2) Polling do status (cobre webhook atrasado e o caso sem params)
     const checkOrder = async () => {
       try {
-        const res = await fetch(`http://localhost:3000/api/orders/${orderNumber}`);
+        const res = await fetch(`/api/orders/${encodeURIComponent(orderNumber)}`);
         if (!res.ok) throw new Error("Pedido não encontrado");
         const order = await res.json();
         
@@ -37,7 +59,7 @@ export default function Confirmation() {
       }
     };
 
-    checkOrder();
+    confirmFromRedirect().finally(checkOrder);
     pollTimer.current = setInterval(checkOrder, 5000); // Polling a cada 5s
 
     return () => clearInterval(pollTimer.current);

@@ -21,6 +21,7 @@ import { healthRoutes } from "./modules/health/routes.js";
 import { authRoutes } from "./modules/auth/routes.js";
 import { createPaymentGateway } from "./modules/payments/gateway.js";
 import { createNotifier } from "./modules/notifications/notifier.js";
+import { createMailer } from "./modules/mail/mailer.js";
 import { createOrderService } from "./modules/orders/service.js";
 import { orderRoutes } from "./modules/orders/routes.js";
 import { startAbandonedCheckoutJob } from "./modules/jobs/abandoned-checkout.js";
@@ -42,6 +43,8 @@ export async function buildApp(overrides = {}) {
       ...(isDev ? { transport: { target: "pino-pretty", options: { translateTime: "HH:MM:ss", ignore: "pid,hostname" } } } : {})
     },
     requestIdHeader: "x-request-id",
+    // atrás do proxy do Railway/Cloudflare, req.ip vem do X-Forwarded-For (rate limit por cliente real)
+    trustProxy: env.TRUST_PROXY,
     ajv: { customOptions: { coerceTypes: true, removeAdditional: false } }
   });
 
@@ -76,7 +79,9 @@ export async function buildApp(overrides = {}) {
 
   const gateway = overrides.gateway ?? createPaymentGateway(env, app.log);
   const notifier = overrides.notifier ?? createNotifier(env, app.log, prisma);
-  const orders = overrides.orders ?? createOrderService(env, prisma, catalog, gateway, notifier, app.log);
+  const mailer = overrides.mailer ?? createMailer(env, app.log);
+  const orders = overrides.orders ?? createOrderService(env, prisma, catalog, gateway, notifier, app.log, mailer);
+  app.decorate("mailer", mailer);
   app.decorate("orders", orders);
 
   // ---- plugins ----

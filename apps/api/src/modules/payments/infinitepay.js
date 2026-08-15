@@ -1,4 +1,4 @@
-import fetch from 'node-fetch';
+// usa o fetch global do Node ≥18 (node-fetch não é dependência do projeto)
 
 export function createInfinitePayGateway(env, log) {
   const BASE_URL = env.INFINITEPAY_API_BASE;

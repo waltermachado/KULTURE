@@ -10,7 +10,7 @@ export function SizePicker({ item, onClose, onAdd }) {
   useEffect(() => {
     const fetchSizes = async () => {
       try {
-        const data = await api.get(`/product/${item.styleColor}`);
+        const data = await api.product(item.styleColor);
         setProduct(data.product);
       } catch (err) {
         setError(err.message || 'Falha ao buscar tamanhos disponíveis.');

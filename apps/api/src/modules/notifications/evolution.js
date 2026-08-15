@@ -1,4 +1,4 @@
-import fetch from 'node-fetch';
+// usa o fetch global do Node ≥18 (node-fetch não é dependência do projeto)
 
 export function createEvolutionNotifier(env, log, prisma) {
   const url = env.EVOLUTION_URL;

@@ -11,6 +11,11 @@ const schema = z.object({
   NODE_ENV: z.enum(["development", "test", "production"]).default("development"),
   PORT: z.coerce.number().int().positive().default(3000),
   HOST: z.string().default("127.0.0.1"),
+  // true atrás de proxy reverso (Railway, Cloudflare): usa X-Forwarded-For como IP do cliente
+  TRUST_PROXY: z
+    .string()
+    .default("false")
+    .transform((v) => ["true", "1", "yes"].includes(v.toLowerCase())),
   LOG_LEVEL: z.enum(["fatal", "error", "warn", "info", "debug", "trace", "silent"]).default("info"),
 
   DATABASE_URL: z.string().min(1),
@@ -45,6 +50,13 @@ const schema = z.object({
   PUBLIC_API_URL: z.string().url().default("http://localhost:3000"),
 
   // ---- notifications ----
+  // ---- e-mail transacional (MailerSend via API HTTP) ----
+  MAIL_PROVIDER: z.enum(["log", "mailersend"]).default("log"),
+  MAILERSEND_API_TOKEN: z.string().default(""),
+  MAILERSEND_API_BASE: z.string().url().default("https://api.mailersend.com/v1"),
+  MAIL_FROM: z.string().default("no-reply@localhost"),
+  MAIL_FROM_NAME: z.string().default("Kulture"),
+
   WHATSAPP_PROVIDER: z.enum(["log", "evolution"]).default("log"),
   WHATSAPP_TO: z.string().default(""), // Opcional no mock
   EVOLUTION_URL: z.string().url().default("http://localhost:8080"),

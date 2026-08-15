@@ -1,6 +1,11 @@
 import { buildApp } from "./app.js";
+import { serveWeb } from "./plugins/serve-web.js";
 
 const app = await buildApp();
+
+// Em produção (Docker/Railway) o front buildado é servido pela própria api (mesma origem).
+// Em dev não faz nada — o Vite serve o front e faz proxy de /api e /media.
+await serveWeb(app);
 
 const close = async (signal) => {
   app.log.info({ signal }, "encerrando");

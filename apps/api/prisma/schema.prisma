@@ -1,4 +1,4 @@
-// Kulture core — Postgres no Supabase.
+// Kulture core — Postgres (Railway em produção).
 // Fase 0: cache persistente. Fase 2: auth (User + RefreshToken).
 
 generator client {

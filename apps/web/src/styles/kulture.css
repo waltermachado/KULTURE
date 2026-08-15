@@ -6,6 +6,8 @@
   --grafite:#1d1d1f;
   --cinza:#2a2a2c;
   --branco:#fafafa;
+  --k-yellow:var(--amarelo); /* alias usado nas páginas de checkout/confirmação */
+  --k-green:#3ddc84;
 }
 *{margin:0;padding:0;box-sizing:border-box}
 body{font-family:'Inter',sans-serif;background:var(--grafite);color:var(--branco);overflow-x:hidden}
@@ -247,3 +249,18 @@ footer a:hover{color:var(--amarelo)}
 .sp-footer button{flex:1;}
 .sp-loading{text-align:center;padding:40px;color:var(--amarelo);font-family:'Permanent Marker',cursive;}
 .sp-error{text-align:center;padding:20px;color:#e33;font-size:.9rem;}
+
+/* ============ CHECKOUT / CONFIRMAÇÃO (páginas com router) ============ */
+.checkout-page{padding:48px 24px 80px;max-width:1100px;margin:0 auto;display:grid;grid-template-columns:1fr 360px;gap:40px;align-items:start}
+.checkout-page h2{font-family:'Archivo Black',sans-serif;text-transform:uppercase;font-size:1.6rem}
+.checkout-page h3{font-family:'Archivo Black',sans-serif;text-transform:uppercase;font-size:.95rem;letter-spacing:.04em}
+.checkout-page .form-section{display:flex;flex-direction:column;gap:10px}
+.checkout-page input{width:100%;background:#111;border:2px solid #333;color:#fff;padding:12px;font-family:inherit;font-size:.95rem}
+.checkout-page input:focus{outline:none;border-color:var(--amarelo)}
+.checkout-page input:disabled,.checkout-page input[readonly]{color:#888}
+.checkout-summary{background:#161616;border:2px solid #000;box-shadow:6px 6px 0 #000;padding:24px;position:sticky;top:96px}
+.checkout-summary img{border:2px solid #000}
+.btn.btn-primary{background:var(--amarelo);color:#111;border:none;font-weight:700;text-transform:uppercase;padding:14px 20px;cursor:pointer;box-shadow:3px 3px 0 #000;font-size:.9rem}
+.btn.btn-primary:hover{background:var(--amarelo-claro)}
+.btn.btn-primary:disabled{opacity:.5;cursor:not-allowed}
+@media(max-width:860px){.checkout-page{grid-template-columns:1fr}.checkout-summary{position:static}}

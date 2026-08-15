@@ -4,6 +4,7 @@ import Header from "./components/Header.jsx";
 import Home from "./pages/Home.jsx";
 import Checkout from "./pages/Checkout.jsx";
 import Confirmation from "./pages/Confirmation.jsx";
+import MockInfinitePay from "./pages/MockInfinitePay.jsx";
 import Footer from "./components/Footer.jsx";
 import AuthModal from "./components/AuthModal.jsx";
 import CartDrawer from "./components/CartDrawer.jsx";
@@ -128,6 +129,7 @@ export default function App() {
         <Route path="/" element={<Home grid={grid} setSelectedProductForSize={setSelectedProductForSize} />} />
         <Route path="/checkout" element={<Checkout cart={cart} auth={auth} notify={notify} />} />
         <Route path="/pedido/confirmacao" element={<Confirmation auth={auth} />} />
+        <Route path="/mock/infinitepay/:number" element={<MockInfinitePay />} />
       </Routes>
       <Footer onOpenModal={openModal} />
 

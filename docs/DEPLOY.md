@@ -1,0 +1,109 @@
+# Deploy — Railway (api + scraper + Postgres)
+
+Topologia em produção — **tudo no Railway**:
+
+```
+Internet ──► kulture-api (Railway, público)  ── serve o front buildado (apps/web/dist) + /api + /media
+                 │  rede privada Railway (IPv6)
+                 ├► kulture-scraper (Railway, SEM domínio público)  ── fala com a Nike US
+                 └► Postgres (Railway plugin)                        ── DATABASE_URL (rede privada)
+```
+
+Por que o front sai da própria api: mesma origem → sem CORS, e o cookie httpOnly do refresh
+funciona com `SameSite=Lax`. Em dev nada muda (Vite serve o front e faz proxy).
+
+Arquivos: `deploy/api.Dockerfile`, `deploy/scraper.Dockerfile`, `deploy/api-entrypoint.sh`
+(roda `prisma migrate deploy` no boot), `deploy/railway.api.json`, `deploy/railway.scraper.json`,
+`.dockerignore`, `apps/api/src/plugins/serve-web.js` (SPA fallback).
+
+---
+
+## 1. Antes do primeiro deploy (uma vez)
+
+- [ ] Repo no GitHub atualizado (`origin/main`).
+- [ ] Gerar um `JWT_SECRET` novo para produção (≥ 32 chars): `openssl rand -base64 48`
+- [ ] Habilitar o **checkout externo** na InfinitePay (necessário para a API de links):
+      https://app.infinitepay.io/external-checkout#configuracoes?enabled=true
+- [ ] MailerSend: domínio do remetente verificado (SPF/DKIM) para `MAIL_FROM` — em trial só envia para o e-mail do admin.
+- [ ] (Recomendado) validar as imagens localmente com Docker rodando:
+  ```bash
+  docker build -f deploy/scraper.Dockerfile -t kulture-scraper .
+  docker build -f deploy/api.Dockerfile     -t kulture-api .
+  ```
+
+## 2. Criar o projeto no Railway
+
+1. **New Project → Deploy from GitHub repo** → `KULTURE`. Isso cria o 1º serviço.
+2. **+ New → Database → Add PostgreSQL**. Ele expõe as variáveis `DATABASE_URL` (privada, `postgres.railway.internal`)
+   e `DATABASE_PUBLIC_URL` (para acessar de fora, ex.: seu Mac em dev).
+3. Renomeie o 1º serviço para **`kulture-scraper`**. Em *Settings*:
+   - **Config-as-code file path**: `deploy/railway.scraper.json` · **Root Directory**: `/`
+   - **Networking**: NÃO gere domínio público (hostname privado fica `kulture-scraper.railway.internal`).
+   - **Variables** (de `services/nike-scraper/.env.example`): `NIKE_SEARCH_URL`, `NIKE_CHANNEL_ID`, `NIKE_CALLER_ID`,
+     `PRODUCT_CACHE_TTL_MIN=60`, `RATE_CACHE_TTL_MIN=60`, `CORS_ORIGINS=*`. (`PORT=3001` já vem do Dockerfile.)
+4. **+ New → GitHub Repo** (mesmo repo) → renomeie para **`kulture-api`**. Em *Settings*:
+   - **Config-as-code file path**: `deploy/railway.api.json` · **Root Directory**: `/`
+   - **Networking → Generate Domain** (este é o domínio do site).
+   - **Volumes → Add volume** montado em `/app/apps/api/storage` (imagens espelhadas persistem; sem volume só re-baixa a cada deploy).
+   - **Variables**:
+
+     | Variável | Valor |
+     |---|---|
+     | `DATABASE_URL` | `${{Postgres.DATABASE_URL}}` (referência ao plugin — rede privada) |
+     | `DIRECT_URL` | *(vazio — o entrypoint usa DATABASE_URL)* |
+     | `JWT_SECRET` | o novo, ≥ 32 chars |
+     | `SCRAPER_URL` | `http://kulture-scraper.railway.internal:3001` |
+     | `PUBLIC_WEB_URL` / `PUBLIC_API_URL` | `https://<domínio gerado>` (o mesmo valor nas duas — mesma origem) |
+     | `MEDIA_BASE` | `/media/produtos` |
+     | `CORS_ORIGINS` | *(vazio)* |
+     | `TOP8_TERMS`, `TOP8_WARM=true`, `CACHE_FRESH_MIN=60`, `CACHE_STALE_MIN=1440`, `SIZES_CACHE_MIN=10` | como no `.env.example` |
+     | `JWT_EXPIRES_IN=15m`, `REFRESH_EXPIRES_DAYS=7`, `LOG_LEVEL=info` | |
+     | `PAYMENT_PROVIDER` | `mock` até validar o link real; depois `infinitepay` |
+     | `INFINITEPAY_HANDLE` | `kulture-br` |
+     | `MAIL_PROVIDER` / `MAILERSEND_API_TOKEN` / `MAIL_FROM` / `MAIL_FROM_NAME` | `mailersend` + token + remetente do domínio verificado |
+     | `WHATSAPP_PROVIDER` | `log` (WhatsApp adiado) |
+     | `TRUST_PROXY=true`, `NODE_ENV=production`, `HOST=0.0.0.0` | já vêm do Dockerfile |
+
+     O Railway injeta `PORT` próprio — a api lê `process.env.PORT`, então funciona.
+
+5. Deploy: o Railway builda os dois Dockerfiles. O `kulture-api` roda `prisma migrate deploy` no boot
+   (cria as tabelas no Postgres novo) e só depois sobe — o healthcheck em `/health` segura o tráfego até lá.
+
+## 3. Verificar
+
+```bash
+API=https://<dominio>.up.railway.app
+curl -s $API/health            # {"ok":true,...,"cache":{"persistent":true}}
+curl -s $API/health/deps       # scraper.ok deve ser true (rede privada funcionando)
+curl -s "$API/api/products/top8" | head -c 300
+open $API                      # site — testar: busca, tamanhos, carrinho, checkout (mock), confirmação
+```
+
+Se `/health/deps` mostrar `scraper.ok:false`: confira `SCRAPER_URL` (hostname privado + porta 3001) e os logs do scraper.
+A rede privada do Railway é IPv6 — o Express do scraper já escuta em `::`.
+
+## 4. Dev local apontando para o Postgres do Railway (opcional)
+
+No `apps/api/.env`, use `DATABASE_URL=<DATABASE_PUBLIC_URL do plugin>` (a URL pública, com host `*.proxy.rlwy.net`).
+Assim dev e produção compartilham o banco — bom para o início, separar depois.
+
+## 5. Deploys seguintes
+
+Push na `main` → Railway rebuilda os dois serviços. Migrações novas são aplicadas no boot da api
+automaticamente (`migrate deploy`). Rollback pelo histórico de deploys do Railway.
+
+## 6. Domínio próprio via Cloudflare (DNS + proxy)
+
+1. Domínio no Cloudflare (nameservers no registrador).
+2. Railway → `kulture-api` → *Networking → Custom Domain* → adicione `www.seudominio.com.br` (mostra o CNAME alvo).
+3. Cloudflare → DNS → **CNAME** `www` → alvo do Railway, proxied (nuvem laranja); SSL/TLS **Full (strict)**.
+4. Atualize `PUBLIC_WEB_URL`/`PUBLIC_API_URL` para `https://www.seudominio.com.br` — isso também liga o
+   webhook da InfinitePay (`webhook_url` só é enviado quando `PUBLIC_API_URL` não é localhost).
+
+## 7. Pendências conhecidas antes de vender de verdade
+
+- **InfinitePay real**: habilitar checkout externo (item 1), trocar `PAYMENT_PROVIDER=infinitepay`, fazer 1 pedido de R$1 e conferir
+  redirect → confirmação (`payment_check`) → e-mail.
+- **`GET /api/orders/:number`** devolve CPF/endereço sem autenticação e o número é adivinhável — mascarar CPF ou exigir token.
+- **Nike de IP de datacenter**: se o scraper começar a receber 403/429 no Railway, rodar o scraper em outro lugar e só apontar `SCRAPER_URL`.
+- Bling (NF) e WhatsApp: adiados (após o Admin).

@@ -101,8 +101,10 @@ describe("apps/api", () => {
     expect(p.category).toBe("basketball");
     // (190 + 65) * 5 = 1275 → +30% = 1657.5
     expect(p.price.brl).toBe(1657.5);
-    expect(p.price.breakdown.commissionBrl).toBe(382.5);
-    expect(p.price.rulesApplied.matchedRuleIds).toEqual(["default"]);
+    // regra do negócio: frete/comissão são embutidos — o breakdown NUNCA sai na resposta pública
+    expect(p.price.breakdown).toBeUndefined();
+    expect(p.price.rulesApplied).toBeUndefined();
+    expect(p.price.exchange.usdToBrl).toBe(5);
 
     const second = await app.inject({ method: "GET", url: "/api/search?q=kobe%206" });
     expect(second.json().cached).toBe(true);

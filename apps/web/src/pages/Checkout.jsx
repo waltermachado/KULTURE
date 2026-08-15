@@ -20,8 +20,10 @@ export default function Checkout({ cart, auth, notify }) {
     complement: ""
   });
 
-  const subtotal = cart.items.reduce((acc, item) => acc + item.unitPriceBrl * item.quantity, 0);
-  const shipping = 0; // Grátis embutido
+  // contrato do useCart: list = [{ key, item, sizeInfo, qty }], total já é a soma dos itens
+  const lines = cart.list ?? [];
+  const subtotal = cart.total ?? 0;
+  const shipping = 0; // frete embutido no preço — cliente vê "Grátis"
 
   const handleChange = (e) => setForm(f => ({ ...f, [e.target.name]: e.target.value }));
 
@@ -48,7 +50,7 @@ export default function Checkout({ cart, auth, notify }) {
 
   const handleSubmit = async (e) => {
     e.preventDefault();
-    if (cart.items.length === 0) return notify("Seu carrinho está vazio");
+    if (lines.length === 0) return notify("Seu carrinho está vazio");
     
     setLoading(true);
     
@@ -56,7 +58,7 @@ export default function Checkout({ cart, auth, notify }) {
     const idempotencyKey = crypto.randomUUID();
 
     const payload = {
-      items: cart.items.map(i => ({ styleColor: i.styleColor, nikeSize: i.nikeSize, quantity: i.quantity })),
+      items: lines.map((l) => ({ styleColor: l.item.styleColor, nikeSize: l.sizeInfo.nikeSize, quantity: l.qty })),
       customer: { name: form.name, email: form.email, phone: form.phone, cpf: form.cpf.replace(/\D/g, "") },
       address: {
         cep: form.cep.replace(/\D/g, ""),
@@ -70,12 +72,15 @@ export default function Checkout({ cart, auth, notify }) {
     };
 
     try {
-      const res = await fetch("http://localhost:3000/api/checkout", {
+      // caminho relativo: em dev o Vite faz proxy de /api; em produção a api serve o front (mesma origem)
+      const token = auth.getToken?.();
+      const res = await fetch("/api/checkout", {
         method: "POST",
+        credentials: "include",
         headers: {
           "Content-Type": "application/json",
           "Idempotency-Key": idempotencyKey,
-          ...(auth.user ? { "Authorization": `Bearer ${auth.token}` } : {}) // envia token se logado
+          ...(auth.user && token ? { Authorization: `Bearer ${token}` } : {}) // envia token se logado
         },
         body: JSON.stringify(payload)
       });
@@ -92,7 +97,7 @@ export default function Checkout({ cart, auth, notify }) {
     }
   };
 
-  if (cart.items.length === 0) {
+  if (lines.length === 0) {
     return (
       <main style={{ padding: "100px 20px", textAlign: "center", minHeight: "60vh" }}>
         <h2>Seu carrinho está vazio.</h2>
@@ -102,7 +107,7 @@ export default function Checkout({ cart, auth, notify }) {
   }
 
   return (
-    <main style={{ padding: "100px 20px", maxWidth: 1000, margin: "0 auto", display: "grid", gridTemplateColumns: "1fr 350px", gap: 40, alignItems: "start" }}>
+    <main className="checkout-page">
       <section>
         <h2 style={{ marginBottom: 24, fontSize: 24 }}>Finalizar Compra</h2>
         <form id="checkout-form" onSubmit={handleSubmit} style={{ display: "flex", flexDirection: "column", gap: 20 }}>
@@ -135,16 +140,16 @@ export default function Checkout({ cart, auth, notify }) {
         </form>
       </section>
 
-      <aside style={{ background: "#111", padding: 24, borderRadius: 12, border: "1px solid #222" }}>
+      <aside className="checkout-summary">
         <h3 style={{ marginBottom: 20 }}>Resumo do Pedido</h3>
         <div style={{ display: "flex", flexDirection: "column", gap: 16, marginBottom: 24 }}>
-          {cart.items.map(item => (
-            <div key={`${item.styleColor}|${item.nikeSize}`} style={{ display: "flex", gap: 12, fontSize: 14 }}>
-              <img src={item.image} alt={item.name} style={{ width: 50, height: 50, objectFit: "cover", borderRadius: 4, background: "#222" }} />
+          {lines.map(({ key, item, sizeInfo, qty }) => (
+            <div key={key} style={{ display: "flex", gap: 12, fontSize: 14 }}>
+              <img src={item.img} alt={item.name} style={{ width: 50, height: 50, objectFit: "cover", borderRadius: 4, background: "#222" }} />
               <div>
                 <div style={{ fontWeight: 600 }}>{item.name}</div>
-                <div style={{ color: "#888", fontSize: 12 }}>Tam: BR {item.brLabel} (US {item.nikeSize}) × {item.quantity}</div>
-                <div style={{ color: "var(--k-yellow)", fontWeight: 700 }}>{brl(item.unitPriceBrl * item.quantity)}</div>
+                <div style={{ color: "#888", fontSize: 12 }}>Tam: BR {sizeInfo?.brLabel ?? "?"} (US {sizeInfo?.nikeSize}) × {qty}</div>
+                <div style={{ color: "var(--k-yellow)", fontWeight: 700 }}>{brl((item.price || 0) * qty)}</div>
               </div>
             </div>
           ))}
@@ -156,7 +161,7 @@ export default function Checkout({ cart, auth, notify }) {
             <span>{brl(subtotal)}</span>
           </div>
           <div style={{ display: "flex", justifyContent: "space-between" }}>
-            <span>Frete (BR/Internacional)</span>
+            <span>Frete</span>
             <span style={{ color: "var(--k-green)" }}>Grátis</span>
           </div>
           <div style={{ display: "flex", justifyContent: "space-between", marginTop: 8, fontSize: 18, fontWeight: 700, color: "var(--k-yellow)" }}>

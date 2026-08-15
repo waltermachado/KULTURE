@@ -1,6 +1,19 @@
 import { AppError } from '../../lib/errors.js';
 
-export function createOrderService(env, prisma, catalog, gateway, notifier, log) {
+import { buildOrderPaidEmail } from "../mail/mailer.js";
+
+export function createOrderService(env, prisma, catalog, gateway, notifier, log, mailer = null) {
+  /** E-mail de confirmação ao cliente (não bloqueia; falha só loga). */
+  async function emailPaid(order) {
+    if (!mailer || !order?.customerEmail) return;
+    try {
+      const { subject, text, html } = buildOrderPaidEmail(order, { siteUrl: env.PUBLIC_WEB_URL });
+      await mailer.send({ to: order.customerEmail, toName: order.customerName, subject, text, html });
+    } catch (err) {
+      log?.warn({ err: err.message, order: order.number }, "mail: falha ao enviar confirmação");
+    }
+  }
+
 
   const formatMsg = (order, text) => {
     let msg = text + `\n\nPedido: *${order.number}*\nCliente: ${order.customerName}\nLocal: ${order.address?.city || ''}/${order.address?.state || ''}\n\n*Itens:*`;
@@ -198,6 +211,7 @@ export function createOrderService(env, prisma, catalog, gateway, notifier, log)
         });
         
         await notify(updatedOrder, 'paid');
+        emailPaid(updatedOrder); // fire-and-forget
         return { paid: true };
       }
       return { paid: false };
@@ -237,6 +251,7 @@ export function createOrderService(env, prisma, catalog, gateway, notifier, log)
             include: { items: true }
           });
           await notify(updatedOrder, 'paid');
+        emailPaid(updatedOrder); // fire-and-forget
         }
       } catch (err) {
         log?.error({ err: err.message, body }, 'Erro no webhook');

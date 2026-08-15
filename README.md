@@ -1,6 +1,6 @@
 # Kulture BR — monorepo
 
-Tênis importados originais. Backend com **Postgres no Supabase** (Prisma ORM).
+Tênis importados originais. Backend Node (Fastify + Prisma/**Postgres**), tudo hospedado no **Railway** (ver `docs/DEPLOY.md`).
 Plano completo em [`docs/PLANO.md`](docs/PLANO.md).
 
 ```
@@ -16,8 +16,8 @@ docs/                  plano + referências (site vanilla antigo, esboço, BFF a
 ```bash
 npm install                                    # instala todos os workspaces
 cp services/nike-scraper/.env.example services/nike-scraper/.env
-cp apps/api/.env.example apps/api/.env         # preencha DATABASE_URL e DIRECT_URL (Supabase)
-npm run db:migrate                             # aplica migrações no Postgres (Supabase)
+cp apps/api/.env.example apps/api/.env         # preencha DATABASE_URL (Postgres do Railway ou local)
+npm run db:migrate                             # aplica migrações no Postgres
 npm run dev                                    # sobe web + api + scraper juntos
 ```
 
