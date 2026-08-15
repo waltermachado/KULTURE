@@ -11,7 +11,7 @@ export async function orderRoutes(app) {
     let userId = null;
     try {
       await req.jwtVerify();
-      userId = req.user.id;
+      userId = req.user.sub; // o JWT carrega o id do usuário em `sub`
     } catch {
       // Guest
     }
@@ -42,7 +42,7 @@ export async function orderRoutes(app) {
     let userId = null;
     try {
       await req.jwtVerify();
-      userId = req.user.id;
+      userId = req.user.sub; // o JWT carrega o id do usuário em `sub`
     } catch {
       // Guest access allowed for confirmation page
     }

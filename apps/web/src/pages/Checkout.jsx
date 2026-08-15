@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { api } from "../lib/api.js";
 import { brl } from "../lib/format.js";
@@ -6,19 +6,27 @@ import { brl } from "../lib/format.js";
 export default function Checkout({ cart, auth, notify }) {
   const navigate = useNavigate();
   const [loading, setLoading] = useState(false);
-  const [form, setForm] = useState({
-    name: auth.user?.name || "",
-    email: auth.user?.email || "",
-    phone: "",
-    cpf: "",
-    cep: "",
-    city: "",
-    state: "",
-    street: "",
-    number: "",
-    neighborhood: "",
-    complement: ""
+  const fromUser = (u) => ({
+    name: u?.name || "",
+    email: u?.email || "",
+    phone: u?.phone || "",
+    cpf: u?.cpf || "",
+    cep: u?.address?.cep || "",
+    city: u?.address?.city || "",
+    state: u?.address?.state || "",
+    street: u?.address?.street || "",
+    number: u?.address?.number || "",
+    neighborhood: u?.address?.neighborhood || "",
+    complement: u?.address?.complement || ""
   });
+  const [form, setForm] = useState(() => fromUser(auth.user));
+
+  // Se a sessão chegar depois (refresh via cookie), pré-preenche só os campos ainda vazios.
+  useEffect(() => {
+    if (!auth.user) return;
+    const u = fromUser(auth.user);
+    setForm((f) => Object.fromEntries(Object.keys(f).map((k) => [k, f[k] || u[k]])));
+  }, [auth.user]);
 
   // contrato do useCart: list = [{ key, item, sizeInfo, qty }], total já é a soma dos itens
   const lines = cart.list ?? [];

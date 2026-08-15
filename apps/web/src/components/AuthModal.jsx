@@ -57,6 +57,8 @@ export default function AuthModal({ open, view, onSwitch, onClose, notify, auth 
   const [signupPw, setSignupPw] = useState("");
   const [signupPw2, setSignupPw2] = useState("");
   const [signupTerms, setSignupTerms] = useState(false);
+  const [signupNumber, setSignupNumber] = useState("");
+  const [signupComplement, setSignupComplement] = useState("");
 
   async function buscaCEP() {
     const raw = cep.replace(/\D/g, "");
@@ -107,7 +109,18 @@ export default function AuthModal({ open, view, onSwitch, onClose, notify, auth 
         email: signupEmail,
         password: signupPw,
         name: signupName,
-        cpf: signupCpf || undefined
+        cpf: signupCpf || undefined,
+        phone: signupPhone || undefined,
+        // endereço vai junto no cadastro para o cliente não digitar de novo no checkout
+        address: {
+          cep: cep.replace(/\D/g, ""),
+          street: addr.endereco,
+          number: signupNumber,
+          complement: signupComplement,
+          neighborhood: addr.bairro,
+          city: addr.cidade,
+          state: addr.uf
+        }
       });
       notify(`Conta criada! Bem-vindo, ${user.name}! 🎉`);
       setSignupName("");
@@ -174,8 +187,8 @@ export default function AuthModal({ open, view, onSwitch, onClose, notify, auth 
             <Field className="f2" label="Endereço" type="text" placeholder="Preenchido pelo CEP" value={addr.endereco} onChange={(e) => setAddr({ ...addr, endereco: e.target.value })} />
           </div>
           <div className="row">
-            <Field label="Número" type="text" placeholder="123" />
-            <Field className="f2" label="Complemento (opcional)" type="text" placeholder="Apto, bloco..." />
+            <Field label="Número" type="text" placeholder="123" value={signupNumber} onChange={(e) => setSignupNumber(e.target.value)} />
+            <Field className="f2" label="Complemento (opcional)" type="text" placeholder="Apto, bloco..." value={signupComplement} onChange={(e) => setSignupComplement(e.target.value)} />
           </div>
           <div className="row">
             <Field label="Bairro" type="text" placeholder="Preenchido pelo CEP" value={addr.bairro} onChange={(e) => setAddr({ ...addr, bairro: e.target.value })} />

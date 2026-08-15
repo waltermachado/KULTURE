@@ -147,6 +147,23 @@ export function createOrderService(env, prisma, catalog, gateway, notifier, log,
           return created;
         });
 
+        // Cliente logado: lembra telefone/CPF/endereço no perfil para não redigitar na próxima compra
+        // (best-effort: falha aqui não pode impedir o checkout).
+        if (userId) {
+          try {
+            await prisma.user.update({
+              where: { id: userId },
+              data: {
+                phone: customer.phone ? String(customer.phone).replace(/\D/g, "") || undefined : undefined,
+                cpf: customer.cpf ? String(customer.cpf).replace(/\D/g, "") || undefined : undefined,
+                address: address && Object.values(address).some(Boolean) ? address : undefined
+              }
+            });
+          } catch (err) {
+            log?.warn({ err: err.message, userId }, "checkout: não foi possível atualizar o perfil");
+          }
+        }
+
         const checkoutLink = await gateway.createCheckoutLink(order);
 
         const updatedOrder = await prisma.order.update({

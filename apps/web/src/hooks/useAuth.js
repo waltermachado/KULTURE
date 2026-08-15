@@ -66,10 +66,10 @@ export function useAuth() {
     return data.user;
   }, [authFetch]);
 
-  const register = useCallback(async ({ email, password, name, cpf }) => {
+  const register = useCallback(async ({ email, password, name, cpf, phone, address }) => {
     const data = await authFetch("/api/auth/register", {
       method: "POST",
-      body: JSON.stringify({ email, password, name, cpf })
+      body: JSON.stringify({ email, password, name, cpf, phone, address })
     });
     tokenRef.current = data.accessToken;
     setUser(data.user);

@@ -44,6 +44,8 @@ export function createAuthService({ prisma, jwtSign, jwtExpiresIn, refreshExpire
       email: user.email,
       name: user.name,
       cpf: user.cpf ?? null,
+      phone: user.phone ?? null,
+      address: user.address ?? null,
       role: user.role,
       createdAt: user.createdAt
     };
@@ -51,7 +53,7 @@ export function createAuthService({ prisma, jwtSign, jwtExpiresIn, refreshExpire
 
   // ─── public API ───────────────────────────────────────────────────────
 
-  async function register({ email: rawEmail, password, name, cpf }) {
+  async function register({ email: rawEmail, password, name, cpf, phone, address }) {
     const email = rawEmail.trim().toLowerCase();
     const exists = await prisma.user.findUnique({ where: { email } });
     if (exists) {
@@ -63,7 +65,14 @@ export function createAuthService({ prisma, jwtSign, jwtExpiresIn, refreshExpire
 
     const passwordHash = await argon2.hash(password);
     const user = await prisma.user.create({
-      data: { email, passwordHash, name, cpf: cpf || null }
+      data: {
+        email,
+        passwordHash,
+        name,
+        cpf: cpf ? String(cpf).replace(/\D/g, "") || null : null,
+        phone: phone ? String(phone).replace(/\D/g, "") || null : null,
+        address: address && typeof address === "object" && Object.values(address).some(Boolean) ? address : null
+      }
     });
 
     const family = randomBytes(16).toString("hex");

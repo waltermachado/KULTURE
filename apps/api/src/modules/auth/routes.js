@@ -57,7 +57,16 @@ export async function authRoutes(app) {
           email: { type: "string", format: "email" },
           password: { type: "string", minLength: 8 },
           name: { type: "string", minLength: 1 },
-          cpf: { type: "string" }
+          cpf: { type: "string" },
+          phone: { type: "string" },
+          address: {
+            type: "object",
+            additionalProperties: false,
+            properties: {
+              cep: { type: "string" }, street: { type: "string" }, number: { type: "string" },
+              complement: { type: "string" }, neighborhood: { type: "string" }, city: { type: "string" }, state: { type: "string" }
+            }
+          }
         }
       }
     }
