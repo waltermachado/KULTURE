@@ -1,0 +1,135 @@
+{
+  "objects": [
+    {
+      "productInfo": [
+        {
+          "merchProduct": {
+            "styleColor": "IO3415-100",
+            "genders": [
+              "MEN"
+            ],
+            "quantityLimit": 1
+          },
+          "productContent": {
+            "title": "Kobe 10 Protro",
+            "subtitle": "Basketball Shoes",
+            "slug": "kobe-10-protro-basketball-shoes-VOj3PAkm",
+            "colorDescription": "White/White/Multi-Color"
+          },
+          "merchPrice": {
+            "currentPrice": 190,
+            "fullPrice": 190,
+            "currency": "USD",
+            "discounted": false
+          },
+          "productUrls": {
+            "sizeChartUrl": "https://www.nike.com/size-fit/mens-footwear"
+          },
+          "availability": {
+            "available": true
+          },
+          "skus": [
+            {
+              "nikeSize": "3.5",
+              "gtin": "00198967093972",
+              "stockKeepingUnitId": "1007019371",
+              "countrySpecifications": [
+                {
+                  "country": "US",
+                  "localizedSize": "M 3.5 / W 5"
+                }
+              ]
+            },
+            {
+              "nikeSize": "4",
+              "gtin": "00198967094115",
+              "stockKeepingUnitId": "1007019364",
+              "countrySpecifications": [
+                {
+                  "country": "US",
+                  "localizedSize": "M 4 / W 5.5"
+                }
+              ]
+            },
+            {
+              "nikeSize": "4.5",
+              "gtin": "00198967093835",
+              "stockKeepingUnitId": "1007019386",
+              "countrySpecifications": [
+                {
+                  "country": "US",
+                  "localizedSize": "M 4.5 / W 6"
+                }
+              ]
+            },
+            {
+              "nikeSize": "5",
+              "gtin": "00198967094085",
+              "stockKeepingUnitId": "1007019367",
+              "countrySpecifications": [
+                {
+                  "country": "US",
+                  "localizedSize": "M 5 / W 6.5"
+                }
+              ]
+            },
+            {
+              "nikeSize": "17",
+              "gtin": "00198967093804",
+              "stockKeepingUnitId": "1007019389",
+              "countrySpecifications": [
+                {
+                  "country": "US",
+                  "localizedSize": "M 17 / W 18.5"
+                }
+              ]
+            },
+            {
+              "nikeSize": "18",
+              "gtin": "00198967094146",
+              "stockKeepingUnitId": "1007019394",
+              "countrySpecifications": [
+                {
+                  "country": "US",
+                  "localizedSize": "M 18 / W 19.5"
+                }
+              ]
+            }
+          ],
+          "availableGtins": [
+            {
+              "gtin": "00198967093972",
+              "available": true,
+              "level": "LOW",
+              "method": "SHIP"
+            },
+            {
+              "gtin": "00198967094115",
+              "available": false,
+              "level": "OOS",
+              "method": "SHIP"
+            },
+            {
+              "gtin": "00198967094085",
+              "available": true,
+              "level": "LOW",
+              "method": "SHIP"
+            },
+            {
+              "gtin": "00198967093804",
+              "available": true,
+              "level": "LOW",
+              "method": "SHIP"
+            },
+            {
+              "gtin": "00198967094146",
+              "available": true,
+              "level": "LOW",
+              "method": "SHIP"
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}

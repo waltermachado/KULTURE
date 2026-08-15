@@ -107,3 +107,72 @@ function normalize(data) {
 
   return items.filter((i) => i.name && i.priceUsd != null);
 }
+
+/**
+ * Busca detalhes completos de um produto e seus tamanhos na API product_feed v3.
+ * Usado para popular a tela de detalhes / carrinho com tamanhos US e disponibilidade.
+ */
+export async function getProductSizes(styleColor) {
+  const channelId = process.env.NIKE_CHANNEL_ID || 'd9a5bc42-4b9c-4976-858a-f159cf99c647';
+  const url = `https://api.nike.com/product_feed/threads/v3/?filter=marketplace(US)&filter=language(en)&filter=channelId(${channelId})&filter=productInfo.merchProduct.styleColor(${styleColor})`;
+
+  const res = await fetch(url, { headers: HEADERS, signal: AbortSignal.timeout(15_000) });
+  if (!res.ok) {
+    throw Object.assign(new Error(`Nike Feed API respondeu ${res.status}`), { status: res.status });
+  }
+  
+  const data = await res.json();
+  const objects = data?.objects || [];
+  
+  if (objects.length === 0) {
+    throw Object.assign(new Error('Sizes unavailable for this styleColor'), { status: 404, code: 'SIZES_UNAVAILABLE' });
+  }
+
+  const obj = objects[0];
+  const info = obj.productInfo?.[0];
+  if (!info) {
+    throw Object.assign(new Error('Product info missing'), { status: 404, code: 'SIZES_UNAVAILABLE' });
+  }
+
+  const merch = info.merchProduct || {};
+  const content = info.productContent || {};
+  const price = info.merchPrice || {};
+  
+  const availableGtins = info.availableGtins || [];
+  // Tolera availableSkus se o formato mudar
+  const availableSkus = info.availableSkus || [];
+  
+  const skus = info.skus || [];
+  const sizes = skus.map(sku => {
+    // Tenta casar por gtin primeiro, senão por skuId
+    const availGtin = availableGtins.find(g => g.gtin === sku.gtin);
+    const availSku = availableSkus.find(s => s.skuId === sku.id || s.skuId === sku.stockKeepingUnitId);
+    
+    const available = availGtin ? availGtin.available : (availSku ? availSku.available : false);
+    const level = availGtin ? availGtin.level : (availSku ? availSku.level : 'OOS');
+    
+    return {
+      nikeSize: sku.nikeSize,
+      localizedSize: sku.countrySpecifications?.[0]?.localizedSize || null,
+      gtin: sku.gtin,
+      skuId: sku.id || sku.stockKeepingUnitId,
+      available,
+      level
+    };
+  });
+
+  return {
+    styleColor: merch.styleColor,
+    name: content.title,
+    subtitle: content.subtitle,
+    colorDescription: content.colorDescription,
+    genders: merch.genders || [],
+    priceUsd: price.currentPrice,
+    fullPriceUsd: price.fullPrice,
+    onSale: Boolean(price.discounted),
+    sizeChartUrl: info.productUrls?.sizeChartUrl || null,
+    isLaunch: Boolean(info.launchView),
+    images: info.imageUrls?.productImageUrl ? [info.imageUrls.productImageUrl] : [],
+    sizes
+  };
+}

@@ -21,23 +21,39 @@ API sobe em `http://localhost:3001`.
 |---|---|
 | `GET /health` | Status da API e do cache |
 | `GET /rate` | Cotação USD-BRL (AwesomeAPI, cache de 1h) |
-| `GET /search?q=jordan` | Busca na Nike US com preço já convertido em BRL + margem |
 
-Parâmetros de `/search`: `q` (obrigatório), `count` (a Nike só aceita **24, 50 ou 100** — outros valores são arredondados para cima), `anchor` (paginação), `convert=false` (desliga conversão — é assim que a `apps/api` chama; o preço é calculado no core).
+### 2. Buscar Produtos
+**`GET /search?q=jordan&count=24&anchor=0`**
 
-Exemplo de item retornado:
-
+Retorna resultados da Nike normalizados:
 ```json
 {
-  "id": "...",
-  "styleColor": "DZ5485-612",
-  "name": "Air Jordan 1 Retro High OG",
-  "priceUsd": 180,
-  "price": { "usd": 180, "brl": 972.0, "brlWithMargin": 1312.2, "marginPercent": 35, "rateUsed": 5.4 },
-  "image": "https://...",
-  "url": "https://www.nike.com/t/..."
+  "term": "jordan",
+  "total": 142,
+  "products": [ ... ],
+  "cached": false
 }
 ```
+
+### 3. Detalhes e Tamanhos de um Produto
+**`GET /product/:styleColor`**
+
+Bate no feed de produto da Nike (ex.: `IO3415-100`) para buscar as imagens, dados do produto e lista de tamanhos (`sizes`) com as disponibilidades precisas:
+```json
+{
+  "styleColor": "IO3415-100",
+  "name": "Kobe 10 Protro",
+  "price": { "usd": 180, "brl": 972.0, "brlWithMargin": 1312.2, "marginPercent": 35, "rateUsed": 5.4 },
+  "image": "https://...",
+  "url": "https://www.nike.com/t/...",
+  "sizes": [
+    { "nikeSize": "10.5", "localizedSize": "M 10.5 / W 12", "available": true, "level": "HIGH" }
+  ]
+}
+```
+
+## Cache Interno
+O scraper possui um cache em memória ultra-rápido (`lru-cache`) para os endpoints de busca: 60 min. Cotação: 60 min. Configurável no `.env`. Se escalar, trocar por Redis é só substituir `src/cache.js`.
 
 ## Fontes de dados
 

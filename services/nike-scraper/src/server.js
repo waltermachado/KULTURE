@@ -1,7 +1,7 @@
 import 'dotenv/config';
 import express from 'express';
 import cors from 'cors';
-import { searchProducts, normalizeCount } from './services/nike.js';
+import { searchProducts, normalizeCount, getProductSizes } from './services/nike.js';
 import { getUsdBrlRate, convertPrice } from './services/currency.js';
 import { cacheStats } from './cache.js';
 
@@ -64,6 +64,24 @@ app.get('/search', async (req, res) => {
         err.status === 403
           ? 'A Nike pode ter bloqueado o endpoint/headers. Verifique NIKE_SEARCH_URL e NIKE_CALLER_ID no .env (veja o README).'
           : undefined,
+    });
+  }
+});
+
+// --- Detalhes do produto e tamanhos ------------------------------------------
+app.get('/product/:styleColor', async (req, res) => {
+  const { styleColor } = req.params;
+  try {
+    const product = await getProductSizes(styleColor);
+    res.json(product);
+  } catch (err) {
+    if (err.status === 404) {
+      return res.status(404).json({ error: err.message, code: err.code });
+    }
+    const status = err.status === 403 || err.status === 429 ? 503 : 502;
+    res.status(status).json({
+      error: 'Falha ao buscar produto na Nike US',
+      detail: err.message
     });
   }
 });
