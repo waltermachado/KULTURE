@@ -1,11 +1,11 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 
 /**
- * Carrinho local (Fase 3 move para o servidor: guest por cookie + merge no login).
- * Chaveado por styleColor (nunca por nome — colorways diferentes não podem colidir).
+ * Carrinho local.
+ * Chaveado por styleColor + nikeSize.
  * Persistido em localStorage para sobreviver a reload.
  */
-const KEY = "kulture:cart:v1";
+const KEY = "kulture:cart:v2";
 
 function load() {
   try {
@@ -17,7 +17,7 @@ function load() {
 }
 
 export function useCart() {
-  const [items, setItems] = useState(load); // key -> { item, qty }
+  const [items, setItems] = useState(load); // key -> { item, qty, sizeInfo }
 
   useEffect(() => {
     try {
@@ -27,10 +27,13 @@ export function useCart() {
     }
   }, [items]);
 
-  const add = useCallback((item) => {
+  const add = useCallback((item, sizeInfo) => {
+    if (!sizeInfo) return;
+    const compositeKey = `${item.styleColor}|${sizeInfo.nikeSize}`;
+    
     setItems((prev) => {
-      const cur = prev[item.key];
-      return { ...prev, [item.key]: { item, qty: (cur?.qty ?? 0) + 1 } };
+      const cur = prev[compositeKey];
+      return { ...prev, [compositeKey]: { key: compositeKey, item, sizeInfo, qty: (cur?.qty ?? 0) + 1 } };
     });
   }, []);
 

@@ -15,21 +15,24 @@ export default function CartDrawer({ open, onClose, cart, onCheckout }) {
         {list.length === 0 ? (
           <p className="cart-empty">Carrinho vazio... bora encher? &#128293;</p>
         ) : (
-          list.map(({ item, qty }) => (
-            <div className="cart-item" key={item.key}>
+          list.map(({ item, qty, sizeInfo, key }) => (
+            <div className="cart-item" key={key}>
               <div className="thumb">
                 <ProductMedia src={item.img} alt={item.name} color={item.color} />
               </div>
               <div className="cart-item-info">
                 <b>{item.name}</b>
+                <div style={{ fontSize: '.75rem', color: '#999', margin: '2px 0 4px' }}>
+                  Tamanho: BR {sizeInfo?.brLabel || sizeInfo?.nikeSize} {sizeInfo?.approximate ? '(Aprox)' : ''}
+                </div>
                 <span>{brl(item.price)}</span>
               </div>
               <div className="qty">
-                <button onClick={() => changeQty(item.key, -1)} aria-label="Diminuir">
+                <button onClick={() => changeQty(key, -1)} aria-label="Diminuir">
                   −
                 </button>
                 <span>{qty}</span>
-                <button onClick={() => changeQty(item.key, 1)} aria-label="Aumentar">
+                <button onClick={() => changeQty(key, 1)} aria-label="Aumentar">
                   +
                 </button>
               </div>

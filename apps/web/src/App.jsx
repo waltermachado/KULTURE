@@ -8,6 +8,7 @@ import Footer from "./components/Footer.jsx";
 import AuthModal from "./components/AuthModal.jsx";
 import CartDrawer from "./components/CartDrawer.jsx";
 import Toast from "./components/Toast.jsx";
+import { SizePicker } from "./components/SizePicker.jsx";
 import { useCart } from "./hooks/useCart.js";
 import { useAuth } from "./hooks/useAuth.js";
 import { api, SEED } from "./lib/api.js";
@@ -26,6 +27,7 @@ export default function App() {
   const [grid, setGrid] = useState({ status: "loading", products: [], title: TOP8_TITLE, sub: TOP8_SUB, query: "" });
   const [modal, setModal] = useState({ open: false, view: "login" });
   const [drawerOpen, setDrawerOpen] = useState(false);
+  const [selectedProductForSize, setSelectedProductForSize] = useState(null);
   const [toast, setToast] = useState({ message: "", visible: false });
   const toastTimer = useRef(null);
 
@@ -97,9 +99,10 @@ export default function App() {
   const closeAll = () => {
     setModal((m) => ({ ...m, open: false }));
     setDrawerOpen(false);
+    setSelectedProductForSize(null);
   };
-  const addToCart = (p) => {
-    cart.add(p);
+  const addToCart = (p, sizeInfo) => {
+    cart.add(p, sizeInfo);
     notify("Adicionado ao carrinho! 🔥");
   };
 
@@ -122,12 +125,19 @@ export default function App() {
       />
       <Hero />
       <Marquee />
-      <ProductGrid state={grid} onAdd={addToCart} />
+      <ProductGrid state={grid} onAdd={setSelectedProductForSize} />
       <Features />
       <Footer onOpenModal={openModal} />
 
       <div className={`overlay${overlayOpen ? " open" : ""}`} onClick={closeAll} />
       <AuthModal open={modal.open} view={modal.view} onSwitch={(view) => setModal({ open: true, view })} onClose={closeAll} notify={notify} auth={auth} />
+      {selectedProductForSize && (
+        <SizePicker 
+          item={selectedProductForSize} 
+          onClose={() => setSelectedProductForSize(null)} 
+          onAdd={addToCart} 
+        />
+      )}
       <CartDrawer open={drawerOpen} onClose={() => setDrawerOpen(false)} cart={cart} onCheckout={() => notify("Checkout será integrado ao InfinitePay (Fase 4)")} />
       <Toast message={toast.message} visible={toast.visible} />
     </>
