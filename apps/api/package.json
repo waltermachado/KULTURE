@@ -1,0 +1,35 @@
+{
+  "name": "@kulture/api",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "kulture-core: API do site (catálogo, preço, auth, carrinho, pedidos, pagamentos, NF). Fastify + Prisma/SQLite.",
+  "main": "src/server.js",
+  "engines": {
+    "node": ">=22"
+  },
+  "scripts": {
+    "dev": "node --watch --env-file-if-exists=.env src/server.js",
+    "start": "node --env-file-if-exists=.env src/server.js",
+    "test": "vitest run",
+    "db:generate": "prisma generate",
+    "db:migrate": "prisma migrate dev",
+    "db:deploy": "prisma migrate deploy",
+    "db:studio": "prisma studio"
+  },
+  "dependencies": {
+    "@fastify/cors": "^11.3.0",
+    "@fastify/static": "^10.1.3",
+    "@fastify/swagger": "^9.4.2",
+    "@fastify/swagger-ui": "^6.1.1",
+    "@kulture/shared": "*",
+    "@prisma/client": "^6.13.0",
+    "fastify": "^5.3.3",
+    "zod": "^3.24.4"
+  },
+  "devDependencies": {
+    "pino-pretty": "^13.0.0",
+    "prisma": "^6.13.0",
+    "vitest": "^3.2.4"
+  }
+}

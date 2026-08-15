@@ -1,0 +1,21 @@
+// Kulture core — SQLite local. Fase 0: só o cache persistente do catálogo.
+// Fases seguintes adicionam User, Cart, Order, Payment, Invoice, PricingRule, Job...
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+/// Cache genérico chave→JSON usado pelo SWR do catálogo (sobrevive a restart).
+model CacheEntry {
+  key       String   @id
+  value     String
+  savedAt   DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@map("cache_entries")
+}

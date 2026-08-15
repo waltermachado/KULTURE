@@ -1,0 +1,633 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Kulture — Sneakers &amp; Street Culture</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Kaushan+Script&family=Archivo+Black&family=Permanent+Marker&family=Inter:wght@400;600;700&display=swap" rel="stylesheet">
+<style>
+:root{
+  --amarelo:#F6B234;
+  --amarelo-claro:#FFD167;
+  --amarelo-escuro:#D98F0F;
+  --preto:#111111;
+  --grafite:#1d1d1f;
+  --cinza:#2a2a2c;
+  --branco:#fafafa;
+}
+*{margin:0;padding:0;box-sizing:border-box}
+body{font-family:'Inter',sans-serif;background:var(--grafite);color:var(--branco);overflow-x:hidden}
+
+/* ============ HEADER ============ */
+header{
+  position:sticky;top:0;z-index:50;
+  background:rgba(17,17,17,.95);backdrop-filter:blur(8px);
+  border-bottom:3px solid var(--amarelo);
+}
+.header-inner{max-width:1280px;margin:0 auto;display:flex;align-items:center;justify-content:space-between;padding:14px 24px;gap:24px}
+.logo{font-family:'Kaushan Script',cursive;font-size:2.4rem;color:var(--amarelo);text-shadow:3px 3px 0 #000;transform:rotate(-3deg);cursor:pointer;line-height:1}
+nav{display:flex;gap:28px}
+nav a{color:var(--branco);text-decoration:none;font-weight:600;font-size:.9rem;text-transform:uppercase;letter-spacing:.08em;position:relative;padding:4px 0}
+nav a:hover{color:var(--amarelo)}
+nav a:hover::after{content:'';position:absolute;left:0;right:0;bottom:-4px;height:3px;background:var(--amarelo);transform:skewX(-20deg)}
+.header-actions{display:flex;align-items:center;gap:16px}
+.btn-login{
+  background:var(--amarelo);color:#111;border:none;font-weight:700;font-size:.85rem;
+  padding:10px 20px;cursor:pointer;text-transform:uppercase;letter-spacing:.05em;
+  transform:skewX(-8deg);box-shadow:3px 3px 0 #000;transition:.15s;
+}
+.btn-login:hover{background:var(--amarelo-claro);translate:0 -2px}
+.search-box{display:flex;align-items:center}
+.search-box input{background:#111;border:2px solid #333;border-right:none;color:#fff;padding:9px 12px;font-family:inherit;font-size:.9rem;width:180px;transition:.15s}
+.search-box input:focus{outline:none;border-color:var(--amarelo);width:220px}
+.search-box button{background:var(--amarelo);border:2px solid var(--amarelo);color:#111;padding:9px 12px;cursor:pointer;font-size:1rem}
+.search-box button:hover{background:var(--amarelo-claro)}
+.cart-btn{position:relative;background:none;border:2px solid var(--amarelo);color:var(--amarelo);padding:8px 12px;cursor:pointer;font-size:1.2rem;transform:skewX(-8deg)}
+.cart-btn:hover{background:var(--amarelo);color:#111}
+.cart-count{
+  position:absolute;top:-10px;right:-10px;background:#e33;color:#fff;font-size:.7rem;font-weight:700;
+  width:22px;height:22px;border-radius:50%;display:flex;align-items:center;justify-content:center;border:2px solid #111;
+}
+
+/* ============ HERO ============ */
+.hero{
+  position:relative;min-height:520px;display:flex;align-items:center;
+  background:
+    radial-gradient(ellipse 60% 50% at 75% 40%, rgba(246,178,52,.28), transparent 60%),
+    radial-gradient(ellipse 40% 40% at 20% 80%, rgba(246,178,52,.14), transparent 60%),
+    linear-gradient(160deg,#161616 0%,#1d1d1f 55%,#242426 100%);
+  overflow:hidden;
+}
+.hero::before{
+  content:'';position:absolute;inset:0;opacity:.09;
+  background-image:
+    repeating-linear-gradient(0deg,transparent 0 44px,#000 44px 48px),
+    repeating-linear-gradient(90deg,transparent 0 110px,#000 110px 114px);
+}
+.splat{position:absolute;border-radius:50%;filter:blur(1px);pointer-events:none}
+.hero-inner{position:relative;max-width:1280px;margin:0 auto;padding:60px 24px;display:grid;grid-template-columns:1.1fr .9fr;gap:40px;align-items:center;width:100%}
+.hero-tag{font-family:'Permanent Marker',cursive;color:var(--amarelo);font-size:1.1rem;transform:rotate(-2deg);display:inline-block;margin-bottom:12px}
+.hero h1{font-family:'Archivo Black',sans-serif;font-size:clamp(2.2rem,5vw,4rem);line-height:1.02;text-transform:uppercase}
+.hero h1 span{color:var(--amarelo);text-shadow:4px 4px 0 #000}
+.hero p{margin:20px 0 28px;color:#cfcfcf;max-width:480px;font-size:1.05rem}
+.btn-cta{
+  display:inline-block;background:var(--amarelo);color:#111;font-weight:700;font-size:1rem;text-transform:uppercase;
+  padding:16px 36px;text-decoration:none;transform:skewX(-8deg);box-shadow:5px 5px 0 #000;transition:.15s;border:none;cursor:pointer;
+}
+.btn-cta:hover{background:var(--amarelo-claro);translate:0 -3px}
+.hero-art{position:relative;display:flex;justify-content:center}
+.hero-art svg{width:100%;max-width:460px;filter:drop-shadow(0 20px 40px rgba(0,0,0,.6))}
+.placeholder-note{
+  position:absolute;bottom:-6px;right:8px;font-family:'Permanent Marker',cursive;font-size:.8rem;color:#888;transform:rotate(-2deg);
+}
+
+/* ============ MARQUEE ============ */
+.marquee{background:var(--amarelo);color:#111;overflow:hidden;white-space:nowrap;padding:10px 0;border-top:3px solid #000;border-bottom:3px solid #000}
+.marquee-track{display:inline-block;font-family:'Archivo Black',sans-serif;text-transform:uppercase;font-size:.95rem;animation:scroll 22s linear infinite}
+.marquee-track span{margin:0 24px}
+@keyframes scroll{from{transform:translateX(0)}to{transform:translateX(-50%)}}
+
+/* ============ PRODUTOS ============ */
+.section{max-width:1280px;margin:0 auto;padding:64px 24px}
+.section-title{display:flex;align-items:baseline;gap:16px;margin-bottom:36px;flex-wrap:wrap}
+.section-title h2{font-family:'Archivo Black',sans-serif;font-size:2rem;text-transform:uppercase}
+.section-title h2 em{font-style:normal;color:var(--amarelo)}
+.section-title .sub{font-family:'Permanent Marker',cursive;color:#999;transform:rotate(-1deg)}
+.grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(260px,1fr));gap:24px}
+.card{
+  background:var(--cinza);border:2px solid #000;box-shadow:6px 6px 0 #000;
+  transition:.15s;display:flex;flex-direction:column;position:relative;
+}
+.card:hover{translate:0 -4px;box-shadow:6px 10px 0 #000;border-color:var(--amarelo)}
+.badge{position:absolute;top:12px;left:-6px;background:var(--amarelo);color:#111;font-weight:700;font-size:.7rem;text-transform:uppercase;padding:5px 12px;transform:skewX(-10deg);box-shadow:2px 2px 0 #000;z-index:2}
+.badge.red{background:#e33;color:#fff}
+.card-img{height:210px;display:flex;align-items:center;justify-content:center;background:radial-gradient(ellipse at 50% 60%,rgba(246,178,52,.18),transparent 70%),#222;position:relative;overflow:hidden}
+.card-img svg{width:78%;transition:.2s;transform:rotate(-14deg)}
+.card:hover .card-img svg{transform:rotate(-8deg) scale(1.05)}
+.card-img img{width:100%;height:100%;object-fit:cover;transition:.2s}
+.card:hover .card-img img{transform:scale(1.05)}
+.card-body{padding:18px;display:flex;flex-direction:column;gap:6px;flex:1}
+.card-brand{font-size:.72rem;text-transform:uppercase;letter-spacing:.12em;color:#999}
+.card-name{font-weight:700;font-size:1.02rem}
+.card-price{margin-top:auto;padding-top:10px;display:flex;align-items:baseline;gap:10px}
+.price{font-family:'Archivo Black',sans-serif;font-size:1.25rem;color:var(--amarelo)}
+.price-old{font-size:.85rem;color:#777;text-decoration:line-through}
+.card-actions{display:flex;gap:0;border-top:2px solid #000}
+.btn-add{flex:1;background:var(--amarelo);color:#111;border:none;font-weight:700;text-transform:uppercase;font-size:.8rem;padding:13px;cursor:pointer;transition:.15s}
+.btn-add:hover{background:var(--amarelo-claro)}
+
+/* ============ FEATURES ============ */
+.features{background:#161616;border-top:3px solid var(--amarelo);border-bottom:3px solid var(--amarelo)}
+.features-inner{max-width:1280px;margin:0 auto;padding:40px 24px;display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:24px}
+.feature{display:flex;gap:14px;align-items:flex-start}
+.feature .ico{font-size:1.6rem}
+.feature b{display:block;text-transform:uppercase;font-size:.85rem;letter-spacing:.05em}
+.feature small{color:#999}
+
+/* ============ FOOTER ============ */
+footer{background:#0d0d0d;padding:48px 24px 24px}
+.footer-inner{max-width:1280px;margin:0 auto;display:grid;grid-template-columns:2fr 1fr 1fr 1fr;gap:32px}
+.footer-logo{font-family:'Kaushan Script',cursive;font-size:2rem;color:var(--amarelo);transform:rotate(-3deg);display:inline-block;text-shadow:2px 2px 0 #000}
+footer h4{text-transform:uppercase;font-size:.8rem;letter-spacing:.1em;color:var(--amarelo);margin-bottom:14px}
+footer a{display:block;color:#aaa;text-decoration:none;font-size:.9rem;margin-bottom:8px}
+footer a:hover{color:var(--amarelo)}
+.footer-bottom{max-width:1280px;margin:32px auto 0;padding-top:20px;border-top:1px solid #2a2a2a;display:flex;justify-content:space-between;flex-wrap:wrap;gap:12px;color:#666;font-size:.8rem}
+.mp-tag{display:inline-flex;align-items:center;gap:8px;background:#009ee3;color:#fff;font-weight:700;font-size:.75rem;padding:6px 12px;border-radius:4px}
+
+/* ============ MODAL ============ */
+.overlay{position:fixed;inset:0;background:rgba(0,0,0,.7);z-index:90;display:none}
+.overlay.open{display:block}
+.modal{
+  position:fixed;top:50%;left:50%;transform:translate(-50%,-50%);z-index:100;display:none;
+  width:min(440px,92vw);max-height:90vh;overflow-y:auto;
+  background:var(--grafite);border:3px solid var(--amarelo);box-shadow:10px 10px 0 #000;
+}
+.modal.open{display:block}
+.modal-header{display:flex;justify-content:space-between;align-items:center;padding:18px 22px;border-bottom:2px solid #000;background:#161616;position:sticky;top:0;z-index:2}
+.modal-header .logo{font-size:1.6rem}
+.modal-close{background:none;border:none;color:#999;font-size:1.4rem;cursor:pointer}
+.modal-close:hover{color:var(--amarelo)}
+.modal-title{font-family:'Archivo Black',sans-serif;text-transform:uppercase;font-size:1.05rem;padding:20px 22px 0;letter-spacing:.04em}
+.modal-title em{font-style:normal;color:var(--amarelo)}
+.tab-panel{display:none;padding:20px 22px 24px}
+.tab-panel.active{display:block}
+.link-row{display:flex;justify-content:space-between;gap:12px;margin-top:14px;flex-wrap:wrap}
+.link-row a{color:#bbb;font-size:.78rem;text-transform:uppercase;letter-spacing:.05em;text-decoration:none;font-weight:600}
+.link-row a:hover{color:var(--amarelo)}
+.row{display:flex;gap:10px}
+.row .field{flex:1}
+.back-link{display:inline-block;margin-top:16px;color:#888;font-size:.8rem;text-decoration:none}
+.back-link:hover{color:var(--amarelo)}
+.check{display:flex;gap:10px;align-items:flex-start;font-size:.8rem;color:#aaa;margin:4px 0 10px}
+.check input{margin-top:2px}
+.field{margin-bottom:14px}
+.field label{display:block;font-size:.75rem;text-transform:uppercase;letter-spacing:.06em;color:#999;margin-bottom:6px}
+.field input{width:100%;background:#111;border:2px solid #333;color:#fff;padding:12px;font-family:inherit;font-size:.95rem}
+.field input:focus{outline:none;border-color:var(--amarelo)}
+.btn-full{width:100%;background:var(--amarelo);color:#111;border:none;font-weight:700;text-transform:uppercase;padding:14px;cursor:pointer;font-size:.9rem;box-shadow:3px 3px 0 #000;margin-top:6px}
+.btn-full:hover{background:var(--amarelo-claro)}
+.track-result{margin-top:16px;background:#111;border:2px dashed #444;padding:16px;font-size:.85rem;display:none}
+.track-result.show{display:block}
+.track-step{display:flex;gap:10px;align-items:center;padding:6px 0;color:#bbb}
+.track-step .dot{width:10px;height:10px;border-radius:50%;background:var(--amarelo);flex-shrink:0}
+.track-step.pending .dot{background:#444}
+.track-step.pending{color:#666}
+
+/* ============ CARRINHO (drawer) ============ */
+.drawer{
+  position:fixed;top:0;right:-420px;width:min(400px,92vw);height:100vh;background:var(--grafite);z-index:100;
+  border-left:3px solid var(--amarelo);display:flex;flex-direction:column;transition:right .25s ease;
+}
+.drawer.open{right:0}
+.drawer-header{display:flex;justify-content:space-between;align-items:center;padding:18px 20px;border-bottom:2px solid #000;background:#161616}
+.drawer-header h3{font-family:'Archivo Black',sans-serif;text-transform:uppercase;font-size:1.05rem}
+.drawer-items{flex:1;overflow-y:auto;padding:16px 20px}
+.cart-empty{color:#777;text-align:center;margin-top:40px;font-family:'Permanent Marker',cursive}
+.cart-item{display:flex;gap:12px;align-items:center;background:#222;border:2px solid #000;padding:10px;margin-bottom:12px}
+.cart-item .thumb{width:56px;height:56px;background:radial-gradient(circle,rgba(246,178,52,.25),transparent 70%),#1a1a1a;display:flex;align-items:center;justify-content:center;flex-shrink:0}
+.cart-item .thumb svg{width:80%;transform:rotate(-12deg)}
+.cart-item .thumb img{width:100%;height:100%;object-fit:cover}
+.cart-item-info{flex:1;min-width:0}
+.cart-item-info b{font-size:.85rem;display:block;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.cart-item-info span{font-size:.8rem;color:var(--amarelo);font-weight:700}
+.qty{display:flex;align-items:center;gap:8px}
+.qty button{width:24px;height:24px;background:#333;color:#fff;border:none;cursor:pointer;font-weight:700}
+.qty button:hover{background:var(--amarelo);color:#111}
+.drawer-footer{padding:20px;border-top:2px solid #000;background:#161616}
+.total-row{display:flex;justify-content:space-between;margin-bottom:14px}
+.total-row b{font-family:'Archivo Black',sans-serif;font-size:1.2rem;color:var(--amarelo)}
+.btn-mp{
+  width:100%;background:#009ee3;color:#fff;border:none;font-weight:700;padding:15px;cursor:pointer;font-size:.9rem;
+  display:flex;align-items:center;justify-content:center;gap:10px;box-shadow:3px 3px 0 #000;
+}
+.btn-mp:hover{filter:brightness(1.1)}
+.btn-mp small{font-weight:400;opacity:.85}
+
+/* toast */
+.toast{
+  position:fixed;bottom:24px;left:50%;transform:translateX(-50%) translateY(80px);background:var(--amarelo);color:#111;
+  font-weight:700;padding:12px 24px;box-shadow:4px 4px 0 #000;z-index:120;transition:.25s;opacity:0;font-size:.9rem;
+}
+.toast.show{transform:translateX(-50%) translateY(0);opacity:1}
+
+@media(max-width:860px){
+  nav{display:none}
+  .search-box input{width:120px}
+  .search-box input:focus{width:140px}
+  .hero-inner{grid-template-columns:1fr}
+  .footer-inner{grid-template-columns:1fr 1fr}
+}
+</style>
+</head>
+<body>
+
+<!-- ================= HEADER ================= -->
+<header>
+  <div class="header-inner">
+    <div class="logo">Kulture</div>
+    <nav>
+      <a href="#drops">Drops</a>
+      <a href="#drops">Basquete</a>
+      <a href="#drops">Lifestyle</a>
+      <a href="#drops">Promos</a>
+    </nav>
+    <div class="header-actions">
+      <form class="search-box" onsubmit="return doSearch(event)">
+        <input type="search" id="searchInput" placeholder="Buscar tênis..." autocomplete="off">
+        <button type="submit" title="Buscar">&#128269;</button>
+      </form>
+      <button class="cart-btn" onclick="toggleCart(true)" title="Carrinho">&#128722;<span class="cart-count" id="cartCount">0</span></button>
+      <button class="btn-login" onclick="openModal('login')">Entrar</button>
+    </div>
+  </div>
+</header>
+
+<!-- ================= HERO ================= -->
+<section class="hero">
+  <div class="splat" style="width:180px;height:180px;background:rgba(246,178,52,.16);top:8%;left:4%"></div>
+  <div class="splat" style="width:90px;height:90px;background:rgba(246,178,52,.22);bottom:12%;right:38%"></div>
+  <div class="hero-inner">
+    <div>
+      <span class="hero-tag">// direto das quadras dos EUA</span>
+      <h1>Sneakers com<br><span>atitude</span> de rua</h1>
+      <p>Os drops mais quentes de basquete, importados dos EUA e entregues na sua porta. Cadastre-se, monte seu carrinho e acompanhe o rastreio em tempo real.</p>
+      <a class="btn-cta" href="#drops">Ver os drops &#8595;</a>
+    </div>
+    <div class="hero-art">
+      <!-- PLACEHOLDER: arte de grafite (muro + cesta + tênis) — será substituída pela arte final -->
+      <svg viewBox="0 0 400 340" xmlns="http://www.w3.org/2000/svg">
+        <rect x="10" y="10" width="380" height="320" rx="6" fill="#232323" stroke="#000" stroke-width="4"/>
+        <g opacity=".25" stroke="#000" stroke-width="2">
+          <line x1="10" y1="70" x2="390" y2="70"/><line x1="10" y1="130" x2="390" y2="130"/>
+          <line x1="10" y1="190" x2="390" y2="190"/><line x1="10" y1="250" x2="390" y2="250"/>
+          <line x1="110" y1="10" x2="110" y2="70"/><line x1="230" y1="10" x2="230" y2="70"/>
+          <line x1="60" y1="70" x2="60" y2="130"/><line x1="180" y1="70" x2="180" y2="130"/><line x1="300" y1="70" x2="300" y2="130"/>
+          <line x1="110" y1="130" x2="110" y2="190"/><line x1="230" y1="130" x2="230" y2="190"/><line x1="340" y1="130" x2="340" y2="190"/>
+          <line x1="60" y1="190" x2="60" y2="250"/><line x1="180" y1="190" x2="180" y2="250"/><line x1="300" y1="190" x2="300" y2="250"/>
+          <line x1="110" y1="250" x2="110" y2="330"/><line x1="230" y1="250" x2="230" y2="330"/>
+        </g>
+        <ellipse cx="205" cy="165" rx="150" ry="115" fill="#F6B234" opacity=".18"/>
+        <ellipse cx="205" cy="165" rx="105" ry="82" fill="#F6B234" opacity=".25"/>
+        <rect x="255" y="48" width="90" height="64" rx="4" fill="none" stroke="#F6B234" stroke-width="6"/>
+        <rect x="278" y="66" width="44" height="32" fill="none" stroke="#F6B234" stroke-width="4"/>
+        <line x1="262" y1="112" x2="338" y2="112" stroke="#FFD167" stroke-width="7" stroke-linecap="round"/>
+        <path d="M268 116 L275 152 M283 116 L288 152 M300 116 L300 152 M317 116 L312 152 M332 116 L325 152 M270 130 H330 M272 142 H328" stroke="#FFD167" stroke-width="3" opacity=".8"/>
+        <circle cx="120" cy="105" r="34" fill="#F6B234" stroke="#000" stroke-width="5"/>
+        <path d="M86 105 H154 M120 71 V139 M96 81c14 12 34 12 48 0 M96 129c14-12 34-12 48 0" stroke="#000" stroke-width="4" fill="none"/>
+        <g transform="translate(70,190) rotate(-8)">
+          <path d="M8 62 C4 40 14 28 34 24 C58 20 70 6 86 6 C96 6 100 16 112 22 C150 40 218 46 244 52 C258 56 260 74 246 78 L20 78 C10 78 10 72 8 62 Z" fill="#111" stroke="#F6B234" stroke-width="5"/>
+          <path d="M8 66 L248 66" stroke="#F6B234" stroke-width="5"/>
+          <path d="M96 26 C120 44 160 50 200 54" stroke="#F6B234" stroke-width="4" fill="none"/>
+          <path d="M44 28 L60 46 M64 22 L80 42 M84 18 L98 38" stroke="#F6B234" stroke-width="3"/>
+        </g>
+        <text x="38" y="300" font-family="'Permanent Marker',cursive" font-size="26" fill="#FFD167" transform="rotate(-4 38 300)">STREET BALL</text>
+        <text x="250" y="308" font-family="'Permanent Marker',cursive" font-size="16" fill="#888" transform="rotate(3 250 308)">KLTR &#39;26</text>
+      </svg>
+      <span class="placeholder-note">* placeholder — arte de grafite final entra aqui</span>
+    </div>
+  </div>
+</section>
+
+<!-- ================= MARQUEE ================= -->
+<div class="marquee">
+  <div class="marquee-track">
+    <span>&#9733; Frete para todo o Brasil</span><span>&#9733; Importados direto dos EUA</span><span>&#9733; Pague com Mercado Pago</span><span>&#9733; Rastreio em tempo real</span><span>&#9733; 100% originais</span>
+    <span>&#9733; Frete para todo o Brasil</span><span>&#9733; Importados direto dos EUA</span><span>&#9733; Pague com Mercado Pago</span><span>&#9733; Rastreio em tempo real</span><span>&#9733; 100% originais</span>
+  </div>
+</div>
+
+<!-- ================= PRODUTOS ================= -->
+<section class="section" id="drops">
+  <div class="section-title">
+    <h2 id="secTitle">Top 8 <em>mais vendidos</em></h2>
+    <span class="sub" id="secSub">// os mais usados na NBA — dados ao vivo via Kulture-api (cache 1h)</span>
+  </div>
+  <div class="grid" id="productGrid"></div>
+</section>
+
+<!-- ================= FEATURES ================= -->
+<div class="features">
+  <div class="features-inner">
+    <div class="feature"><div class="ico">&#128230;</div><div><b>Rastreio integrado</b><small>Acompanhe seu pedido logado na sua conta</small></div></div>
+    <div class="feature"><div class="ico">&#128179;</div><div><b>Mercado Pago</b><small>Pix, cartão e parcelamento em até 12x</small></div></div>
+    <div class="feature"><div class="ico">&#9989;</div><div><b>100% originais</b><small>Comprados direto das lojas oficiais nos EUA</small></div></div>
+    <div class="feature"><div class="ico">&#128293;</div><div><b>Drops semanais</b><small>Estoque atualizado toda semana via API</small></div></div>
+  </div>
+</div>
+
+<!-- ================= FOOTER ================= -->
+<footer>
+  <div class="footer-inner">
+    <div>
+      <span class="footer-logo">Kulture</span>
+      <p style="color:#888;font-size:.85rem;margin-top:14px;max-width:280px">Cultura de rua, basquete e os sneakers mais quentes dos EUA. Direto pra sua porta.</p>
+      <div style="margin-top:16px"><span class="mp-tag">&#128274; Pagamentos via Mercado Pago</span></div>
+    </div>
+    <div><h4>Loja</h4><a href="#">Drops</a><a href="#">Basquete</a><a href="#">Lifestyle</a><a href="#">Promoções</a></div>
+    <div><h4>Conta</h4><a href="#" onclick="openModal('login');return false">Entrar</a><a href="#" onclick="openModal('signup');return false">Criar cadastro</a><a href="#" onclick="openModal('track');return false">Rastrear pedido</a></div>
+    <div><h4>Ajuda</h4><a href="#">Trocas e devoluções</a><a href="#">Prazos de entrega</a><a href="#">Fale conosco</a></div>
+  </div>
+  <div class="footer-bottom">
+    <span>© 2026 Kulture. Todos os direitos reservados.</span>
+    <span>Esboço v2 — para aprovação de design</span>
+  </div>
+</footer>
+
+<!-- ================= MODAL ================= -->
+<div class="overlay" id="overlay" onclick="closeAll()"></div>
+<div class="modal" id="modal">
+  <div class="modal-header">
+    <span class="logo">Kulture</span>
+    <button class="modal-close" onclick="closeAll()">&#10005;</button>
+  </div>
+  <div class="modal-title" id="modalTitle">Login</div>
+
+  <!-- VIEW: LOGIN -->
+  <div class="tab-panel" id="panel-login">
+    <div class="field"><label>E-mail</label><input type="email" placeholder="voce@email.com"></div>
+    <div class="field"><label>Senha</label><input type="password" placeholder="••••••••"></div>
+    <button class="btn-full" onclick="fakeAction('Login será conectado ao backend')">Entrar</button>
+    <div class="link-row">
+      <a href="#" onclick="switchView('forgot');return false">Esqueci minha senha</a>
+      <a href="#" onclick="switchView('signup');return false">Ainda não tenho cadastro</a>
+    </div>
+  </div>
+
+  <!-- VIEW: ESQUECI SENHA -->
+  <div class="tab-panel" id="panel-forgot">
+    <div class="field"><label>E-mail cadastrado</label><input type="email" placeholder="voce@email.com"></div>
+    <button class="btn-full" onclick="fakeAction('Link de recuperação enviado via Sequenzy (recuperacao-senha)')">Enviar link de recuperação</button>
+    <a class="back-link" href="#" onclick="switchView('login');return false">&#8592; Voltar para o login</a>
+  </div>
+
+  <!-- VIEW: CADASTRO -->
+  <div class="tab-panel" id="panel-signup">
+    <div class="field"><label>Nome completo</label><input type="text" placeholder="Seu nome"></div>
+    <div class="field"><label>E-mail</label><input type="email" placeholder="voce@email.com"></div>
+    <div class="row">
+      <div class="field"><label>Telefone / WhatsApp</label><input type="tel" placeholder="(11) 90000-0000"></div>
+      <div class="field"><label>CPF</label><input type="text" placeholder="000.000.000-00"></div>
+    </div>
+    <div class="row">
+      <div class="field"><label>CEP</label><input type="text" id="cepInput" placeholder="00000-000" maxlength="9" onblur="buscaCEP()"></div>
+      <div class="field" style="flex:2"><label>Endereço</label><input type="text" id="endInput" placeholder="Preenchido pelo CEP"></div>
+    </div>
+    <div class="row">
+      <div class="field"><label>Número</label><input type="text" placeholder="123"></div>
+      <div class="field" style="flex:2"><label>Complemento (opcional)</label><input type="text" placeholder="Apto, bloco..."></div>
+    </div>
+    <div class="row">
+      <div class="field"><label>Bairro</label><input type="text" id="bairroInput" placeholder="Preenchido pelo CEP"></div>
+      <div class="field"><label>Cidade</label><input type="text" id="cidadeInput" placeholder="Preenchido pelo CEP"></div>
+      <div class="field" style="flex:.4"><label>UF</label><input type="text" id="ufInput" placeholder="SP" maxlength="2"></div>
+    </div>
+    <small id="cepStatus" style="display:none;color:var(--amarelo);font-size:.75rem;margin:-8px 0 10px"></small>
+    <div class="row">
+      <div class="field"><label>Senha</label><input type="password" placeholder="Mínimo 8 caracteres"></div>
+      <div class="field"><label>Confirmar senha</label><input type="password" placeholder="••••••••"></div>
+    </div>
+    <label class="check"><input type="checkbox" required> Li e aceito os <a href="#" style="color:var(--amarelo)">Termos de Uso</a> e a <a href="#" style="color:var(--amarelo)">Política de Privacidade</a>. Autorizo o tratamento dos meus dados pessoais para cadastro, processamento de compras e envio de e-mails transacionais (confirmação, rastreio e nota fiscal), conforme a LGPD (Lei 13.709/2018).</label>
+    <button class="btn-full" onclick="fakeAction('Cadastro + e-mail de confirmação via Sequenzy (confirmacao-cadastro)')">Criar conta</button>
+    <a class="back-link" href="#" onclick="switchView('login');return false">&#8592; Já tenho conta, voltar para o login</a>
+  </div>
+
+  <!-- VIEW: RASTREIO (acesso pelo rodapé / conta logada) -->
+  <div class="tab-panel" id="panel-track">
+    <div class="field"><label>Código de rastreio ou nº do pedido</label><input type="text" id="trackCode" placeholder="KLT-2026-0001"></div>
+    <button class="btn-full" onclick="fakeTrack()">Rastrear pedido</button>
+    <div class="track-result" id="trackResult">
+      <b style="color:var(--amarelo)">Pedido KLT-2026-0001</b>
+      <div style="margin-top:10px">
+        <div class="track-step"><span class="dot"></span> Pagamento aprovado (Mercado Pago)</div>
+        <div class="track-step"><span class="dot"></span> Comprado na loja oficial (EUA)</div>
+        <div class="track-step"><span class="dot"></span> Em trânsito internacional</div>
+        <div class="track-step pending"><span class="dot"></span> Liberado na alfândega</div>
+        <div class="track-step pending"><span class="dot"></span> Saiu para entrega</div>
+      </div>
+      <small style="color:#666;display:block;margin-top:10px">* exemplo ilustrativo — dados reais virão da API de rastreio</small>
+    </div>
+    <a class="back-link" href="#" onclick="switchView('login');return false">&#8592; Ir para o login</a>
+  </div>
+</div>
+
+<!-- ================= DRAWER CARRINHO ================= -->
+<div class="drawer" id="drawer">
+  <div class="drawer-header">
+    <h3>&#128722; Seu carrinho</h3>
+    <button class="modal-close" onclick="toggleCart(false)">&#10005;</button>
+  </div>
+  <div class="drawer-items" id="cartItems">
+    <p class="cart-empty">Carrinho vazio... bora encher? &#128293;</p>
+  </div>
+  <div class="drawer-footer">
+    <div class="total-row"><span>Total</span><b id="cartTotal">R$ 0,00</b></div>
+    <button class="btn-mp" onclick="fakeAction('Checkout será integrado ao Mercado Pago')">
+      <svg width="22" height="16" viewBox="0 0 24 16" fill="none"><ellipse cx="12" cy="8" rx="11" ry="7.5" fill="#fff" opacity=".9"/><path d="M4 8c2-3 5-4 8-4s6 1 8 4c-2 3-5 4-8 4s-6-1-8-4z" fill="#009ee3"/></svg>
+      Pagar com Mercado Pago <small>· Pix ou 12x</small>
+    </button>
+  </div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script>
+/* ====== INTEGRAÇÃO COM O BACKEND ======
+   API_BASE vazio = mesma origem (o BFF serve este HTML em localhost:3000).
+   Se abrir o arquivo direto (file://) e o backend não responder,
+   cai no SEED abaixo para a página não ficar vazia.                        */
+const API_BASE = window.KULTURE_API_BASE || '';
+const paletas=['#e33','#F6B234','#FFD167'];
+
+// dados de emergência (só aparecem se o backend estiver fora)
+const SEED=[
+  {nome:'Kobe 6 Protro',marca:'Nike Basketball',precoBRL:1899.90,precoCheioBRL:null,emPromocao:false,imagens:[],cor:'#e33'},
+  {nome:'Kobe 5 Protro',marca:'Nike Basketball',precoBRL:1799.90,precoCheioBRL:null,emPromocao:false,imagens:[],cor:'#F6B234'},
+  {nome:'Sabrina 3',marca:'Nike Basketball',precoBRL:1199.90,precoCheioBRL:1349.90,emPromocao:true,imagens:[],cor:'#FFD167'},
+  {nome:'Kobe 4 Protro',marca:'Nike Basketball',precoBRL:1749.90,precoCheioBRL:null,emPromocao:false,imagens:[],cor:'#F6B234'},
+  {nome:'KD 18',marca:'Nike Basketball',precoBRL:1399.90,precoCheioBRL:1549.90,emPromocao:true,imagens:[],cor:'#FFD167'},
+  {nome:'GT Cut 3',marca:'Nike Basketball',precoBRL:1599.90,precoCheioBRL:null,emPromocao:false,imagens:[],cor:'#F6B234'},
+  {nome:'Ja 3',marca:'Nike Basketball',precoBRL:1149.90,precoCheioBRL:null,emPromocao:false,imagens:[],cor:'#F6B234'},
+  {nome:'Kobe 8 Protro',marca:'Nike Basketball',precoBRL:1699.90,precoCheioBRL:null,emPromocao:false,imagens:[],cor:'#e33'},
+];
+
+let produtos=[];   // preenchido pela API (ou SEED)
+const brl=v=>(v==null?'—':Number(v).toLocaleString('pt-BR',{style:'currency',currency:'BRL'}));
+
+const sneakerSVG=cor=>`<svg viewBox="0 0 260 100" xmlns="http://www.w3.org/2000/svg">
+  <path d="M8 62 C4 40 14 28 34 24 C58 20 70 6 86 6 C96 6 100 16 112 22 C150 40 218 46 244 52 C258 56 260 74 246 78 L20 78 C10 78 10 72 8 62 Z" fill="#161616" stroke="${cor}" stroke-width="5"/>
+  <path d="M8 66 L248 66" stroke="${cor}" stroke-width="5"/>
+  <path d="M96 26 C120 44 160 50 200 54" stroke="${cor}" stroke-width="4" fill="none"/>
+  <path d="M44 28 L60 46 M64 22 L80 42 M84 18 L98 38" stroke="${cor}" stroke-width="3"/></svg>`;
+
+// normaliza um produto vindo da API para o modelo do card
+function normalizar(p,i){
+  return {
+    nome:p.nome, marca:p.marca||'Nike Basketball',
+    preco:p.precoBRL, old:p.precoCheioBRL,
+    badge:p.emPromocao?'PROMO':(i===0?'#1 NBA':'TOP'),
+    badgeRed:p.emPromocao||i===0,
+    cor:p.cor && p.cor.startsWith('#') ? p.cor : paletas[i%paletas.length],
+    img:(p.imagens&&p.imagens[0])?(p.imagens[0].startsWith('http')?p.imagens[0]:API_BASE+p.imagens[0]):''
+  };
+}
+function media(p){
+  return p.img
+    ? `<img src="${p.img}" alt="${p.nome}" loading="lazy" onerror="this.outerHTML=sneakerSVG('${p.cor}')">`
+    : sneakerSVG(p.cor);
+}
+const grid=document.getElementById('productGrid');
+function render(){
+  grid.innerHTML=produtos.map((p,i)=>`
+    <div class="card">
+      <span class="badge ${p.badgeRed?'red':''}">${p.badge}</span>
+      <div class="card-img">${media(p)}</div>
+      <div class="card-body">
+        <span class="card-brand">${p.marca}</span>
+        <span class="card-name">${p.nome}</span>
+        <div class="card-price"><span class="price">${brl(p.preco)}</span>${p.old?`<span class="price-old">${brl(p.old)}</span>`:''}</div>
+      </div>
+      <div class="card-actions"><button class="btn-add" onclick="addToCart(${i})">+ Adicionar ao carrinho</button></div>
+    </div>`).join('');
+}
+
+// carrega o top 8 da home
+async function carregarTop8(){
+  try{
+    const r=await fetch(`${API_BASE}/api/products/top8`);
+    if(!r.ok) throw new Error('HTTP '+r.status);
+    const d=await r.json();
+    produtos=(d.produtos||[]).map(normalizar);
+    if(!produtos.length) throw new Error('vazio');
+  }catch(e){
+    produtos=SEED.map(normalizar);
+    document.getElementById('secSub').textContent='// backend offline — mostrando destaques salvos';
+  }
+  render();
+}
+
+// busca — chama /api/search e troca o grid
+async function doSearch(ev){
+  ev.preventDefault();
+  const q=document.getElementById('searchInput').value.trim();
+  const secT=document.getElementById('secTitle'), secS=document.getElementById('secSub');
+  if(!q){ secT.innerHTML='Top 8 <em>mais vendidos</em>'; secS.textContent='// os mais usados na NBA — dados ao vivo via Kulture-api (cache 1h)'; return carregarTop8(); }
+  secT.innerHTML=`Resultados para <em>${q}</em>`; secS.textContent='// buscando ao vivo na Nike US...';
+  grid.innerHTML='<p style="color:#999;font-family:\'Permanent Marker\',cursive">Buscando... 🔎</p>';
+  try{
+    const r=await fetch(`${API_BASE}/api/search?q=${encodeURIComponent(q)}`);
+    if(!r.ok) throw new Error('HTTP '+r.status);
+    const d=await r.json();
+    produtos=(d.produtos||[]).map(normalizar);
+    secS.textContent=`// ${produtos.length} resultado(s)${d.cached?' (cache)':''}`;
+    if(!produtos.length){ grid.innerHTML='<p style="color:#999;font-family:\'Permanent Marker\',cursive">Nada encontrado pra "'+q+'" 😕</p>'; return; }
+    render();
+  }catch(e){
+    grid.innerHTML='<p style="color:#e33;font-family:\'Permanent Marker\',cursive">Backend indisponível. Rode a kulture-api + o BFF. 🔌</p>';
+    secS.textContent='// erro ao buscar';
+  }
+  return false;
+}
+
+carregarTop8();
+
+/* ====== CARRINHO (em memória — será persistido no backend) ======
+   Chaveado por nome do produto e guardando um snapshot do item,
+   porque o array `produtos` muda entre o top8 e os resultados de busca. */
+let cart={};   // nome -> { p, q }
+function addToCart(i){
+  const p=produtos[i]; if(!p) return;
+  if(cart[p.nome]) cart[p.nome].q++;
+  else cart[p.nome]={p,q:1};
+  renderCart();
+  showToast('Adicionado ao carrinho! 🔥');
+}
+function changeQty(nome,d){
+  if(!cart[nome])return;
+  cart[nome].q+=d;
+  if(cart[nome].q<=0)delete cart[nome];
+  renderCart();
+}
+function renderCart(){
+  const items=Object.values(cart);
+  const count=items.reduce((s,it)=>s+it.q,0);
+  document.getElementById('cartCount').textContent=count;
+  const box=document.getElementById('cartItems');
+  if(!items.length){box.innerHTML='<p class="cart-empty">Carrinho vazio... bora encher? &#128293;</p>';}
+  else{
+    box.innerHTML=items.map(({p,q})=>`
+      <div class="cart-item">
+        <div class="thumb">${media(p)}</div>
+        <div class="cart-item-info"><b>${p.nome}</b><span>${brl(p.preco)}</span></div>
+        <div class="qty"><button onclick="changeQty('${p.nome.replace(/'/g,"\\'")}',-1)">−</button><span>${q}</span><button onclick="changeQty('${p.nome.replace(/'/g,"\\'")}',1)">+</button></div>
+      </div>`).join('');
+  }
+  const total=items.reduce((s,{p,q})=>s+(p.preco||0)*q,0);
+  document.getElementById('cartTotal').textContent=brl(total);
+}
+
+/* ====== MODAL / DRAWER ====== */
+const viewTitles={
+  login:'Login',
+  forgot:'Diga seu <em>e-mail</em> para recuperação de senha',
+  signup:'Criar <em>cadastro</em>',
+  track:'Rastrear <em>pedido</em>'
+};
+function openModal(view){
+  document.getElementById('overlay').classList.add('open');
+  document.getElementById('modal').classList.add('open');
+  document.getElementById('drawer').classList.remove('open');
+  switchView(view);
+}
+function switchView(view){
+  document.getElementById('modalTitle').innerHTML=viewTitles[view]||'';
+  document.querySelectorAll('.tab-panel').forEach(p=>p.classList.toggle('active',p.id==='panel-'+view));
+}
+function toggleCart(open){
+  document.getElementById('drawer').classList.toggle('open',open);
+  document.getElementById('overlay').classList.toggle('open',open);
+  document.getElementById('modal').classList.remove('open');
+}
+function closeAll(){
+  document.getElementById('overlay').classList.remove('open');
+  document.getElementById('modal').classList.remove('open');
+  document.getElementById('drawer').classList.remove('open');
+}
+
+/* ====== ViaCEP: autopreenchimento de endereço ====== */
+async function buscaCEP(){
+  const raw=document.getElementById('cepInput').value.replace(/\D/g,'');
+  const status=document.getElementById('cepStatus');
+  if(raw.length!==8)return;
+  status.style.display='block';status.textContent='Buscando CEP...';
+  try{
+    const r=await fetch(`https://viacep.com.br/ws/${raw}/json/`);
+    const d=await r.json();
+    if(d.erro){status.textContent='CEP não encontrado — preencha manualmente';return;}
+    document.getElementById('endInput').value=d.logradouro||'';
+    document.getElementById('bairroInput').value=d.bairro||'';
+    document.getElementById('cidadeInput').value=d.localidade||'';
+    document.getElementById('ufInput').value=d.uf||'';
+    status.textContent='Endereço preenchido automaticamente ✓';
+  }catch(e){status.textContent='Erro ao consultar CEP — preencha manualmente';}
+}
+document.getElementById('cepInput').addEventListener('input',e=>{
+  let v=e.target.value.replace(/\D/g,'').slice(0,8);
+  e.target.value=v.length>5?v.slice(0,5)+'-'+v.slice(5):v;
+});
+
+function fakeTrack(){
+  document.getElementById('trackResult').classList.add('show');
+}
+function fakeAction(msg){showToast(msg)}
+let toastTimer;
+function showToast(msg){
+  const t=document.getElementById('toast');
+  t.textContent=msg;t.classList.add('show');
+  clearTimeout(toastTimer);
+  toastTimer=setTimeout(()=>t.classList.remove('show'),2200);
+}
+document.addEventListener('keydown',e=>{if(e.key==='Escape')closeAll()});
+</script>
+</body>
+</html>

@@ -1,0 +1,23 @@
+# deps / builds
+node_modules/
+dist/
+coverage/
+
+# env & segredos
+.env
+.env.*
+!.env.example
+
+# dados locais
+apps/api/storage/
+apps/api/prisma/*.db
+apps/api/prisma/*.db-journal
+services/nike-scraper/data/
+*.log
+
+# ferramentas
+.DS_Store
+.agents/
+.codex/
+.impeccable/
+skills-lock.json

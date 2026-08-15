@@ -1,0 +1,29 @@
+{
+  "name": "kulture",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Kulture BR — tênis importados originais. Monorepo local: web (React), api (Fastify + SQLite), nike-scraper.",
+  "type": "module",
+  "engines": {
+    "node": ">=22"
+  },
+  "workspaces": [
+    "apps/*",
+    "services/*",
+    "packages/*"
+  ],
+  "scripts": {
+    "dev": "concurrently -k -n web,api,scraper -c cyan,green,yellow \"npm run dev -w apps/web\" \"npm run dev -w apps/api\" \"npm run dev -w services/nike-scraper\"",
+    "dev:api": "npm run dev -w apps/api",
+    "dev:web": "npm run dev -w apps/web",
+    "dev:scraper": "npm run dev -w services/nike-scraper",
+    "build": "npm run build -w apps/web",
+    "test": "npm test --workspaces --if-present",
+    "db:migrate": "npm run db:migrate -w apps/api",
+    "db:generate": "npm run db:generate -w apps/api",
+    "db:studio": "npm run db:studio -w apps/api"
+  },
+  "devDependencies": {
+    "concurrently": "^9.1.2"
+  }
+}
