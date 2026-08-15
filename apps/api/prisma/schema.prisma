@@ -38,6 +38,7 @@ model User {
   createdAt     DateTime       @default(now()) @map("created_at")
   updatedAt     DateTime       @updatedAt @map("updated_at")
   refreshTokens RefreshToken[]
+  orders        Order[]
 
   @@map("users")
 }
@@ -57,4 +58,121 @@ model RefreshToken {
   @@index([userId])
   @@index([family])
   @@map("refresh_tokens")
+}
+
+// ─── Pedidos & Checkout (Fase 4) ─────────────────────────────────────────────
+
+enum OrderStatus {
+  pending_payment
+  paid
+  abandoned
+  cancelled
+  refunded
+  sourcing
+  shipped
+  delivered
+}
+
+model Order {
+  id                  String      @id @default(cuid())
+  number              String      @unique // Ex: KLT-2026-000123
+  status              OrderStatus @default(pending_payment)
+  userId              String?     @map("user_id")
+  customerName        String      @map("customer_name")
+  customerEmail       String      @map("customer_email")
+  customerPhone       String      @map("customer_phone")
+  customerCpf         String      @map("customer_cpf")
+  address             Json        // { cep, street, number, complement, neighborhood, city, state }
+  subtotalBrl         Decimal     @map("subtotal_brl")
+  shippingBrl         Decimal     @default(0) @map("shipping_brl")
+  totalBrl            Decimal     @map("total_brl")
+  exchangeRate        Decimal     @map("exchange_rate")
+  pricingSnapshot     Json        @map("pricing_snapshot") // breakdown interno sumário
+  paymentProvider     String      @map("payment_provider") // infinitepay | mock
+  paymentMethod       String?     @map("payment_method") // pix | credit_card
+  infinitepaySlug     String?     @map("infinitepay_slug")
+  transactionNsu      String?     @map("transaction_nsu")
+  receiptUrl          String?     @map("receipt_url")
+  paidAmountBrl       Decimal?    @map("paid_amount_brl")
+  installments        Int?
+  paidAt              DateTime?   @map("paid_at")
+  abandonedAt         DateTime?   @map("abandoned_at")
+  notifiedPendingAt   DateTime?   @map("notified_pending_at")
+  notifiedPaidAt      DateTime?   @map("notified_paid_at")
+  notifiedAbandonedAt DateTime?   @map("notified_abandoned_at")
+  createdAt           DateTime    @default(now()) @map("created_at")
+  updatedAt           DateTime    @updatedAt @map("updated_at")
+
+  items  OrderItem[]
+  events OrderEvent[]
+
+  user User? @relation(fields: [userId], references: [id])
+
+  @@index([status, createdAt])
+  @@index([transactionNsu])
+  @@map("orders")
+}
+
+model OrderItem {
+  id               String   @id @default(cuid())
+  orderId          String   @map("order_id")
+  styleColor       String   @map("style_color")
+  name             String
+  colorDescription String?  @map("color_description")
+  image            String?
+  nikeSize         String   @map("nike_size")
+  brSize           Decimal? @map("br_size")
+  brLabel          String?  @map("br_label")
+  unitPriceBrl     Decimal  @map("unit_price_brl")
+  unitPriceUsd     Decimal  @map("unit_price_usd")
+  quantity         Int
+  breakdown        Json     // Breakdown interno do item
+
+  order Order @relation(fields: [orderId], references: [id], onDelete: Cascade)
+
+  @@map("order_items")
+}
+
+model OrderEvent {
+  id        String   @id @default(cuid())
+  orderId   String   @map("order_id")
+  type      String   // created, link_created, payment_confirmed, webhook_received, abandoned, notified_*, error
+  payload   Json?
+  createdAt DateTime @default(now()) @map("created_at")
+
+  order Order @relation(fields: [orderId], references: [id], onDelete: Cascade)
+
+  @@map("order_events")
+}
+
+enum NotificationStatus {
+  pending
+  sent
+  failed
+}
+
+model Notification {
+  id               String             @id @default(cuid())
+  orderId          String?            @map("order_id")
+  channel          String             @default("whatsapp")
+  to               String
+  event            String
+  text             String
+  provider         String             // log | evolution
+  status           NotificationStatus @default(pending)
+  providerResponse Json?              @map("provider_response")
+  attempts         Int                @default(0)
+  lastError        String?            @map("last_error")
+  sentAt           DateTime?          @map("sent_at")
+  createdAt        DateTime           @default(now()) @map("created_at")
+
+  @@map("notifications")
+}
+
+model IdempotencyKey {
+  key       String   @id
+  response  Json?
+  createdAt DateTime @default(now()) @map("created_at")
+
+  @@map("idempotency_keys")
 }

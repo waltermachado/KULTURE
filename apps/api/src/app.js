@@ -19,6 +19,11 @@ import { createCatalogService } from "./modules/catalog/service.js";
 import { catalogRoutes } from "./modules/catalog/routes.js";
 import { healthRoutes } from "./modules/health/routes.js";
 import { authRoutes } from "./modules/auth/routes.js";
+import { createPaymentGateway } from "./modules/payments/gateway.js";
+import { createNotifier } from "./modules/notifications/notifier.js";
+import { createOrderService } from "./modules/orders/service.js";
+import { orderRoutes } from "./modules/orders/routes.js";
+import { startAbandonedCheckoutJob } from "./modules/jobs/abandoned-checkout.js";
 
 const require = createRequire(import.meta.url);
 const pkg = require("../package.json");
@@ -69,6 +74,11 @@ export async function buildApp(overrides = {}) {
   app.decorate("scraper", scraper);
   app.decorate("catalog", catalog);
 
+  const gateway = overrides.gateway ?? createPaymentGateway(env, app.log);
+  const notifier = overrides.notifier ?? createNotifier(env, app.log, prisma);
+  const orders = overrides.orders ?? createOrderService(env, prisma, catalog, gateway, notifier, app.log);
+  app.decorate("orders", orders);
+
   // ---- plugins ----
   if (env.CORS_ORIGINS.length) {
     await app.register(cors, { origin: env.CORS_ORIGINS, credentials: true });
@@ -104,7 +114,10 @@ export async function buildApp(overrides = {}) {
   // ---- módulos ----
   await app.register(healthRoutes);
   await app.register(catalogRoutes);
-  if (prisma) await app.register(authRoutes);
+  if (prisma) {
+    await app.register(authRoutes);
+    await app.register(orderRoutes);
+  }
 
   // ---- ciclo de vida ----
   const warm = overrides.warmTop8 ?? env.TOP8_WARM;
@@ -119,6 +132,14 @@ export async function buildApp(overrides = {}) {
       if (timer) clearInterval(timer);
     });
   }
+
+  if (prisma && (overrides.startJobs ?? true)) {
+    const stopAbandonedJob = startAbandonedCheckoutJob(prisma, notifier, app.log);
+    app.addHook("onClose", async () => {
+      stopAbandonedJob();
+    });
+  }
+
   app.addHook("onClose", async () => {
     if (prisma) await prisma.$disconnect();
   });

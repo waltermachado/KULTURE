@@ -35,7 +35,21 @@ const schema = z.object({
   TOP8_WARM: z
     .string()
     .default("true")
-    .transform((v) => !["false", "0", "no"].includes(v.toLowerCase()))
+    .transform((v) => !["false", "0", "no"].includes(v.toLowerCase())),
+
+  // ---- checkout / payments ----
+  PAYMENT_PROVIDER: z.enum(["mock", "infinitepay"]).default("mock"),
+  INFINITEPAY_HANDLE: z.string().default("kulture-br"),
+  INFINITEPAY_API_BASE: z.string().url().default("https://api.checkout.infinitepay.io"),
+  PUBLIC_WEB_URL: z.string().url().default("http://localhost:5173"),
+  PUBLIC_API_URL: z.string().url().default("http://localhost:3000"),
+
+  // ---- notifications ----
+  WHATSAPP_PROVIDER: z.enum(["log", "evolution"]).default("log"),
+  WHATSAPP_TO: z.string().default(""), // Opcional no mock
+  EVOLUTION_URL: z.string().url().default("http://localhost:8080"),
+  EVOLUTION_INSTANCE: z.string().default("instance"),
+  EVOLUTION_APIKEY: z.string().default(""),
 });
 
 export function loadEnv(source = process.env) {

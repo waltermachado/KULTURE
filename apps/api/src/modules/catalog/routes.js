@@ -19,6 +19,13 @@ const productSchema = {
 export async function catalogRoutes(app) {
   const catalog = app.catalog;
 
+  // Helper to remove internal breakdown info from public API
+  const stripInternal = (product) => {
+    if (!product || !product.price) return product;
+    const { breakdown, rulesApplied, ...publicPrice } = product.price;
+    return { ...product, price: publicPrice };
+  };
+
   app.get(
     "/api/search",
     {
@@ -47,14 +54,18 @@ export async function catalogRoutes(app) {
     async (req) => {
       const q = req.query.q.trim();
       if (!q) throw AppError.badRequest('Parâmetro "q" é obrigatório');
-      return catalog.search(q);
+      const result = await catalog.search(q);
+      return { ...result, products: result.products.map(stripInternal) };
     }
   );
 
   app.get(
     "/api/products/top8",
     { schema: { tags: ["catalog"], summary: "Os 8 destaques da home (pré-aquecidos)" } },
-    async () => catalog.top8()
+    async () => {
+      const result = await catalog.top8();
+      return { ...result, products: result.products.map(stripInternal) };
+    }
   );
 
   app.get(
@@ -75,7 +86,7 @@ export async function catalogRoutes(app) {
       if (req.query.all !== 'true') {
         result.product.sizes = result.product.sizes.filter(s => s.available);
       }
-      return result;
+      return { ...result, product: stripInternal(result.product) };
     }
   );
 
