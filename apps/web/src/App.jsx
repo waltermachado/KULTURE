@@ -1,9 +1,9 @@
 import { useCallback, useEffect, useRef, useState } from "react";
+import { Routes, Route, useNavigate } from "react-router-dom";
 import Header from "./components/Header.jsx";
-import Hero from "./components/Hero.jsx";
-import Marquee from "./components/Marquee.jsx";
-import ProductGrid from "./components/ProductGrid.jsx";
-import Features from "./components/Features.jsx";
+import Home from "./pages/Home.jsx";
+import Checkout from "./pages/Checkout.jsx";
+import Confirmation from "./pages/Confirmation.jsx";
 import Footer from "./components/Footer.jsx";
 import AuthModal from "./components/AuthModal.jsx";
 import CartDrawer from "./components/CartDrawer.jsx";
@@ -22,6 +22,7 @@ const TOP8_TITLE = (
 const TOP8_SUB = "// os mais usados na NBA — dados ao vivo via kulture-api (cache 1h)";
 
 export default function App() {
+  const navigate = useNavigate();
   const cart = useCart();
   const auth = useAuth();
   const [grid, setGrid] = useState({ status: "loading", products: [], title: TOP8_TITLE, sub: TOP8_SUB, query: "" });
@@ -119,14 +120,15 @@ export default function App() {
         cartCount={cart.count}
         onOpenCart={() => { setModal((m) => ({ ...m, open: false })); setDrawerOpen(true); }}
         onOpenLogin={() => openModal("login")}
-        onSearch={search}
+        onSearch={(q) => { search(q); navigate('/'); }}
         user={auth.user}
         onLogout={handleLogout}
       />
-      <Hero />
-      <Marquee />
-      <ProductGrid state={grid} onAdd={setSelectedProductForSize} />
-      <Features />
+      <Routes>
+        <Route path="/" element={<Home grid={grid} setSelectedProductForSize={setSelectedProductForSize} />} />
+        <Route path="/checkout" element={<Checkout cart={cart} auth={auth} notify={notify} />} />
+        <Route path="/pedido/confirmacao" element={<Confirmation auth={auth} />} />
+      </Routes>
       <Footer onOpenModal={openModal} />
 
       <div className={`overlay${overlayOpen ? " open" : ""}`} onClick={closeAll} />
@@ -138,7 +140,7 @@ export default function App() {
           onAdd={addToCart} 
         />
       )}
-      <CartDrawer open={drawerOpen} onClose={() => setDrawerOpen(false)} cart={cart} onCheckout={() => notify("Checkout será integrado ao InfinitePay (Fase 4)")} />
+      <CartDrawer open={drawerOpen} onClose={() => setDrawerOpen(false)} cart={cart} onCheckout={() => { setDrawerOpen(false); navigate("/checkout"); }} />
       <Toast message={toast.message} visible={toast.visible} />
     </>
   );

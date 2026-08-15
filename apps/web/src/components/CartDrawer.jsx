@@ -41,6 +41,10 @@ export default function CartDrawer({ open, onClose, cart, onCheckout }) {
         )}
       </div>
       <div className="drawer-footer">
+        <div className="total-row" style={{ color: '#888', fontSize: '0.9rem', marginBottom: 4 }}>
+          <span>Frete</span>
+          <span style={{ color: 'var(--k-green)' }}>Grátis</span>
+        </div>
         <div className="total-row">
           <span>Total</span>
           <b>{brl(total)}</b>
