@@ -8,7 +8,9 @@ export async function healthRoutes(app) {
       service: "kulture-api",
       version: app.appVersion,
       uptimeSec: Math.round(process.uptime()),
-      cache: app.cache.stats()
+      cache: app.cache.stats(),
+      // false = imagens sendo servidas da origem (Nike) porque o storage não é gravável
+      storageWritable: typeof app.images?.checkWritable === "function" ? await app.images.checkWritable() : null
     })
   );
 

@@ -73,6 +73,8 @@ const schema = z.object({
   CORS_ORIGINS: z.string().default("").transform(csv),
 
   MEDIA_BASE: z.string().default("/media/produtos"),
+  // pasta onde as imagens espelhadas são gravadas (padrão apps/api/storage/produtos; no Railway = mount do volume)
+  STORAGE_DIR: z.string().default(""),
   CACHE_FRESH_MIN: z.coerce.number().positive().default(60),
   CACHE_STALE_MIN: z.coerce.number().positive().default(1440),
   SIZES_CACHE_MIN: z.coerce.number().positive().default(10),

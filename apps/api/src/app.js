@@ -71,13 +71,16 @@ export async function buildApp(overrides = {}) {
     log: app.log
   });
   const scraper = overrides.scraper ?? createScraperClient({ baseUrl: env.SCRAPER_URL });
-  const images = overrides.images ?? createImageMirror({ publicBase: env.MEDIA_BASE, log: app.log });
+  const images =
+    overrides.images ??
+    createImageMirror({ publicBase: env.MEDIA_BASE, ...(env.STORAGE_DIR ? { storageDir: env.STORAGE_DIR } : {}), log: app.log });
   const rules = overrides.pricingRules ?? DEFAULT_PRICING_RULES; // Fase 1: tabela PricingRule
   const catalog = createCatalogService({ scraper, cache, sizesCache, images, rules, top8Terms: env.TOP8_TERMS, log: app.log });
 
   app.decorate("prisma", prisma);
   app.decorate("cache", cache);
   app.decorate("scraper", scraper);
+  app.decorate("images", images);
   app.decorate("catalog", catalog);
 
   const gateway = overrides.gateway ?? createPaymentGateway(env, app.log);
@@ -146,6 +149,13 @@ export async function buildApp(overrides = {}) {
   }
 
   // ---- ciclo de vida ----
+  // avisa já na subida se o storage de imagens não for gravável (volume do Railway como root, etc.)
+  if (typeof images.checkWritable === "function") {
+    app.addHook("onReady", async () => {
+      images.checkWritable().catch(() => {});
+    });
+  }
+
   const warm = overrides.warmTop8 ?? env.TOP8_WARM;
   if (warm) {
     let timer = null;

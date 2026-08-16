@@ -28,6 +28,36 @@ function safeId(id) {
 }
 
 export function createImageMirror({ publicBase = "/media/produtos", storageDir = STORAGE_DIR, log = null, fetchImpl = fetch } = {}) {
+  // Estado de gravabilidade do storage. No Railway o volume é montado como root e o container roda
+  // como `node` → EACCES. Nesse caso NÃO podemos derrubar o catálogo: servimos as URLs de origem
+  // (Nike) e avisamos no log. Reavaliamos de tempos em tempos (RAILWAY_RUN_UID=0 ou volume ajustado).
+  let writable = null; // null = ainda não testado
+  let lastCheck = 0;
+  const RECHECK_MS = 5 * 60_000;
+
+  async function checkWritable() {
+    const now = Date.now();
+    if (writable !== null && now - lastCheck < RECHECK_MS) return writable;
+    lastCheck = now;
+    try {
+      await fs.mkdir(storageDir, { recursive: true });
+      const probe = path.join(storageDir, `.write-test-${process.pid}`);
+      await fs.writeFile(probe, "ok");
+      await fs.unlink(probe);
+      if (writable === false) log?.info({ storageDir }, "img: storage voltou a ser gravável — espelho reativado");
+      writable = true;
+    } catch (err) {
+      if (writable !== false) {
+        log?.error(
+          { storageDir, err: err.message, code: err.code },
+          "img: storage NÃO gravável — imagens serão servidas direto da origem (Nike). No Railway: variável RAILWAY_RUN_UID=0 no serviço da api, ou monte o volume em outro caminho e aponte STORAGE_DIR para ele."
+        );
+      }
+      writable = false;
+    }
+    return writable;
+  }
+
   /**
    * Garante que as imagens do styleColor estejam salvas localmente.
    * @returns {Promise<string[]>} URLs públicas (servidas pela própria api) ou de origem no fallback
@@ -37,7 +67,15 @@ export function createImageMirror({ publicBase = "/media/produtos", storageDir =
     const dir = path.join(storageDir, id);
     const publicUrls = [];
 
-    await fs.mkdir(dir, { recursive: true });
+    if (!(await checkWritable())) return [...sourceUrls];
+
+    try {
+      await fs.mkdir(dir, { recursive: true });
+    } catch (err) {
+      log?.warn({ dir, err: err.message }, "img: não consegui criar a pasta do produto, usando URLs de origem");
+      writable = false;
+      return [...sourceUrls];
+    }
 
     for (let i = 0; i < sourceUrls.length; i++) {
       const meta = path.join(dir, `${i}.json`);
@@ -71,5 +109,5 @@ export function createImageMirror({ publicBase = "/media/produtos", storageDir =
     return publicUrls;
   }
 
-  return { ensureImages, storageDir };
+  return { ensureImages, storageDir, checkWritable };
 }
