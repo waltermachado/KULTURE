@@ -19,6 +19,9 @@ import { createCatalogService } from "./modules/catalog/service.js";
 import { catalogRoutes } from "./modules/catalog/routes.js";
 import { healthRoutes } from "./modules/health/routes.js";
 import { authRoutes } from "./modules/auth/routes.js";
+import { createAuthService } from "./modules/auth/service.js";
+import { createResetMailer } from "./modules/auth/reset-mail.js";
+import { adminRoutes } from "./modules/admin/routes.js";
 import { createPaymentGateway } from "./modules/payments/gateway.js";
 import { createNotifier } from "./modules/notifications/notifier.js";
 import { createMailer } from "./modules/mail/mailer.js";
@@ -97,6 +100,21 @@ export async function buildApp(overrides = {}) {
     keyGenerator: (req) => req.ip
   });
 
+  // auth service no contexto raiz: auth routes e módulo admin compartilham a mesma instância
+  if (prisma) {
+    const auth = createAuthService({
+      prisma,
+      jwtSign: (payload, opts) => app.jwt.sign(payload, opts),
+      jwtExpiresIn: env.JWT_EXPIRES_IN,
+      refreshExpiresDays: env.REFRESH_EXPIRES_DAYS,
+      adminEmails: env.ADMIN_EMAILS,
+      resetTtlMin: env.PASSWORD_RESET_TTL_MIN,
+      log: app.log
+    });
+    app.decorate("auth", auth);
+    app.decorate("sendPasswordResetEmail", createResetMailer({ env, mailer, log: app.log }));
+  }
+
   await app.register(fastifyStatic, {
     root: images.storageDir,
     prefix: `${env.MEDIA_BASE.replace(/\/$/, "")}/`,
@@ -110,6 +128,8 @@ export async function buildApp(overrides = {}) {
       info: { title: "Kulture API", description: "kulture-core — catálogo, preço, auth, carrinho, pedidos", version: pkg.version },
       tags: [
         { name: "catalog", description: "Busca e produtos" },
+        { name: "auth", description: "Conta do cliente" },
+        { name: "admin", description: "Backoffice (role=admin)" },
         { name: "ops", description: "Saúde e operação" }
       ]
     }
@@ -122,6 +142,7 @@ export async function buildApp(overrides = {}) {
   if (prisma) {
     await app.register(authRoutes);
     await app.register(orderRoutes);
+    await app.register(adminRoutes);
   }
 
   // ---- ciclo de vida ----

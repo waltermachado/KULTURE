@@ -8,7 +8,7 @@ const TABS = [
   { label: "Corrida", q: "running shoes" }
 ];
 
-export default function Header({ cartCount, onOpenCart, onOpenLogin, onSearch, user, onLogout }) {
+export default function Header({ cartCount, onOpenCart, onOpenLogin, onSearch, user, isAdmin, onLogout }) {
   const [q, setQ] = useState("");
   const [active, setActive] = useState("Início");
   const navigate = useNavigate();
@@ -45,7 +45,12 @@ export default function Header({ cartCount, onOpenCart, onOpenLogin, onSearch, u
           </form>
           {user ? (
             <div className="user-menu">
-              <span className="user-greeting" title={user.email}>{user.name.split(" ")[0]}</span>
+              {isAdmin && (
+                <button className="btn-login btn-admin" onClick={() => navigate("/admin")} title="Backoffice">Admin</button>
+              )}
+              <button className="user-greeting as-link" title={`Minha conta — ${user.email}`} onClick={() => navigate("/conta")}>
+                {user.name.split(" ")[0]}
+              </button>
               <button className="btn-login btn-logout" onClick={onLogout} title="Sair">Sair</button>
             </div>
           ) : (

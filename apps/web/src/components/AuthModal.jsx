@@ -42,12 +42,17 @@ export default function AuthModal({ open, view, onSwitch, onClose, notify, auth 
   const [cep, setCep] = useState("");
   const [addr, setAddr] = useState({ endereco: "", bairro: "", cidade: "", uf: "" });
   const [cepStatus, setCepStatus] = useState("");
-  const [tracked, setTracked] = useState(false);
+  const [trackNumber, setTrackNumber] = useState("");
+  const [tracked, setTracked] = useState(null); // { order } | { error }
   const [busy, setBusy] = useState(false);
 
   // Login fields
   const [loginEmail, setLoginEmail] = useState("");
   const [loginPw, setLoginPw] = useState("");
+
+  // Forgot
+  const [forgotEmail, setForgotEmail] = useState("");
+  const [forgotSent, setForgotSent] = useState(false);
 
   // Signup fields
   const [signupName, setSignupName] = useState("");
@@ -92,6 +97,39 @@ export default function AuthModal({ open, view, onSwitch, onClose, notify, auth 
       onClose();
     } catch (err) {
       notify(err.message || "Erro ao fazer login");
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function handleTrack(e) {
+    e.preventDefault();
+    const n = trackNumber.trim().toUpperCase();
+    if (!n) return notify("Digite o número do pedido (KLT-…)");
+    setBusy(true);
+    setTracked(null);
+    try {
+      const res = await fetch(`/api/orders/${encodeURIComponent(n)}`, { headers: { Accept: "application/json" } });
+      if (!res.ok) throw new Error(res.status === 404 ? "Pedido não encontrado" : "Não foi possível consultar agora");
+      setTracked({ order: await res.json() });
+    } catch (err) {
+      setTracked({ error: err.message });
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function handleForgot(e) {
+    e.preventDefault();
+    const email = (forgotEmail || loginEmail).trim();
+    if (!email) return notify("Digite o e-mail cadastrado");
+    setBusy(true);
+    try {
+      await auth.forgotPassword(email);
+      setForgotSent(true);
+      notify("Se o e-mail tiver cadastro, o link foi enviado ✉️");
+    } catch (err) {
+      notify(err.message || "Erro ao pedir recuperação");
     } finally {
       setBusy(false);
     }
@@ -163,15 +201,24 @@ export default function AuthModal({ open, view, onSwitch, onClose, notify, auth 
       )}
 
       {view === "forgot" && (
-        <div className="tab-panel active">
-          <Field label="E-mail cadastrado" type="email" placeholder="voce@email.com" />
-          <button className="btn-full" onClick={() => notify("Recuperação de senha entra com o e-mail transacional")}>
-            Enviar link de recuperação
-          </button>
-          <a className="back-link" href="#" onClick={go("login")}>
+        <form className="tab-panel active" onSubmit={handleForgot}>
+          {forgotSent ? (
+            <p style={{ color: "var(--muted-2)", fontSize: 14, lineHeight: 1.6, marginBottom: 14 }}>
+              Se <b style={{ color: "var(--paper)" }}>{(forgotEmail || loginEmail).trim()}</b> tiver cadastro, enviamos um link para redefinir a senha.
+              Ele vale por 1 hora. Não chegou? Veja o spam ou fale com a gente no WhatsApp.
+            </p>
+          ) : (
+            <>
+              <Field label="E-mail cadastrado" type="email" placeholder="voce@email.com" value={forgotEmail || loginEmail} onChange={(e) => setForgotEmail(e.target.value)} />
+              <button className="btn-full" type="submit" disabled={busy}>
+                {busy ? "Enviando..." : "Enviar link de recuperação"}
+              </button>
+            </>
+          )}
+          <a className="back-link" href="#" onClick={(e) => { setForgotSent(false); go("login")(e); }}>
             &#8592; Voltar para o login
           </a>
-        </div>
+        </form>
       )}
 
       {view === "signup" && (
@@ -215,32 +262,43 @@ export default function AuthModal({ open, view, onSwitch, onClose, notify, auth 
       )}
 
       {view === "track" && (
-        <div className="tab-panel active">
-          <Field label="Código de rastreio ou nº do pedido" type="text" placeholder="KLT-2026-0001" />
-          <button className="btn-full" onClick={() => setTracked(true)}>
-            Rastrear pedido
+        <form className="tab-panel active" onSubmit={handleTrack}>
+          <Field label="Nº do pedido" type="text" placeholder="KLT-2026-000123" value={trackNumber} onChange={(e) => setTrackNumber(e.target.value)} />
+          <button className="btn-full" type="submit" disabled={busy}>
+            {busy ? "Consultando..." : "Rastrear pedido"}
           </button>
-          <div className={`track-result${tracked ? " show" : ""}`}>
-            <b className="track-title">Pedido KLT-2026-0001</b>
-            <div className="track-steps">
-              {[
-                ["Pagamento aprovado (InfinitePay)", false],
-                ["Comprado na loja oficial (EUA)", false],
-                ["Em trânsito internacional", false],
-                ["Liberado na alfândega", true],
-                ["Saiu para entrega", true]
-              ].map(([label, pending]) => (
-                <div className={`track-step${pending ? " pending" : ""}`} key={label}>
-                  <span className="dot" /> {label}
-                </div>
-              ))}
-            </div>
-            <small className="track-note">* exemplo ilustrativo — dados reais virão dos pedidos (Fase 4)</small>
-          </div>
+          {tracked?.error && <small className="cep-status" style={{ color: "var(--red)", marginTop: 12 }}>{tracked.error}</small>}
+          {tracked?.order && (() => {
+            const o = tracked.order;
+            const step = ["pending_payment", "paid", "sourcing", "shipped", "delivered"].indexOf(o.status);
+            const dead = ["abandoned", "cancelled", "refunded"].includes(o.status);
+            const steps = [
+              ["Pagamento aprovado", step >= 1],
+              ["Comprado na loja oficial (EUA)", step >= 2],
+              [`Enviado${o.trackingCode ? ` — ${o.carrier || ""} ${o.trackingCode}` : ""}`, step >= 3],
+              ["Entregue", step >= 4]
+            ];
+            return (
+              <div className="track-result show">
+                <b className="track-title">Pedido {o.number}{o.customerName ? ` · ${o.customerName}` : ""}</b>
+                {dead ? (
+                  <small className="track-note">Este pedido está {o.status === "refunded" ? "estornado" : o.status === "cancelled" ? "cancelado" : "expirado (pagamento não concluído)"}.</small>
+                ) : (
+                  <div className="track-steps">
+                    {steps.map(([label, done]) => (
+                      <div className={`track-step${done ? "" : " pending"}`} key={label}><span className="dot" /> {label}</div>
+                    ))}
+                  </div>
+                )}
+                {o.trackingUrl && <a href={o.trackingUrl} target="_blank" rel="noreferrer" style={{ display: "inline-block", marginTop: 10, fontSize: 12 }}>Abrir rastreio na transportadora ↗</a>}
+                <small className="track-note">Entre na sua conta para ver todos os detalhes do pedido.</small>
+              </div>
+            );
+          })()}
           <a className="back-link" href="#" onClick={go("login")}>
             &#8592; Ir para o login
           </a>
-        </div>
+        </form>
       )}
     </div>
   );

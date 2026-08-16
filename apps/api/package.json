@@ -15,7 +15,9 @@
     "db:generate": "prisma generate",
     "db:migrate": "prisma migrate dev",
     "db:deploy": "prisma migrate deploy",
-    "db:studio": "prisma studio"
+    "db:studio": "prisma studio",
+    "admin:make": "node --env-file-if-exists=.env scripts/make-admin.js",
+    "seed:demo": "node --env-file-if-exists=.env scripts/seed-demo.mjs"
   },
   "dependencies": {
     "@fastify/cookie": "^11.1.2",

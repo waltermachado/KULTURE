@@ -1,10 +1,13 @@
 import { useCallback, useEffect, useRef, useState } from "react";
-import { Routes, Route, useNavigate } from "react-router-dom";
+import { Routes, Route, useNavigate, useLocation } from "react-router-dom";
 import Header from "./components/Header.jsx";
 import Home from "./pages/Home.jsx";
 import Checkout from "./pages/Checkout.jsx";
 import Confirmation from "./pages/Confirmation.jsx";
 import MockInfinitePay from "./pages/MockInfinitePay.jsx";
+import Account from "./pages/Account.jsx";
+import ResetPassword from "./pages/ResetPassword.jsx";
+import AdminApp from "./admin/AdminApp.jsx";
 import Footer from "./components/Footer.jsx";
 import AuthModal from "./components/AuthModal.jsx";
 import CartDrawer from "./components/CartDrawer.jsx";
@@ -24,6 +27,8 @@ const TOP8_SUB = "// os mais usados na NBA — dados ao vivo via kulture-api (ca
 
 export default function App() {
   const navigate = useNavigate();
+  const location = useLocation();
+  const isAdminArea = location.pathname === "/admin" || location.pathname.startsWith("/admin/");
   const cart = useCart();
   const auth = useAuth();
   const [grid, setGrid] = useState({ status: "loading", products: [], title: TOP8_TITLE, sub: TOP8_SUB, query: "" });
@@ -117,21 +122,27 @@ export default function App() {
 
   return (
     <>
-      <Header
-        cartCount={cart.count}
-        onOpenCart={() => { setModal((m) => ({ ...m, open: false })); setDrawerOpen(true); }}
-        onOpenLogin={() => openModal("login")}
-        onSearch={(q) => { search(q); navigate('/'); }}
-        user={auth.user}
-        onLogout={handleLogout}
-      />
+      {!isAdminArea && (
+        <Header
+          cartCount={cart.count}
+          onOpenCart={() => { setModal((m) => ({ ...m, open: false })); setDrawerOpen(true); }}
+          onOpenLogin={() => openModal("login")}
+          onSearch={(q) => { search(q); navigate('/'); }}
+          user={auth.user}
+          isAdmin={auth.isAdmin}
+          onLogout={handleLogout}
+        />
+      )}
       <Routes>
         <Route path="/" element={<Home grid={grid} setSelectedProductForSize={setSelectedProductForSize} onSearch={(q) => { search(q); document.getElementById("drops")?.scrollIntoView({ behavior: "smooth" }); }} />} />
         <Route path="/checkout" element={<Checkout cart={cart} auth={auth} notify={notify} />} />
         <Route path="/pedido/confirmacao" element={<Confirmation auth={auth} />} />
         <Route path="/mock/infinitepay/:number" element={<MockInfinitePay />} />
+        <Route path="/conta" element={<Account auth={auth} onOpenLogin={() => openModal("login")} notify={notify} />} />
+        <Route path="/redefinir-senha" element={<ResetPassword auth={auth} onOpenLogin={() => openModal("login")} />} />
+        <Route path="/admin/*" element={<AdminApp auth={auth} onOpenLogin={() => openModal("login")} notify={notify} />} />
       </Routes>
-      <Footer onOpenModal={openModal} onSearch={(q) => { search(q); navigate('/'); }} />
+      {!isAdminArea && <Footer onOpenModal={openModal} onSearch={(q) => { search(q); navigate('/'); }} />}
 
       <div className={`overlay${overlayOpen ? " open" : ""}`} onClick={closeAll} />
       <AuthModal open={modal.open} view={modal.view} onSwitch={(view) => setModal({ open: true, view })} onClose={closeAll} notify={notify} auth={auth} />

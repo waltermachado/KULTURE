@@ -17,6 +17,15 @@ export class AppError extends Error {
   static notFound(message = "Recurso não encontrado") {
     return new AppError(404, "NOT_FOUND", message);
   }
+  static unauthorized(message = "Não autenticado") {
+    return new AppError(401, "UNAUTHORIZED", message);
+  }
+  static forbidden(message = "Acesso negado") {
+    return new AppError(403, "FORBIDDEN", message);
+  }
+  static conflict(message, details) {
+    return new AppError(409, "CONFLICT", message, details);
+  }
   static upstream(message, details) {
     return new AppError(502, "UPSTREAM_UNAVAILABLE", message, details);
   }

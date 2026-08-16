@@ -8,10 +8,18 @@ import { convertUsToBr } from "@kulture/shared/sizes";
 const RATE_KEY = "rate:USD-BRL";
 
 export function createCatalogService({ scraper, cache, sizesCache, images, rules, top8Terms = [], log = null }) {
+  const validRate = (r) => r && typeof r === "object" && Number.isFinite(Number(r.ask)) && Number(r.ask) > 0;
+
   async function getRate() {
     // câmbio fica no mesmo cache SWR (fresco 1h; stale se o scraper cair)
     const { value } = await cache.getOrFetch(RATE_KEY, () => scraper.rate());
-    return value;
+    if (validRate(value)) return value;
+    // entrada envenenada no cache (formato antigo/inválido): busca direto e regrava
+    log?.warn({ key: RATE_KEY }, "catalog: câmbio em cache inválido — rebuscando");
+    const fresh = await scraper.rate();
+    if (!validRate(fresh)) throw new Error("Câmbio USD→BRL inválido.");
+    await cache.set?.(RATE_KEY, fresh);
+    return fresh;
   }
 
   async function enrich(raw, rate) {
@@ -22,11 +30,22 @@ export function createCatalogService({ scraper, cache, sizesCache, images, rules
 
   async function search(query) {
     const term = normalizeQuery(query);
-    const { value, cached, stale } = await cache.getOrFetch(`search:${term}`, async () => {
+    const key = `search:${term}`;
+    const fetchSearch = async () => {
       const [{ products, total }, rate] = await Promise.all([scraper.search(query), getRate()]);
       const enriched = await Promise.all(products.map((p) => enrich(p, rate)));
       return { total: total ?? enriched.length, products: enriched };
-    });
+    };
+    let { value, cached, stale } = await cache.getOrFetch(key, fetchSearch);
+    // Vazio vindo do cache (Nike/scraper estavam fora quando foi gravado) não pode "colar" por 60 min:
+    // rebusca agora e só regrava se vier algo. Um vazio legítimo continua custando uma ida à Nike.
+    if (cached && !value.products.length) {
+      const fresh = await fetchSearch();
+      if (fresh.products.length) await cache.set(key, fresh);
+      value = fresh;
+      cached = false;
+      stale = false;
+    }
     return { term, cached, stale, total: value.products.length, products: value.products };
   }
 
@@ -65,12 +84,21 @@ export function createCatalogService({ scraper, cache, sizesCache, images, rules
 
   async function top8() {
     const { value, cached, stale } = await cache.getOrFetch("top8", buildTop8);
-    return { cached, stale, total: value.length, products: value };
+    if (Array.isArray(value) && value.length) return { cached, stale, total: value.length, products: value };
+    // top8 vazio em cache (scraper/Nike estavam fora quando foi montado): tenta de novo agora,
+    // e só grava se vier algo — um vazio nunca deve "colar" por 60 min.
+    const fresh = await buildTop8();
+    if (fresh.length) await cache.set("top8", fresh);
+    return { cached: false, stale: false, total: fresh.length, products: fresh };
   }
 
   async function warmTop8() {
     try {
       const products = await buildTop8();
+      if (!products.length) {
+        log?.warn("top8: pré-aquecimento voltou vazio — não gravado no cache");
+        return;
+      }
       await cache.set("top8", products);
       log?.info({ count: products.length }, "top8 pré-aquecido");
     } catch (err) {

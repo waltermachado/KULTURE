@@ -53,6 +53,81 @@ export function createMailer(env, log) {
 
 const brl = (v) => Number(v).toLocaleString("pt-BR", { style: "currency", currency: "BRL" });
 
+const escapeHtml = (s) => String(s).replace(/&/g, "&amp;").replace(/</g, "&lt;");
+const asHtml = (text) =>
+  `<pre style="font-family:Inter,Arial,sans-serif;font-size:15px;line-height:1.5;white-space:pre-wrap">${escapeHtml(text)}</pre>`;
+const lines = (arr) => arr.filter((l) => l !== null && l !== undefined && l !== false).join("\n");
+
+/** Link para redefinir a senha (esqueci a senha ou gerado pelo backoffice). */
+export function buildPasswordResetEmail({ name, link, expiresMin = 60 }) {
+  const text = lines([
+    `Olá, ${name || ""}!`.replace(", !", "!"),
+    "",
+    "Recebemos um pedido para redefinir a senha da sua conta Kulture.",
+    "Use o link abaixo (vale por " + expiresMin + " minutos e só uma vez):",
+    "",
+    link,
+    "",
+    "Se você não pediu isso, ignore este e-mail — sua senha continua a mesma.",
+    "",
+    "— Equipe Kulture"
+  ]);
+  return { subject: "Redefinir senha — Kulture", text, html: asHtml(text) };
+}
+
+/** Pedido enviado: código de rastreio para o cliente. */
+export function buildOrderShippedEmail(order, { siteUrl } = {}) {
+  const text = lines([
+    `Olá, ${order.customerName}!`,
+    "",
+    `Seu pedido ${order.number} foi enviado. 📦`,
+    "",
+    order.carrier ? `Transportadora: ${order.carrier}` : null,
+    order.trackingCode ? `Código de rastreio: ${order.trackingCode}` : null,
+    order.trackingUrl ? `Acompanhe: ${order.trackingUrl}` : null,
+    "",
+    "Itens:",
+    (order.items || []).map((i) => `• ${i.name} — tam. BR ${i.brLabel ?? i.brSize ?? "?"} (US ${i.nikeSize}) × ${i.quantity}`).join("\n"),
+    "",
+    siteUrl ? `Veja seus pedidos em: ${siteUrl}/conta` : null,
+    "",
+    "— Equipe Kulture"
+  ]);
+  return { subject: `Pedido ${order.number} enviado — Kulture`, text, html: asHtml(text) };
+}
+
+/** Pedido entregue. */
+export function buildOrderDeliveredEmail(order, { siteUrl } = {}) {
+  const text = lines([
+    `Olá, ${order.customerName}!`,
+    "",
+    `Seu pedido ${order.number} consta como entregue. 🎉`,
+    "",
+    "Esperamos que tenha curtido o par. Qualquer problema, responda este e-mail ou fale com a gente no WhatsApp.",
+    siteUrl ? `Seus pedidos: ${siteUrl}/conta` : null,
+    "",
+    "— Equipe Kulture"
+  ]);
+  return { subject: `Pedido ${order.number} entregue — Kulture`, text, html: asHtml(text) };
+}
+
+/** Pedido cancelado / estornado. */
+export function buildOrderCancelledEmail(order, { siteUrl, refunded = false } = {}) {
+  const text = lines([
+    `Olá, ${order.customerName}!`,
+    "",
+    refunded
+      ? `O pedido ${order.number} foi estornado. O valor de ${brl(order.paidAmountBrl ?? order.totalBrl)} volta pelo mesmo meio de pagamento, no prazo da operadora.`
+      : `O pedido ${order.number} foi cancelado.`,
+    "",
+    "Se tiver qualquer dúvida, responda este e-mail ou fale com a gente no WhatsApp.",
+    siteUrl ? `Loja: ${siteUrl}` : null,
+    "",
+    "— Equipe Kulture"
+  ]);
+  return { subject: `Pedido ${order.number} ${refunded ? "estornado" : "cancelado"} — Kulture`, text, html: asHtml(text) };
+}
+
 /** E-mail de confirmação de pagamento para o cliente. */
 export function buildOrderPaidEmail(order, { siteUrl } = {}) {
   const items = (order.items || [])

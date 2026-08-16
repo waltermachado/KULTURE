@@ -58,6 +58,8 @@ Arquivos: `deploy/api.Dockerfile`, `deploy/scraper.Dockerfile`, `deploy/api-entr
      | `CORS_ORIGINS` | *(vazio)* |
      | `TOP8_TERMS`, `TOP8_WARM=true`, `CACHE_FRESH_MIN=60`, `CACHE_STALE_MIN=1440`, `SIZES_CACHE_MIN=10` | como no `.env.example` |
      | `JWT_EXPIRES_IN=15m`, `REFRESH_EXPIRES_DAYS=7`, `LOG_LEVEL=info` | |
+     | `ADMIN_EMAILS` | e-mails (vírgula) que viram **admin do backoffice** ao logar/cadastrar — ex.: `ti@neofolic.com.br,contato@kulturebr.com` |
+     | `PASSWORD_RESET_TTL_MIN` | `60` (validade do link "esqueci minha senha") |
      | `PAYMENT_PROVIDER` | `mock` até validar o link real; depois `infinitepay` |
      | `INFINITEPAY_HANDLE` | `kulture-br` |
      | `MAIL_PROVIDER` / `MAILERSEND_API_TOKEN` / `MAIL_FROM` / `MAIL_FROM_NAME` | `mailersend` + token + remetente do domínio verificado |
@@ -79,8 +81,24 @@ curl -s "$API/api/products/top8" | head -c 300
 open $API                      # site — testar: busca, tamanhos, carrinho, checkout (mock), confirmação
 ```
 
-Se `/health/deps` mostrar `scraper.ok:false`: confira `SCRAPER_URL` (hostname privado + porta 3001) e os logs do scraper.
-A rede privada do Railway é IPv6 — o Express do scraper já escuta em `::`.
+Se `/health/deps` mostrar `scraper.ok:false`, a resposta agora diz **para onde** a api tentou falar e **por quê** falhou:
+
+```json
+{"ok":false,"deps":{"scraper":{"ok":false,"url":"http://localhost:3001","error":"nike-scraper indisponível","cause":"ECONNREFUSED"}}}
+```
+
+| `url` / `cause` | Significa | Correção (Railway → kulture-api → Variables) |
+|---|---|---|
+| `url: http://localhost:3001` | a variável `SCRAPER_URL` **não está definida** no serviço (caiu no default) | criar `SCRAPER_URL=http://kulture-scraper.railway.internal:3001` e **Deploy** |
+| `cause: ENOTFOUND` | hostname privado errado — o nome do serviço no Railway não é `kulture-scraper` | usar `http://<nome-do-serviço-scraper>.railway.internal:3001` (nome em minúsculas, espaços→hífen) |
+| `cause: ECONNREFUSED` com url `railway.internal` | scraper não está escutando na 3001 (deploy falhou / porta diferente / crashou) | ver Deployments do scraper; a porta é a `PORT=3001` do Dockerfile — não sobrescrever `PORT` nas variáveis |
+| `cause: ETIMEDOUT` / `EHOSTUNREACH` | rede privada desabilitada ou serviços em ambientes diferentes | Project → Settings → Private Networking ligado; os dois serviços no mesmo environment |
+
+A rede privada do Railway é IPv6 — o Express do scraper já escuta em `::`. Depois de mudar variável, o Railway
+só aplica quando você clica em **Deploy** (banner roxo no topo).
+
+Backoffice: depois de subir, cadastre-se no site com um e-mail listado em `ADMIN_EMAILS` (ou entre, se já tiver conta)
+e abra `https://<dominio>/admin`.
 
 ## 4. Dev local apontando para o Postgres do Railway (opcional)
 

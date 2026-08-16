@@ -1,4 +1,5 @@
 import { AppError } from '../../lib/errors.js';
+import { requireAuth } from '../../lib/guards.js';
 
 export async function orderRoutes(app) {
   const { orders } = app;
@@ -38,14 +39,21 @@ export async function orderRoutes(app) {
     return { ok: true };
   });
 
+  // "Meus pedidos" — precisa estar logado (rota estática vem antes de /:number no Fastify)
+  app.get('/api/orders/mine', { onRequest: [requireAuth] }, async (req) => {
+    return orders.listMine(req.user.sub, req.user.email);
+  });
+
   app.get('/api/orders/:number', async (req) => {
     let userId = null;
+    let isAdmin = false;
     try {
       await req.jwtVerify();
       userId = req.user.sub; // o JWT carrega o id do usuário em `sub`
+      isAdmin = req.user.role === 'admin';
     } catch {
-      // Guest access allowed for confirmation page
+      // Convidado: recebe a visão mascarada (página de confirmação só precisa de status/itens)
     }
-    return orders.getOrder(req.params.number, userId);
+    return orders.getOrder(req.params.number, userId, { isAdmin });
   });
 }

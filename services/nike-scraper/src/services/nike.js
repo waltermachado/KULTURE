@@ -39,18 +39,50 @@ export async function searchProducts(term, { count = 24, anchor = 0 } = {}) {
   url.searchParams.set('anchor', String(anchor));
   url.searchParams.set('count', String(count));
 
-  const res = await fetch(url, { headers: HEADERS, signal: AbortSignal.timeout(15_000) });
-  if (!res.ok) {
-    throw Object.assign(new Error(`Nike API respondeu ${res.status}`), { status: res.status });
+  let data = await fetchWall(url);
+
+  // Para termos "conhecidos" (kobe, jordan, lebron…) a busca da Nike não devolve produtos: responde
+  // productGroupings=null e analyzer.action = { statusCode: 301, redirectUrl: "https://www.nike.com/w/kobe-pgd6" }.
+  // O site nike.com segue esse redirect para a "wall" da categoria — fazemos o mesmo, com o mesmo endpoint
+  // e path = pathname do redirect (sem searchTerms).
+  const redirect = data?.analyzer?.action?.redirectUrl;
+  const hasProducts = (data?.productGroupings ?? []).some((g) => (g?.products ?? []).length);
+  if (!hasProducts && redirect) {
+    let wallPath = null;
+    try {
+      const r = new URL(redirect, 'https://www.nike.com');
+      wallPath = r.pathname + r.search;
+    } catch {
+      wallPath = null;
+    }
+    if (wallPath && wallPath !== `/w?q=${encodeURIComponent(term)}`) {
+      const wallUrl = new URL(SEARCH_URL);
+      wallUrl.searchParams.set('path', wallPath);
+      wallUrl.searchParams.set('queryType', 'PRODUCTS');
+      wallUrl.searchParams.set('anchor', String(anchor));
+      wallUrl.searchParams.set('count', String(count));
+      data = await fetchWall(wallUrl);
+      data.__redirectedTo = wallPath;
+    }
   }
-  const data = await res.json();
+
   const result = {
     term,
     total: data?.pages?.totalResources ?? null,
     products: normalize(data),
+    ...(data?.__redirectedTo ? { redirectedTo: data.__redirectedTo } : {}),
   };
-  cacheSet(key, result, PRODUCT_TTL);
+  // resultado vazio pode ser transitório (redirect não seguido, Nike instável): cache curto (1 min)
+  cacheSet(key, result, result.products.length ? PRODUCT_TTL : 1);
   return { ...result, cached: false };
+}
+
+async function fetchWall(url) {
+  const res = await fetch(url, { headers: HEADERS, signal: AbortSignal.timeout(15_000) });
+  if (!res.ok) {
+    throw Object.assign(new Error(`Nike API respondeu ${res.status}`), { status: res.status });
+  }
+  return res.json();
 }
 
 /**

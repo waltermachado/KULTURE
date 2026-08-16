@@ -18,10 +18,12 @@ export async function healthRoutes(app) {
     { schema: { tags: ["ops"], summary: "Status das dependências (nike-scraper)" } },
     async () => {
       const deps = {};
+      // url é interna (railway.internal / localhost) — não é segredo e evita adivinhar a config em prod
+      const url = app.scraper.baseUrl ?? null;
       try {
-        deps.scraper = { ok: true, ...(await app.scraper.health()) };
+        deps.scraper = { ok: true, url, ...(await app.scraper.health()) };
       } catch (err) {
-        deps.scraper = { ok: false, error: err.message };
+        deps.scraper = { ok: false, url, error: err.message, cause: err.details?.cause ?? null };
       }
       return { ok: Object.values(deps).every((d) => d.ok), deps };
     }

@@ -276,21 +276,72 @@ export function createOrderService(env, prisma, catalog, gateway, notifier, log,
       return { ok: true };
     },
     
-    async getOrder(number, userId) {
-      const order = await prisma.order.findUnique({ 
+    /**
+     * Visão pública de um pedido.
+     *  - Dono do pedido (userId bate) ou admin → dados completos do cliente (sem breakdown interno).
+     *  - Convidado / outro usuário → só o necessário para a página de confirmação/rastreio:
+     *    status, itens, total, pagamento, rastreio e primeiro nome. CPF, e-mail, telefone e
+     *    endereço completo NÃO saem (o número do pedido é adivinhável).
+     */
+    async getOrder(number, userId, { isAdmin = false } = {}) {
+      const order = await prisma.order.findUnique({
         where: { number },
         include: { items: true }
       });
       if (!order) throw AppError.notFound('Pedido não encontrado');
-      if (userId && order.userId && order.userId !== userId) throw AppError.forbidden();
 
-      const { pricingSnapshot, events, id, userId: uid, items, ...publicOrder } = order;
+      const isOwner = Boolean(userId && order.userId && order.userId === userId);
+      const full = isAdmin || isOwner;
+
+      const { pricingSnapshot, events, id, userId: uid, items, internalNotes, ...rest } = order;
       const publicItems = items.map(i => {
         const { breakdown, orderId, id: iid, ...publicItem } = i;
         return publicItem;
       });
 
-      return { ...publicOrder, items: publicItems };
+      if (full) return { ...rest, items: publicItems, scope: 'full' };
+
+      const firstName = String(order.customerName || '').trim().split(/\s+/)[0] || null;
+      const addr = order.address || {};
+      return {
+        number: order.number,
+        status: order.status,
+        customerName: firstName,
+        totalBrl: order.totalBrl,
+        subtotalBrl: order.subtotalBrl,
+        shippingBrl: order.shippingBrl,
+        paymentProvider: order.paymentProvider,
+        paymentMethod: order.paymentMethod,
+        installments: order.installments,
+        receiptUrl: order.receiptUrl,
+        paidAt: order.paidAt,
+        createdAt: order.createdAt,
+        carrier: order.carrier,
+        trackingCode: order.trackingCode,
+        trackingUrl: order.trackingUrl,
+        shippedAt: order.shippedAt,
+        deliveredAt: order.deliveredAt,
+        address: { city: addr.city ?? null, state: addr.state ?? null },
+        items: publicItems,
+        scope: 'public'
+      };
+    },
+
+    /** Pedidos do usuário logado ("Meus pedidos"): pelo userId OU pelo e-mail (compras como convidado). */
+    async listMine(userId, email) {
+      const or = [{ userId }];
+      if (email) or.push({ userId: null, customerEmail: String(email).toLowerCase() });
+      const rows = await prisma.order.findMany({
+        where: { OR: or },
+        orderBy: { createdAt: 'desc' },
+        take: 100,
+        select: {
+          number: true, status: true, totalBrl: true, paymentMethod: true, paidAt: true, createdAt: true,
+          carrier: true, trackingCode: true, trackingUrl: true, shippedAt: true, deliveredAt: true, receiptUrl: true,
+          items: { select: { name: true, image: true, nikeSize: true, brLabel: true, quantity: true, unitPriceBrl: true, styleColor: true } }
+        }
+      });
+      return { orders: rows };
     }
   };
 }

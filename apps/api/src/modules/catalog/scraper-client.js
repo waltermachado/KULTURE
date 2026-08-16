@@ -20,7 +20,9 @@ export function createScraperClient({ baseUrl, timeoutMs = 20_000, fetchImpl = f
         signal: AbortSignal.timeout(timeoutMs)
       });
     } catch (err) {
-      throw AppError.upstream("nike-scraper indisponível", { cause: err.message });
+      // undici esconde o motivo real em err.cause (ECONNREFUSED, ENOTFOUND, ETIMEDOUT…)
+      const cause = err.cause?.code || err.cause?.message || err.message;
+      throw AppError.upstream("nike-scraper indisponível", { cause, target: base });
     }
     if (!res.ok) {
       const body = await res.text().catch(() => "");
@@ -87,5 +89,5 @@ export function createScraperClient({ baseUrl, timeoutMs = 20_000, fetchImpl = f
     return get("/health");
   }
 
-  return { search, findOne, rate, getProductDetail, health };
+  return { search, findOne, rate, getProductDetail, health, baseUrl: base };
 }

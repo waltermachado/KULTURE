@@ -8,7 +8,9 @@ describe("Orders & Checkout (Fase 4)", { timeout: 30000 }, () => {
 
   beforeAll(async () => {
     const mockScraper = {
-      rate: async () => 5.50,
+      // contrato do scraper-client: { pair, bid, ask, timestamp } (número puro quebra o câmbio)
+      rate: async () => ({ pair: "USD-BRL", bid: 5.5, ask: 5.5, timestamp: "2026-01-01 00:00:00" }),
+      health: async () => ({ ok: true }),
       search: async () => ({ products: [], total: 0 }),
       findOne: async () => null,
       getProductDetail: async (styleColor) => ({
@@ -110,5 +112,19 @@ describe("Orders & Checkout (Fase 4)", { timeout: 30000 }, () => {
     const data = res.json();
     expect(data.pricingSnapshot).toBeUndefined();
     expect(data.items[0].breakdown).toBeUndefined();
+    // convidado: visão mascarada — nada de CPF/e-mail/telefone/endereço completo (número é adivinhável)
+    expect(data.scope).toBe("public");
+    expect(data.customerCpf).toBeUndefined();
+    expect(data.customerEmail).toBeUndefined();
+    expect(data.customerPhone).toBeUndefined();
+    expect(data.address.cep).toBeUndefined();
+    expect(data.customerName).toBe("Test");
+    expect(data.status).toBe("paid");
+    expect(data.items[0].name).toBe("Test Sneaker");
+  });
+
+  it("GET /api/orders/mine - exige login", async () => {
+    const res = await app.inject({ method: "GET", url: "/api/orders/mine" });
+    expect(res.statusCode).toBe(401);
   });
 });

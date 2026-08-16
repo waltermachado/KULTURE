@@ -42,8 +42,25 @@ model User {
   updatedAt     DateTime       @updatedAt @map("updated_at")
   refreshTokens RefreshToken[]
   orders        Order[]
+  passwordResets PasswordResetToken[]
 
   @@map("users")
+}
+
+/// Token de redefinição de senha (guardado como sha256; uso único; expira em 1h).
+/// `requestedBy` = self (esqueci a senha) | admin (backoffice gerou o link).
+model PasswordResetToken {
+  id          String    @id @default(cuid())
+  tokenHash   String    @unique @map("token_hash")
+  userId      String    @map("user_id")
+  user        User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  requestedBy String    @default("self") @map("requested_by")
+  expiresAt   DateTime  @map("expires_at")
+  usedAt      DateTime? @map("used_at")
+  createdAt   DateTime  @default(now()) @map("created_at")
+
+  @@index([userId])
+  @@map("password_reset_tokens")
 }
 
 /// Refresh tokens com rotação: cada uso gera um novo token e revoga o anterior.
@@ -103,6 +120,15 @@ model Order {
   notifiedPendingAt   DateTime?   @map("notified_pending_at")
   notifiedPaidAt      DateTime?   @map("notified_paid_at")
   notifiedAbandonedAt DateTime?   @map("notified_abandoned_at")
+  // ─── operação / entrega (backoffice) ───
+  carrier             String?     // Correios, Jadlog, DHL…
+  trackingCode        String?     @map("tracking_code")
+  trackingUrl         String?     @map("tracking_url")
+  shippedAt           DateTime?   @map("shipped_at")
+  deliveredAt         DateTime?   @map("delivered_at")
+  cancelledAt         DateTime?   @map("cancelled_at")
+  refundedAt          DateTime?   @map("refunded_at")
+  internalNotes       String?     @map("internal_notes") // só backoffice, nunca sai na API pública
   createdAt           DateTime    @default(now()) @map("created_at")
   updatedAt           DateTime    @updatedAt @map("updated_at")
 

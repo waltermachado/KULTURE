@@ -82,7 +82,11 @@ header.nav{position:sticky;top:0;z-index:60;background:var(--ink);border-bottom:
 .btn-login:hover{border-color:var(--yellow);color:var(--yellow)}
 .user-menu{display:flex;align-items:center;gap:10px}
 .user-greeting{font-size:12px;letter-spacing:.1em;text-transform:uppercase;color:var(--paper);max-width:140px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.user-greeting.as-link{background:none;border:0;padding:0;cursor:pointer;font-family:inherit;font-weight:800;border-bottom:1px solid transparent}
+.user-greeting.as-link:hover{color:var(--yellow);border-bottom-color:var(--yellow)}
 .btn-logout{border-color:var(--hair-3)}
+.btn-admin{border-color:var(--yellow);color:var(--yellow)}
+.btn-admin:hover{background:var(--yellow);color:var(--ink)}
 @media(max-width:1024px){.nav-tabs{display:none}.nav-inner{grid-template-columns:auto 1fr;padding:0 16px}.nav-actions{justify-content:flex-end}.search-box{min-width:0}}
 @media(max-width:640px){.search-box{display:none}.nav-logo{border-right:0}}
 

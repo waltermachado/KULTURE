@@ -7,7 +7,21 @@ const csv = (value) =>
     .map((s) => s.trim())
     .filter(Boolean);
 
-const cleanUrl = (v) => String(v ?? "").trim().replace(/^["']|["']$/g, "").replace(/\/+$/, "");
+const cleanUrl = (v) =>
+  String(v ?? "")
+    .trim()
+    .replace(/^[A-Z_]+=/, "") // "SCRAPER_URL=http://…" colado inteiro no campo de valor
+    .replace(/^["'`]+|["'`]+$/g, "")
+    .trim()
+    .replace(/\/+$/, "");
+const isUrl = (s) => {
+  try {
+    new URL(s);
+    return true;
+  } catch {
+    return false;
+  }
+};
 const publicUrl = (fallback) =>
   z.preprocess((v) => {
     let cleaned = cleanUrl(v);
@@ -15,6 +29,19 @@ const publicUrl = (fallback) =>
     if (cleaned) return /^https?:\/\//i.test(cleaned) ? cleaned : `https://${cleaned}`;
     const railway = cleanUrl(process.env.RAILWAY_PUBLIC_DOMAIN);
     return railway ? `https://${railway}` : fallback;
+  }, z.string().url());
+
+/**
+ * URL de serviço interno (scraper): tolera aspas/espaços/prefixo "VAR=" e esquema ausente.
+ * Se mesmo assim não for uma URL, cai no fallback em vez de DERRUBAR a api na subida —
+ * um scraper mal configurado degrada o catálogo, nunca a loja inteira. O /health/deps mostra o alvo.
+ */
+const internalUrl = (fallback) =>
+  z.preprocess((v) => {
+    let cleaned = cleanUrl(v);
+    if (!cleaned || /[<>\s]/.test(cleaned)) return fallback;
+    if (!/^https?:\/\//i.test(cleaned)) cleaned = `http://${cleaned}`;
+    return isUrl(cleaned) ? cleaned : fallback;
   }, z.string().url());
 
 const schema = z.object({
@@ -35,8 +62,14 @@ const schema = z.object({
   JWT_SECRET: z.string().min(32),
   JWT_EXPIRES_IN: z.string().default("15m"),
   REFRESH_EXPIRES_DAYS: z.coerce.number().int().positive().default(7),
+  // e-mails que viram admin automaticamente ao logar/cadastrar (bootstrap do backoffice sem SQL)
+  ADMIN_EMAILS: z
+    .string()
+    .default("")
+    .transform((v) => csv(v).map((e) => e.toLowerCase())),
+  PASSWORD_RESET_TTL_MIN: z.coerce.number().int().positive().default(60),
 
-  SCRAPER_URL: z.string().url().default("http://localhost:3001"),
+  SCRAPER_URL: internalUrl("http://localhost:3001"),
   CORS_ORIGINS: z.string().default("").transform(csv),
 
   MEDIA_BASE: z.string().default("/media/produtos"),

@@ -86,7 +86,12 @@ app.get('/product/:styleColor', async (req, res) => {
   }
 });
 
-app.listen(PORT, () => {
-  console.log(`kulture-api rodando em http://localhost:${PORT}`);
+// Sem host → Node escuta em todas as interfaces ("::" = IPv4 + IPv6). No Railway a rede
+// privada é IPv6, então a api alcança este serviço em http://<serviço>.railway.internal:PORT.
+const server = app.listen(PORT, () => {
+  const addr = server.address();
+  const bind = typeof addr === 'string' ? addr : `[${addr.address}]:${addr.port}`;
+  const priv = process.env.RAILWAY_PRIVATE_DOMAIN;
+  console.log(`nike-scraper escutando em ${bind}` + (priv ? ` · rede privada: http://${priv}:${PORT}` : ` · local: http://localhost:${PORT}`));
   console.log(`Margem configurada: ${process.env.MARGIN_PERCENT || 0}%`);
 });
