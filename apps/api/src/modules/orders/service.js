@@ -68,6 +68,50 @@ export function createOrderService(env, prisma, catalog, gateway, notifier, log,
     }
   }
 
+  /**
+   * Marca o pedido como pago depois de o gateway confirmar. Único ponto que muda para `paid`
+   * (redirect do cliente, webhook e "reconsultar" do admin passam todos por aqui).
+   * Regras: `paid` só se o gateway disser paid===true; se o gateway informar `amount`, ele tem
+   * de bater com o total do pedido (tolerância R$ 1,00) — divergência vira evento e NÃO marca pago.
+   */
+  async function settle(order, { transactionNsu, slug, receiptUrl, captureMethod, source }) {
+    const status = await gateway.confirmPayment({ orderNsu: order.number, transactionNsu, slug });
+    const expectedCents = Math.round(Number(order.totalBrl) * 100);
+    if (status.paid && Number.isFinite(status.amountCents) && Math.abs(status.amountCents - expectedCents) > 100) {
+      log?.error({ order: order.number, expectedCents, amountCents: status.amountCents, source }, 'pagamento: valor divergente — NÃO marcado como pago');
+      await prisma.orderEvent.create({
+        data: { orderId: order.id, type: 'payment_amount_mismatch', payload: { source, transactionNsu, slug, expectedCents, amountCents: status.amountCents, paidAmountCents: status.paidAmountCents } }
+      }).catch(() => {});
+      return { paid: false, mismatch: true };
+    }
+    if (!status.paid) {
+      await prisma.orderEvent.create({
+        data: { orderId: order.id, type: 'payment_check_unpaid', payload: { source, transactionNsu, slug } }
+      }).catch(() => {});
+      return { paid: false };
+    }
+    const updatedOrder = await prisma.order.update({
+      where: { id: order.id },
+      data: {
+        status: 'paid',
+        paidAt: new Date(),
+        transactionNsu: transactionNsu || order.transactionNsu || null,
+        infinitepaySlug: slug || order.infinitepaySlug || null,
+        receiptUrl: receiptUrl || order.receiptUrl || null,
+        paidAmountBrl: Number(status.paidAmountCents) / 100,
+        installments: status.installments,
+        paymentMethod: status.captureMethod || captureMethod || null,
+        events: {
+          create: { type: source === 'webhook' ? 'webhook_received' : 'payment_confirmed', payload: { source, transactionNsu, slug, captureMethod: status.captureMethod, receiptUrl, paidAmountCents: status.paidAmountCents, installments: status.installments } }
+        }
+      },
+      include: { items: true }
+    });
+    await notify(updatedOrder, 'paid');
+    emailPaid(updatedOrder); // fire-and-forget
+    return { paid: true };
+  }
+
   return {
     async checkout({ items, customer, address }, idempotencyKey, userId = null) {
       if (idempotencyKey) {
@@ -200,82 +244,46 @@ export function createOrderService(env, prisma, catalog, gateway, notifier, log,
     },
 
     async confirm({ orderNumber, transactionNsu, slug, captureMethod, receiptUrl }) {
-      const order = await prisma.order.findUnique({ 
+      const order = await prisma.order.findUnique({
         where: { number: orderNumber },
         include: { items: true }
       });
       if (!order) throw AppError.notFound('Pedido não encontrado');
-      if (order.status === 'paid') return { paid: true }; 
-
-      const status = await gateway.confirmPayment({ orderNsu: orderNumber, transactionNsu, slug });
-      
-      if (status.paid) {
-        const updatedOrder = await prisma.order.update({
-          where: { id: order.id },
-          data: {
-            status: 'paid',
-            paidAt: new Date(),
-            transactionNsu,
-            receiptUrl,
-            paidAmountBrl: Number(status.paidAmountCents) / 100,
-            installments: status.installments,
-            paymentMethod: status.captureMethod,
-            events: {
-              create: { type: 'payment_confirmed', payload: { transactionNsu, captureMethod, receiptUrl } }
-            }
-          },
-          include: { items: true }
-        });
-        
-        await notify(updatedOrder, 'paid');
-        emailPaid(updatedOrder); // fire-and-forget
-        return { paid: true };
-      }
-      return { paid: false };
+      if (['paid', 'sourcing', 'shipped', 'delivered'].includes(order.status)) return { paid: true };
+      if (!transactionNsu && !slug && !order.transactionNsu && !order.infinitepaySlug) return { paid: false, reason: 'sem transação' };
+      return settle(order, {
+        transactionNsu: transactionNsu || order.transactionNsu,
+        slug: slug || order.infinitepaySlug,
+        receiptUrl,
+        captureMethod,
+        source: 'confirm'
+      });
     },
 
+    /**
+     * Webhook da InfinitePay: { invoice_slug, amount, paid_amount, installments, capture_method,
+     * transaction_nsu, order_nsu, receipt_url, items }. Idempotente. Lança em erro de infra para a
+     * rota devolver 400 e a InfinitePay retentar.
+     */
     async handleWebhook(body) {
-      const parsed = gateway.parseWebhook(body);
+      const parsed = gateway.parseWebhook(body) || {};
       const orderNumber = parsed.order_nsu;
-      if (!orderNumber) return { ok: true };
+      if (!orderNumber) return { ok: true, ignored: 'sem order_nsu' };
 
-      const order = await prisma.order.findUnique({ where: { number: orderNumber } });
-      if (!order || order.status === 'paid') return { ok: true };
-      if (order.transactionNsu && order.transactionNsu === parsed.transaction_nsu) return { ok: true };
+      const order = await prisma.order.findUnique({ where: { number: orderNumber }, include: { items: true } });
+      if (!order) return { ok: true, ignored: 'pedido desconhecido' };
+      if (['paid', 'sourcing', 'shipped', 'delivered'].includes(order.status)) return { ok: true, alreadyPaid: true };
 
-      try {
-        const status = await gateway.confirmPayment({ 
-          orderNsu: orderNumber, 
-          transactionNsu: parsed.transaction_nsu, 
-          slug: parsed.invoice_slug 
-        });
-
-        if (status.paid) {
-          const updatedOrder = await prisma.order.update({
-            where: { id: order.id },
-            data: {
-              status: 'paid',
-              paidAt: new Date(),
-              transactionNsu: parsed.transaction_nsu,
-              receiptUrl: parsed.receipt_url,
-              paidAmountBrl: Number(status.paidAmountCents) / 100,
-              installments: status.installments,
-              paymentMethod: status.captureMethod,
-              events: {
-                create: { type: 'webhook_received', payload: parsed }
-              }
-            },
-            include: { items: true }
-          });
-          await notify(updatedOrder, 'paid');
-        emailPaid(updatedOrder); // fire-and-forget
-        }
-      } catch (err) {
-        log?.error({ err: err.message, body }, 'Erro no webhook');
-      }
-      return { ok: true };
+      const result = await settle(order, {
+        transactionNsu: parsed.transaction_nsu,
+        slug: parsed.invoice_slug,
+        receiptUrl: parsed.receipt_url,
+        captureMethod: parsed.capture_method,
+        source: 'webhook'
+      });
+      return { ok: true, ...result };
     },
-    
+
     /**
      * Visão pública de um pedido.
      *  - Dono do pedido (userId bate) ou admin → dados completos do cliente (sem breakdown interno).

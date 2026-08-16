@@ -31,7 +31,8 @@ export function createInfinitePayGateway(env, log) {
         handle,
         order_nsu: order.number,
         items,
-        redirect_url: `${env.PUBLIC_WEB_URL}/pedido/confirmacao?order=${order.number}`,
+        // sem query string: a InfinitePay anexa ?transaction_nsu=&slug=&capture_method=&receipt_url=&order_nsu=
+        redirect_url: `${env.PUBLIC_WEB_URL}/pedido/confirmacao/${encodeURIComponent(order.number)}`,
       };
 
       if (!env.PUBLIC_API_URL.includes('localhost')) {
@@ -81,8 +82,12 @@ export function createInfinitePayGateway(env, log) {
           log?.info({ rawResponse }, 'InfinitePay /links RAW response');
           
           const url = data.url;
-          const providerRef = data.slug || data.id || 'unknown'; 
-          return { url, providerRef };
+          if (!url) throw new Error('InfinitePay /links sem "url" na resposta');
+          let providerRef = data.slug || data.id || null;
+          if (!providerRef) {
+            try { providerRef = new URL(url).searchParams.get('lenc') || null; } catch { providerRef = null; }
+          }
+          return { url, providerRef: providerRef || 'link' };
         } catch (err) {
           lastErr = err;
           attempt++;
@@ -109,11 +114,14 @@ export function createInfinitePayGateway(env, log) {
         log?.error({ status: res.status, data }, 'InfinitePay /payment_check failed');
         throw new Error(`InfinitePay payment_check error`);
       }
+      // `success` = a consulta deu certo; `paid` = o cliente pagou. Nunca confundir os dois.
       return {
-        paid: data.paid === true || data.success === true,
-        paidAmountCents: data.paid_amount || data.amount || 0,
-        installments: data.installments || 1,
-        captureMethod: data.capture_method || 'unknown'
+        paid: data.paid === true,
+        amountCents: Number.isFinite(Number(data.amount)) ? Number(data.amount) : null,
+        paidAmountCents: Number(data.paid_amount ?? data.amount ?? 0) || 0,
+        installments: Number(data.installments) || 1,
+        captureMethod: data.capture_method || 'unknown',
+        raw: data
       };
     },
 

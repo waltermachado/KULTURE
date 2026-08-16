@@ -118,10 +118,23 @@ automaticamente (`migrate deploy`). Rollback pelo histórico de deploys do Railw
 4. Atualize `PUBLIC_WEB_URL`/`PUBLIC_API_URL` para `https://www.seudominio.com.br` — isso também liga o
    webhook da InfinitePay (`webhook_url` só é enviado quando `PUBLIC_API_URL` não é localhost).
 
+## 6b. Ativar o pagamento real (InfinitePay)
+
+Contrato (doc oficial, ago/2026): `POST https://api.checkout.infinitepay.io/links` `{handle, order_nsu, redirect_url, webhook_url?, items[{quantity, price(centavos), description}], customer?, address?}` → `{url}`;
+depois do pagamento a InfinitePay redireciona para `redirect_url` anexando `?transaction_nsu=&slug=&capture_method=&receipt_url=&order_nsu=`;
+`POST …/payment_check {handle, order_nsu, transaction_nsu, slug}` → `{success, paid, amount, paid_amount, installments, capture_method}`
+(**`paid` é o que vale; `success` = consulta ok**); webhook `{invoice_slug, amount, paid_amount, installments, capture_method, transaction_nsu, order_nsu, receipt_url, items}`
+e a resposta deve ser `200 {"success":true,"message":null}` (400 → eles retentam).
+
+Passos:
+1. App InfinitePay → Vendas → Checkout → **Checkout Integrado habilitado**; anote a **InfiniteTag** (ex.: `$kulture-br` → handle `kulture-br`, sem `$`).
+2. Railway `kulture-api` → Variables: `PAYMENT_PROVIDER=infinitepay`, `INFINITEPAY_HANDLE=<sua tag sem $>`; `PUBLIC_WEB_URL`/`PUBLIC_API_URL` públicos (o webhook só é enviado quando `PUBLIC_API_URL` não é localhost) → Deploy.
+3. Teste de R$1: crie um pedido no site, pague Pix, confira: redirect para `/pedido/confirmacao/KLT-…` → "Pagamento confirmado" (payment_check) → e-mail; no `/admin/pedidos/KLT-…` os eventos `payment_confirmed` e/ou `webhook_received`.
+4. Se ficar "aguardando": `/admin` → pedido → **Reconsultar pagamento** (informe o transaction_nsu do painel InfinitePay se faltar). Evento `payment_amount_mismatch` = valor da cobrança ≠ total do pedido (a api não marca pago; baixa manual só depois de conferir).
+5. Voltar para o mock: `PAYMENT_PROVIDER=mock`.
+
 ## 7. Pendências conhecidas antes de vender de verdade
 
-- **InfinitePay real**: habilitar checkout externo (item 1), trocar `PAYMENT_PROVIDER=infinitepay`, fazer 1 pedido de R$1 e conferir
-  redirect → confirmação (`payment_check`) → e-mail.
-- **`GET /api/orders/:number`** devolve CPF/endereço sem autenticação e o número é adivinhável — mascarar CPF ou exigir token.
+- **`GET /api/orders/:number`**: mascarado para convidado desde o backoffice (sem CPF/e-mail/telefone/endereço).
 - **Nike de IP de datacenter**: se o scraper começar a receber 403/429 no Railway, rodar o scraper em outro lugar e só apontar `SCRAPER_URL`.
 - Bling (NF) e WhatsApp: adiados (após o Admin).

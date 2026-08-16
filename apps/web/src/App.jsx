@@ -137,6 +137,7 @@ export default function App() {
         <Route path="/" element={<Home grid={grid} setSelectedProductForSize={setSelectedProductForSize} onSearch={(q) => { search(q); document.getElementById("drops")?.scrollIntoView({ behavior: "smooth" }); }} />} />
         <Route path="/checkout" element={<Checkout cart={cart} auth={auth} notify={notify} />} />
         <Route path="/pedido/confirmacao" element={<Confirmation auth={auth} />} />
+        <Route path="/pedido/confirmacao/:number" element={<Confirmation auth={auth} />} />
         <Route path="/mock/infinitepay/:number" element={<MockInfinitePay />} />
         <Route path="/conta" element={<Account auth={auth} onOpenLogin={() => openModal("login")} notify={notify} />} />
         <Route path="/redefinir-senha" element={<ResetPassword auth={auth} onOpenLogin={() => openModal("login")} />} />

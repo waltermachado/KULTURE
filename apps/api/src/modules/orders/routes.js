@@ -32,11 +32,18 @@ export async function orderRoutes(app) {
     });
   });
 
-  app.post('/api/webhooks/infinitepay', async (req) => {
-    // Processamento assíncrono para liberar rápido o webhook
-    // Na fase final, deveria ser enfileirado num Job.
-    orders.handleWebhook(req.body).catch(() => {});
-    return { ok: true };
+  // Webhook InfinitePay. Contrato deles: 200 {success:true,message:null} = recebido;
+  // 400 {success:false,message} = falhou → eles retentam. Processamos síncrono (payment_check + update,
+  // < 1 s típico) para poder devolver 400 em erro de infra e não perder o aviso.
+  app.post('/api/webhooks/infinitepay', { config: { rateLimit: false } }, async (req, reply) => {
+    try {
+      const result = await orders.handleWebhook(req.body || {});
+      req.log.info({ order: req.body?.order_nsu, result }, 'webhook infinitepay processado');
+      return reply.code(200).send({ success: true, message: null });
+    } catch (err) {
+      req.log.error({ err: err.message, order: req.body?.order_nsu }, 'webhook infinitepay: falha (400 → retentativa)');
+      return reply.code(400).send({ success: false, message: err.message || 'erro ao processar' });
+    }
   });
 
   // "Meus pedidos" — precisa estar logado (rota estática vem antes de /:number no Fastify)

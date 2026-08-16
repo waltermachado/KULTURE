@@ -1,11 +1,13 @@
 import { useEffect, useState, useRef } from "react";
-import { useSearchParams, useNavigate } from "react-router-dom";
+import { useSearchParams, useNavigate, useParams } from "react-router-dom";
 import { api } from "../lib/api.js";
 
 export default function Confirmation() {
   const [searchParams] = useSearchParams();
   const navigate = useNavigate();
-  const orderNumber = searchParams.get("order");
+  const params = useParams();
+  // /pedido/confirmacao/:number (redirect_url real da InfinitePay) · ?order= (mock/links antigos) · order_nsu (a InfinitePay também envia)
+  const orderNumber = params.number || searchParams.get("order") || searchParams.get("order_nsu");
   // params que a InfinitePay anexa ao redirect_url após o pagamento
   const transactionNsu = searchParams.get("transaction_nsu");
   const slug = searchParams.get("slug");
