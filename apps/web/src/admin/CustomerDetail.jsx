@@ -99,7 +99,7 @@ export default function CustomerDetail({ auth, notify }) {
         <div>
           <div className="sub" style={{ marginTop: 0, marginBottom: 8 }}><Link to="/admin/clientes">← Clientes</Link></div>
           <h1>{c.name}</h1>
-          <div className="sub">{c.email} · cadastro {fmtDate(c.createdAt)} · {c.stats.activeSessions} sessão(ões) ativa(s)</div>
+          <div className="sub">{c.email} · cadastro {fmtDate(c.createdAt)} · último acesso {c.lastLoginAt ? fmtDateTime(c.lastLoginAt) : "—"} · {c.stats.activeSessions} sessão(ões) ativa(s)</div>
         </div>
         <div className="actions"><RolePill role={c.role} /></div>
       </header>
@@ -159,6 +159,31 @@ export default function CustomerDetail({ auth, notify }) {
         </section>
 
         <section className="adm-card">
+          <h3>Acessos <small>{c.stats.loginsOk} ok · {c.stats.loginsFailed} falha(s)</small></h3>
+          <div className="adm-table-wrap" style={{ border: 0 }}>
+            <table>
+              <thead><tr><th>Quando</th><th>Evento</th><th>IP</th><th>Navegador</th></tr></thead>
+              <tbody>
+                {(c.accessLog || []).map((a, i) => (
+                  <tr key={i}>
+                    <td>{fmtDateTime(a.createdAt)}</td>
+                    <td>
+                      <span className={`pill ${a.ok ? "ok" : "bad"}`}>
+                        {a.kind === "register" ? "Cadastro" : a.kind === "reset" ? "Senha redefinida" : a.ok ? "Login" : "Login falhou"}
+                      </span>
+                      {!a.ok && a.reason && <span className="sub">{a.reason === "invalid_password" ? "senha incorreta" : a.reason === "unknown_email" ? "e-mail desconhecido" : a.reason}</span>}
+                    </td>
+                    <td><span className="mono">{a.ip || "—"}</span></td>
+                    <td className="sub" title={a.userAgent || ""}>{shortUa(a.userAgent)}</td>
+                  </tr>
+                ))}
+                {!(c.accessLog || []).length && <tr><td colSpan={4} className="empty">Nenhum acesso registrado ainda</td></tr>}
+              </tbody>
+            </table>
+          </div>
+        </section>
+
+        <section className="adm-card">
           <h3>Pedidos <small>{allOrders.length}</small></h3>
           <div className="adm-table-wrap" style={{ border: 0 }}>
             <table>
@@ -180,4 +205,12 @@ export default function CustomerDetail({ auth, notify }) {
       </div>
     </>
   );
+}
+
+/** Resume o user-agent em "Chrome · macOS", "Safari · iPhone" etc. */
+function shortUa(ua) {
+  if (!ua) return "—";
+  const b = /Edg\//.test(ua) ? "Edge" : /OPR\//.test(ua) ? "Opera" : /Chrome\//.test(ua) ? "Chrome" : /Safari\//.test(ua) ? "Safari" : /Firefox\//.test(ua) ? "Firefox" : "Outro";
+  const os = /iPhone|iPad/.test(ua) ? "iOS" : /Android/.test(ua) ? "Android" : /Mac OS X/.test(ua) ? "macOS" : /Windows/.test(ua) ? "Windows" : /Linux/.test(ua) ? "Linux" : "";
+  return os ? `${b} · ${os}` : b;
 }

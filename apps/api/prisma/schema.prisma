@@ -38,13 +38,34 @@ model User {
   /// endereço padrão do cliente (snapshot: cep, street, number, complement, neighborhood, city, state)
   address       Json?
   role          Role           @default(customer)
+  lastLoginAt   DateTime?      @map("last_login_at")
   createdAt     DateTime       @default(now()) @map("created_at")
   updatedAt     DateTime       @updatedAt @map("updated_at")
   refreshTokens RefreshToken[]
   orders        Order[]
   passwordResets PasswordResetToken[]
+  loginEvents   LoginEvent[]
 
   @@map("users")
+}
+
+/// Log de acessos: cada tentativa de login/cadastro/reset (sucesso ou falha), com IP e navegador.
+/// Base para "últimos acessos" no backoffice e para investigar tentativas suspeitas.
+model LoginEvent {
+  id        String   @id @default(cuid())
+  userId    String?  @map("user_id")
+  user      User?    @relation(fields: [userId], references: [id], onDelete: SetNull)
+  email     String
+  kind      String   @default("login") // login | register | reset | logout
+  ok        Boolean
+  reason    String?  // invalid_password | unknown_email | …
+  ip        String?
+  userAgent String?  @map("user_agent")
+  createdAt DateTime @default(now()) @map("created_at")
+
+  @@index([userId, createdAt])
+  @@index([email, createdAt])
+  @@map("login_events")
 }
 
 /// Token de redefinição de senha (guardado como sha256; uso único; expira em 1h).

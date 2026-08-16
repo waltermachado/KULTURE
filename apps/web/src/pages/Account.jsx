@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import PasswordInput from "../components/PasswordInput.jsx";
 import { useNavigate } from "react-router-dom";
 import { brl } from "../lib/format.js";
 import { StatusPill, fmtDateTime, fmtCpf, fmtPhone } from "../admin/ui.jsx";
@@ -173,10 +174,10 @@ export default function Account({ auth, onOpenLogin, notify }) {
           <section className="panel" style={{ marginTop: 20 }}>
             <h3>Trocar senha</h3>
             <form onSubmit={savePassword}>
-              <div className="field"><label>Senha atual</label><input type="password" value={pw.current} onChange={(e) => setPw({ ...pw, current: e.target.value })} required /></div>
+              <PasswordInput label="Senha atual" value={pw.current} onChange={(e) => setPw({ ...pw, current: e.target.value })} required autoComplete="current-password" />
               <div className="row">
-                <div className="field"><label>Nova senha</label><input type="password" value={pw.next} onChange={(e) => setPw({ ...pw, next: e.target.value })} placeholder="mínimo 8 caracteres" required /></div>
-                <div className="field"><label>Repetir</label><input type="password" value={pw.again} onChange={(e) => setPw({ ...pw, again: e.target.value })} required /></div>
+                <PasswordInput label="Nova senha" value={pw.next} onChange={(e) => setPw({ ...pw, next: e.target.value })} placeholder="mínimo 8 caracteres" required autoComplete="new-password" />
+                <PasswordInput label="Repetir" value={pw.again} onChange={(e) => setPw({ ...pw, again: e.target.value })} required autoComplete="new-password" />
               </div>
               <button className="btn-full" type="submit" disabled={saving}>Alterar senha</button>
               {pwMsg && <p className={`msg ${pwMsg.ok ? "ok" : "err"}`}>{pwMsg.text}</p>}

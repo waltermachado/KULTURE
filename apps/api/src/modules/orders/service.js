@@ -161,6 +161,17 @@ export function createOrderService(env, prisma, catalog, gateway, notifier, log,
         const shippingBrl = 0;
         const totalBrl = subtotalBrl + shippingBrl;
 
+        // Convidado com e-mail já cadastrado: vincula a venda à conta (só o vínculo — o perfil do
+        // usuário NÃO é alterado com dados digitados por quem não está autenticado).
+        let linkedByEmail = false;
+        if (!userId && customer.email) {
+          const existing = await prisma.user.findUnique({ where: { email: String(customer.email).trim().toLowerCase() }, select: { id: true } });
+          if (existing) {
+            userId = existing.id;
+            linkedByEmail = true;
+          }
+        }
+
         const orderNumber = `KLT-${new Date().getFullYear()}-${Math.floor(Math.random()*1000000).toString().padStart(6,'0')}`;
 
         const order = await prisma.$transaction(async (tx) => {
@@ -183,7 +194,7 @@ export function createOrderService(env, prisma, catalog, gateway, notifier, log,
                 create: orderItemsData
               },
               events: {
-                create: [{ type: 'created', payload: {} }]
+                create: [{ type: 'created', payload: { userLink: userId ? (linkedByEmail ? 'email' : 'session') : 'guest' } }]
               }
             },
             include: { items: true }
@@ -193,7 +204,7 @@ export function createOrderService(env, prisma, catalog, gateway, notifier, log,
 
         // Cliente logado: lembra telefone/CPF/endereço no perfil para não redigitar na próxima compra
         // (best-effort: falha aqui não pode impedir o checkout).
-        if (userId) {
+        if (userId && !linkedByEmail) {
           try {
             await prisma.user.update({
               where: { id: userId },

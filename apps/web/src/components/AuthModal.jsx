@@ -1,4 +1,5 @@
 import { useId, useState } from "react";
+import PasswordInput from "./PasswordInput.jsx";
 
 const TITLES = {
   login: <>Login</>,
@@ -189,7 +190,7 @@ export default function AuthModal({ open, view, onSwitch, onClose, notify, auth 
       {view === "login" && (
         <form className="tab-panel active" onSubmit={handleLogin}>
           <Field label="E-mail" type="email" placeholder="voce@email.com" value={loginEmail} onChange={(e) => setLoginEmail(e.target.value)} />
-          <Field label="Senha" type="password" placeholder="••••••••" value={loginPw} onChange={(e) => setLoginPw(e.target.value)} />
+          <PasswordInput label="Senha" placeholder="••••••••" value={loginPw} onChange={(e) => setLoginPw(e.target.value)} autoComplete="current-password" />
           <button className="btn-full" type="submit" disabled={busy}>
             {busy ? "Entrando..." : "Entrar"}
           </button>
@@ -244,8 +245,8 @@ export default function AuthModal({ open, view, onSwitch, onClose, notify, auth 
           </div>
           {cepStatus && <small className="cep-status">{cepStatus}</small>}
           <div className="row">
-            <Field label="Senha" type="password" placeholder="Mínimo 8 caracteres" value={signupPw} onChange={(e) => setSignupPw(e.target.value)} />
-            <Field label="Confirmar senha" type="password" placeholder="••••••••" value={signupPw2} onChange={(e) => setSignupPw2(e.target.value)} />
+            <PasswordInput label="Senha" placeholder="Mínimo 8 caracteres" value={signupPw} onChange={(e) => setSignupPw(e.target.value)} autoComplete="new-password" />
+            <PasswordInput label="Confirmar senha" placeholder="••••••••" value={signupPw2} onChange={(e) => setSignupPw2(e.target.value)} autoComplete="new-password" />
           </div>
           <label className="check">
             <input type="checkbox" checked={signupTerms} onChange={(e) => setSignupTerms(e.target.checked)} /> Li e aceito os <a href="#">Termos de Uso</a> e a <a href="#">Política de Privacidade</a>. Autorizo o

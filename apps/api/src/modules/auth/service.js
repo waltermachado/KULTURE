@@ -40,6 +40,26 @@ export function createAuthService({
   }
 
   const digits = (v) => (v == null ? undefined : String(v).replace(/\D/g, "") || null);
+
+  /** Log de acesso (login/cadastro/reset). Best-effort: falha aqui nunca derruba a autenticação. */
+  async function logAccess({ userId = null, email, kind = "login", ok, reason = null, meta = {} }) {
+    try {
+      await prisma.loginEvent.create({
+        data: {
+          userId,
+          email: String(email || "").trim().toLowerCase(),
+          kind,
+          ok,
+          reason,
+          ip: meta.ip ? String(meta.ip).slice(0, 64) : null,
+          userAgent: meta.userAgent ? String(meta.userAgent).slice(0, 300) : null
+        }
+      });
+      if (ok && userId) await prisma.user.update({ where: { id: userId }, data: { lastLoginAt: new Date() } });
+    } catch (err) {
+      log?.warn({ err: err.message }, "auth: falha ao registrar acesso (ignorada)");
+    }
+  }
   const cleanAddress = (address) =>
     address && typeof address === "object" && Object.values(address).some(Boolean) ? address : null;
 
@@ -79,13 +99,14 @@ export function createAuthService({
       phone: user.phone ?? null,
       address: user.address ?? null,
       role: user.role,
+      lastLoginAt: user.lastLoginAt ?? null,
       createdAt: user.createdAt
     };
   }
 
   // ─── public API ───────────────────────────────────────────────────────
 
-  async function register({ email: rawEmail, password, name, cpf, phone, address }) {
+  async function register({ email: rawEmail, password, name, cpf, phone, address }, meta = {}) {
     const email = rawEmail.trim().toLowerCase();
     const exists = await prisma.user.findUnique({ where: { email } });
     if (exists) {
@@ -113,13 +134,15 @@ export function createAuthService({
     const refresh = await createRefreshToken(user.id, family);
 
     log?.info({ userId: user.id }, "auth: usuário registrado");
+    await logAccess({ userId: user.id, email, kind: "register", ok: true, meta });
     return { user: safeUser(user), accessToken, refreshToken: refresh.token, refreshExpiresAt: refresh.expiresAt };
   }
 
-  async function login({ email: rawEmail, password }) {
+  async function login({ email: rawEmail, password }, meta = {}) {
     const email = rawEmail.trim().toLowerCase();
     let user = await prisma.user.findUnique({ where: { email } });
     if (!user) {
+      await logAccess({ email, kind: "login", ok: false, reason: "unknown_email", meta });
       const err = new Error("Credenciais inválidas");
       err.statusCode = 401;
       err.code = "INVALID_CREDENTIALS";
@@ -128,12 +151,14 @@ export function createAuthService({
 
     const valid = await argon2.verify(user.passwordHash, password);
     if (!valid) {
+      await logAccess({ userId: user.id, email, kind: "login", ok: false, reason: "invalid_password", meta });
       const err = new Error("Credenciais inválidas");
       err.statusCode = 401;
       err.code = "INVALID_CREDENTIALS";
       throw err;
     }
     user = await promoteIfListed(user);
+    await logAccess({ userId: user.id, email, kind: "login", ok: true, meta });
 
     const family = randomBytes(16).toString("hex");
     const accessToken = signAccess(user);
@@ -263,7 +288,7 @@ export function createAuthService({
     return { user: safeUser(user), token, expiresAt };
   }
 
-  async function resetPassword({ token, password }) {
+  async function resetPassword({ token, password }, meta = {}) {
     if (!token) throw httpError(400, "INVALID_RESET_TOKEN", "Link inválido ou expirado");
     const record = await prisma.passwordResetToken.findUnique({ where: { tokenHash: hashToken(String(token)) } });
     if (!record || record.usedAt || record.expiresAt < new Date()) {
@@ -277,6 +302,8 @@ export function createAuthService({
       prisma.refreshToken.updateMany({ where: { userId: record.userId, revoked: false }, data: { revoked: true } })
     ]);
     log?.info({ userId: record.userId }, "auth: senha redefinida via token");
+    const u = await prisma.user.findUnique({ where: { id: record.userId }, select: { email: true } });
+    await logAccess({ userId: record.userId, email: u?.email, kind: "reset", ok: true, meta });
     return { ok: true };
   }
 

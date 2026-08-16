@@ -62,7 +62,7 @@ export default function Customers({ auth }) {
         {loading && !data ? <Loading /> : (
           <table>
             <thead>
-              <tr><th>Nome</th><th>Contato</th><th>Local</th><th>Perfil</th><th className="num">Pedidos</th><th className="num">Total gasto</th><th>Última compra</th><th>Cadastro</th></tr>
+              <tr><th>Nome</th><th>Contato</th><th>Local</th><th>Perfil</th><th className="num">Pedidos</th><th className="num">Total gasto</th><th>Última compra</th><th>Último acesso</th><th>Cadastro</th></tr>
             </thead>
             <tbody>
               {data?.customers.map((c) => (
@@ -74,10 +74,11 @@ export default function Customers({ auth }) {
                   <td className="num">{c.paidOrders}<span className="sub">{c.ordersCount} no total</span></td>
                   <td className="num">{brl(c.spentBrl)}</td>
                   <td>{fmtDate(c.lastPaidAt)}</td>
+                  <td>{fmtDate(c.lastLoginAt)}</td>
                   <td>{fmtDate(c.createdAt)}</td>
                 </tr>
               ))}
-              {data && !data.customers.length && <tr><td colSpan={8} className="empty">Nenhum cliente encontrado</td></tr>}
+              {data && !data.customers.length && <tr><td colSpan={9} className="empty">Nenhum cliente encontrado</td></tr>}
             </tbody>
           </table>
         )}

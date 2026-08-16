@@ -2,10 +2,15 @@
  * Serviço de catálogo: orquestra scraper → precificação → espelho de imagens → cache SWR.
  */
 import { normalizeQuery } from "../../lib/normalize-query.js";
+import { cutoutUrls } from "./nike-image.js";
 import { toProduct } from "./normalize.js";
 import { convertUsToBr } from "@kulture/shared/sizes";
 
 const RATE_KEY = "rate:USD-BRL";
+const MAX_IMAGES = 8; // galeria do produto: até 8 ângulos (o resto é marketing)
+// namespace das chaves de cache do catálogo: mudou o formato das imagens (v2 = recorte) → chaves novas,
+// senão cards/busca ficariam até 1h servindo os PNGs opacos antigos
+const NS = "v2";
 
 export function createCatalogService({ scraper, cache, sizesCache, images, rules, top8Terms = [], log = null }) {
   const validRate = (r) => r && typeof r === "object" && Number.isFinite(Number(r.ask)) && Number(r.ask) > 0;
@@ -23,14 +28,16 @@ export function createCatalogService({ scraper, cache, sizesCache, images, rules
   }
 
   async function enrich(raw, rate) {
-    const imageSource = raw.image ? [raw.image] : [];
+    // galeria (detalhe do produto) ou foto única (busca/top8); todas reescritas para o recorte transparente
+    const sources = Array.isArray(raw.images) && raw.images.length ? raw.images : raw.image ? [raw.image] : [];
+    const imageSource = cutoutUrls(sources).slice(0, MAX_IMAGES);
     const mirrored = await images.ensureImages(raw.styleColor || raw.id, imageSource);
     return toProduct(raw, { rate, rules, images: mirrored, imageSource });
   }
 
   async function search(query) {
     const term = normalizeQuery(query);
-    const key = `search:${term}`;
+    const key = `search:${NS}:${term}`;
     const fetchSearch = async () => {
       const [{ products, total }, rate] = await Promise.all([scraper.search(query), getRate()]);
       const enriched = await Promise.all(products.map((p) => enrich(p, rate)));
@@ -51,7 +58,7 @@ export function createCatalogService({ scraper, cache, sizesCache, images, rules
 
   async function findOne(termOrStyleColor) {
     const term = normalizeQuery(termOrStyleColor);
-    const { value, cached, stale } = await cache.getOrFetch(`product:${term}`, async () => {
+    const { value, cached, stale } = await cache.getOrFetch(`product:${NS}:${term}`, async () => {
       const [raw, rate] = await Promise.all([scraper.findOne(String(termOrStyleColor).replace(/-/g, " ")), getRate()]);
       return raw ? await enrich(raw, rate) : null;
     });
@@ -83,12 +90,12 @@ export function createCatalogService({ scraper, cache, sizesCache, images, rules
   }
 
   async function top8() {
-    const { value, cached, stale } = await cache.getOrFetch("top8", buildTop8);
+    const { value, cached, stale } = await cache.getOrFetch(`top8:${NS}`, buildTop8);
     if (Array.isArray(value) && value.length) return { cached, stale, total: value.length, products: value };
     // top8 vazio em cache (scraper/Nike estavam fora quando foi montado): tenta de novo agora,
     // e só grava se vier algo — um vazio nunca deve "colar" por 60 min.
     const fresh = await buildTop8();
-    if (fresh.length) await cache.set("top8", fresh);
+    if (fresh.length) await cache.set(`top8:${NS}`, fresh);
     return { cached: false, stale: false, total: fresh.length, products: fresh };
   }
 
@@ -99,7 +106,7 @@ export function createCatalogService({ scraper, cache, sizesCache, images, rules
         log?.warn("top8: pré-aquecimento voltou vazio — não gravado no cache");
         return;
       }
-      await cache.set("top8", products);
+      await cache.set(`top8:${NS}`, products);
       log?.info({ count: products.length }, "top8 pré-aquecido");
     } catch (err) {
       log?.warn({ err: err.message }, "top8: falha ao pré-aquecer");
@@ -107,7 +114,7 @@ export function createCatalogService({ scraper, cache, sizesCache, images, rules
   }
 
   async function getProductSizes(styleColor) {
-    const { value, cached, stale } = await sizesCache.getOrFetch(`sizes:${styleColor}`, async () => {
+    const { value, cached, stale } = await sizesCache.getOrFetch(`sizes:${NS}:${styleColor}`, async () => {
       const [raw, rate] = await Promise.all([scraper.getProductDetail(styleColor), getRate()]);
       const enriched = await enrich(raw, rate);
       // Converte os tamanhos usando o shared/sizes

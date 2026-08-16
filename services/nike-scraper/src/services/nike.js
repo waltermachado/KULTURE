@@ -160,8 +160,9 @@ export async function getProductSizes(styleColor) {
     throw Object.assign(new Error('Sizes unavailable for this styleColor'), { status: 404, code: 'SIZES_UNAVAILABLE' });
   }
 
-  const obj = objects[0];
-  const info = obj.productInfo?.[0];
+  // um thread pode agrupar várias cores: escolhe o productInfo do styleColor pedido (fallback: o 1º)
+  const obj = objects.find((o) => (o.productInfo || []).some((pi) => pi?.merchProduct?.styleColor === styleColor)) || objects[0];
+  const info = (obj.productInfo || []).find((pi) => pi?.merchProduct?.styleColor === styleColor) || obj.productInfo?.[0];
   if (!info) {
     throw Object.assign(new Error('Product info missing'), { status: 404, code: 'SIZES_UNAVAILABLE' });
   }
@@ -204,7 +205,37 @@ export async function getProductSizes(styleColor) {
     onSale: Boolean(price.discounted),
     sizeChartUrl: info.productUrls?.sizeChartUrl || null,
     isLaunch: Boolean(info.launchView),
-    images: info.imageUrls?.productImageUrl ? [info.imageUrls.productImageUrl] : [],
+    images: extractGallery(obj, info, merch.styleColor),
     sizes
   };
+}
+
+/**
+ * Galeria de fotos do produto a partir do publishedContent do thread.
+ * O 1º carrossel cujos filhos são imagens de produto (squarishURL/portraitURL em static.nike.com/a/images/t_default…)
+ * é a galeria (vários ângulos); os demais carrosséis são marketing ("Benefits", "Features…").
+ * Se o thread tiver várias cores, prefere um carrossel cujo properties.products/styleColor bata com o styleColor.
+ * Fallback: imageUrls.productImageUrl (formato antigo). Devolve URLs cruas — o core reescreve para o recorte.
+ */
+function extractGallery(obj, info, styleColor) {
+  const out = [];
+  const push = (u) => { if (u && !out.includes(u)) out.push(u); };
+  const nodes = obj?.publishedContent?.nodes || [];
+  const isProductShot = (u) => typeof u === 'string' && /static\.nike\.com\/a\/images\//.test(u) && !/\/image\.(jpe?g|png)$/i.test(u);
+  const carousels = nodes
+    .filter((n) => n?.subType === 'carousel' && (n.nodes || []).some((c) => isProductShot(c?.properties?.squarishURL || c?.properties?.portraitURL)))
+    .map((n) => ({
+      node: n,
+      matches:
+        (n.properties?.products || []).some((p) => p?.styleColor === styleColor) ||
+        n.properties?.styleColor === styleColor ||
+        (n.nodes || []).some((c) => c?.properties?.styleColor === styleColor)
+    }));
+  const chosen = carousels.find((c) => c.matches) || carousels[0];
+  for (const c of chosen?.node?.nodes || []) {
+    const p = c?.properties || {};
+    push(p.portraitURL || p.squarishURL || p.landscapeURL);
+  }
+  if (!out.length && info?.imageUrls?.productImageUrl) push(info.imageUrls.productImageUrl);
+  return out;
 }

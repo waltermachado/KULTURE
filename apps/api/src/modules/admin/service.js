@@ -391,7 +391,7 @@ export function createAdminService({ prisma, env, mailer, gateway, orders, log }
         orderBy: { createdAt: "desc" },
         skip: (p - 1) * take,
         take,
-        select: { id: true, name: true, email: true, phone: true, cpf: true, role: true, address: true, createdAt: true, _count: { select: { orders: true } } }
+        select: { id: true, name: true, email: true, phone: true, cpf: true, role: true, address: true, createdAt: true, lastLoginAt: true, _count: { select: { orders: true } } }
       })
     ]);
     const ids = users.map((u) => u.id);
@@ -429,10 +429,10 @@ export function createAdminService({ prisma, env, mailer, gateway, orders, log }
   async function getCustomer(id) {
     const user = await prisma.user.findUnique({
       where: { id },
-      select: { id: true, name: true, email: true, phone: true, cpf: true, role: true, address: true, createdAt: true, updatedAt: true }
+      select: { id: true, name: true, email: true, phone: true, cpf: true, role: true, address: true, createdAt: true, updatedAt: true, lastLoginAt: true }
     });
     if (!user) throw AppError.notFound("Cliente não encontrado");
-    const [orders, guestOrders, resets, sessions] = await Promise.all([
+    const [orders, guestOrders, resets, sessions, accessLog, accessTotals] = await Promise.all([
       prisma.order.findMany({
         where: { userId: id },
         orderBy: { createdAt: "desc" },
@@ -447,7 +447,15 @@ export function createAdminService({ prisma, env, mailer, gateway, orders, log }
         select: { number: true, status: true, totalBrl: true, paidAt: true, createdAt: true, trackingCode: true, carrier: true, _count: { select: { items: true } } }
       }),
       prisma.passwordResetToken.findMany({ where: { userId: id }, orderBy: { createdAt: "desc" }, take: 5, select: { requestedBy: true, expiresAt: true, usedAt: true, createdAt: true } }),
-      prisma.refreshToken.count({ where: { userId: id, revoked: false, expiresAt: { gt: new Date() } } })
+      prisma.refreshToken.count({ where: { userId: id, revoked: false, expiresAt: { gt: new Date() } } }),
+      // acessos: por userId (logins) + por e-mail (tentativas com senha errada antes de existir vínculo)
+      prisma.loginEvent.findMany({
+        where: { OR: [{ userId: id }, { email: user.email }] },
+        orderBy: { createdAt: "desc" },
+        take: 20,
+        select: { kind: true, ok: true, reason: true, ip: true, userAgent: true, createdAt: true }
+      }),
+      prisma.loginEvent.groupBy({ by: ["ok"], where: { OR: [{ userId: id }, { email: user.email }] }, _count: { _all: true } })
     ]);
     const all = [...orders, ...guestOrders];
     const paid = all.filter((o) => PAID_STATUSES.includes(o.status));
@@ -457,8 +465,11 @@ export function createAdminService({ prisma, env, mailer, gateway, orders, log }
         ordersCount: all.length,
         paidOrders: paid.length,
         spentBrl: round2(paid.reduce((s, o) => s + num(o.totalBrl), 0)),
-        activeSessions: sessions
+        activeSessions: sessions,
+        loginsOk: accessTotals.find((r) => r.ok)?._count._all ?? 0,
+        loginsFailed: accessTotals.find((r) => !r.ok)?._count._all ?? 0
       },
+      accessLog,
       orders: orders.map((o) => ({ ...o, itemsCount: o._count.items, _count: undefined, guest: false })),
       guestOrders: guestOrders.map((o) => ({ ...o, itemsCount: o._count.items, _count: undefined, guest: true })),
       passwordResets: resets

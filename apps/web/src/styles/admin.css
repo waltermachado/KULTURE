@@ -111,6 +111,8 @@
 .pill.refunded{color:#FF9E7A;border-color:rgba(255,158,122,.4)}
 .pill.admin{color:var(--yellow);border-color:var(--yellow)}
 .pill.customer{color:var(--muted-2)}
+.pill.ok{color:var(--green);border-color:rgba(61,220,132,.4)}
+.pill.bad{color:var(--red);border-color:rgba(230,57,70,.4)}
 
 /* ---- dashboard chart ---- */
 .chart{width:100%;height:220px;display:block}

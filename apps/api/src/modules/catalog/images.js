@@ -27,6 +27,13 @@ function safeId(id) {
   return String(id || "sem-id").replace(/[^a-zA-Z0-9_-]/g, "_");
 }
 
+/**
+ * Versão do espelho: entra no nome do arquivo (v2-0.webp). Mudou a forma de obter a imagem
+ * (v2 = recorte transparente via nike-image.js) → nova versão, e os arquivos antigos ficam só
+ * para pedidos que gravaram a URL antiga.
+ */
+export const IMAGE_VERSION = "v2";
+
 export function createImageMirror({ publicBase = "/media/produtos", storageDir = STORAGE_DIR, log = null, fetchImpl = fetch } = {}) {
   // Estado de gravabilidade do storage. No Railway o volume é montado como root e o container roda
   // como `node` → EACCES. Nesse caso NÃO podemos derrubar o catálogo: servimos as URLs de origem
@@ -77,35 +84,44 @@ export function createImageMirror({ publicBase = "/media/produtos", storageDir =
       return [...sourceUrls];
     }
 
-    for (let i = 0; i < sourceUrls.length; i++) {
-      const meta = path.join(dir, `${i}.json`);
+    // baixa em paralelo (galeria tem até 8 fotos): o 1º acesso a um produto não pode travar o modal
+    const results = await Promise.all(
+      sourceUrls.map(async (src, i) => {
+        const base = `${IMAGE_VERSION}-${i}`;
+        const meta = path.join(dir, `${base}.json`);
 
-      if (await fileExists(meta)) {
-        try {
-          const { ext = "png" } = JSON.parse(await fs.readFile(meta, "utf8"));
-          if (await fileExists(path.join(dir, `${i}.${ext}`))) {
-            publicUrls.push(`${publicBase}/${id}/${i}.${ext}`);
-            continue;
+        if (await fileExists(meta)) {
+          try {
+            const { ext = "png" } = JSON.parse(await fs.readFile(meta, "utf8"));
+            if (await fileExists(path.join(dir, `${base}.${ext}`))) return `${publicBase}/${id}/${base}.${ext}`;
+          } catch {
+            // meta corrompido → re-baixa
           }
-        } catch {
-          // meta corrompido → re-baixa
         }
-      }
 
-      try {
-        const res = await fetchImpl(sourceUrls[i], { signal: AbortSignal.timeout(15_000) });
-        if (!res.ok) throw new Error(`HTTP ${res.status}`);
-        const buf = Buffer.from(await res.arrayBuffer());
-        const ct = res.headers.get("content-type") || "";
-        const ext = ct.includes("webp") ? "webp" : ct.includes("jpeg") ? "jpg" : "png";
-        await fs.writeFile(path.join(dir, `${i}.${ext}`), buf);
-        await fs.writeFile(meta, JSON.stringify({ ext, origem: sourceUrls[i], savedAt: new Date().toISOString() }));
-        publicUrls.push(`${publicBase}/${id}/${i}.${ext}`);
-      } catch (err) {
-        log?.warn({ url: sourceUrls[i], err: err.message }, "img: falha ao espelhar, usando URL de origem");
-        publicUrls.push(sourceUrls[i]);
-      }
-    }
+        try {
+          const res = await fetchImpl(src, {
+            headers: {
+              // CDN da Nike: UA de navegador + Accept com webp/avif (f_webp/f_auto respeitam o Accept)
+              "User-Agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126.0.0.0 Safari/537.36",
+              Accept: "image/webp,image/avif,image/png,image/*;q=0.8,*/*;q=0.5"
+            },
+            signal: AbortSignal.timeout(12_000)
+          });
+          if (!res.ok) throw new Error(`HTTP ${res.status}`);
+          const buf = Buffer.from(await res.arrayBuffer());
+          const ct = res.headers.get("content-type") || "";
+          const ext = ct.includes("webp") ? "webp" : ct.includes("avif") ? "avif" : ct.includes("jpeg") ? "jpg" : "png";
+          await fs.writeFile(path.join(dir, `${base}.${ext}`), buf);
+          await fs.writeFile(meta, JSON.stringify({ ext, origem: src, savedAt: new Date().toISOString() }));
+          return `${publicBase}/${id}/${base}.${ext}`;
+        } catch (err) {
+          log?.warn({ url: src, err: err.message }, "img: falha ao espelhar, usando URL de origem");
+          return src;
+        }
+      })
+    );
+    publicUrls.push(...results);
     return publicUrls;
   }
 

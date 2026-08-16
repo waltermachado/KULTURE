@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { api } from '../lib/api';
 
 export function SizePicker({ item, onClose, onAdd }) {
@@ -6,6 +6,26 @@ export function SizePicker({ item, onClose, onAdd }) {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [selectedSize, setSelectedSize] = useState(null);
+  const [photo, setPhoto] = useState(0);
+
+  // galeria: fotos espelhadas pela api (vários ângulos); fallback = foto do card
+  const gallery = useMemo(() => {
+    const list = Array.isArray(product?.images) && product.images.length ? product.images : item.img ? [item.img] : [];
+    return list;
+  }, [product, item.img]);
+  const prevPhoto = () => setPhoto((i) => (gallery.length ? (i - 1 + gallery.length) % gallery.length : 0));
+  const nextPhoto = () => setPhoto((i) => (gallery.length ? (i + 1) % gallery.length : 0));
+
+  // setas do teclado navegam a galeria
+  useEffect(() => {
+    if (gallery.length < 2) return;
+    const onKey = (e) => {
+      if (e.key === 'ArrowLeft') prevPhoto();
+      if (e.key === 'ArrowRight') nextPhoto();
+    };
+    document.addEventListener('keydown', onKey);
+    return () => document.removeEventListener('keydown', onKey);
+  }, [gallery.length]);
 
   useEffect(() => {
     const fetchSizes = async () => {
@@ -44,10 +64,26 @@ export function SizePicker({ item, onClose, onAdd }) {
             <div className="size-picker">
               {/* foto do tênis escolhido no topo */}
               <div className="sp-hero">
-                <div className="sp-hero-img">
-                  {(item.img || product.images?.[0]) ? (
-                    <img src={item.img || product.images[0]} alt={product.name} />
-                  ) : null}
+                <div className="sp-gallery">
+                  <div className="sp-hero-img">
+                    {gallery[photo] ? <img key={gallery[photo]} src={gallery[photo]} alt={`${product.name} — foto ${photo + 1} de ${gallery.length}`} /> : null}
+                    {gallery.length > 1 && (
+                      <>
+                        <button type="button" className="sp-arrow prev" onClick={prevPhoto} aria-label="Foto anterior">‹</button>
+                        <button type="button" className="sp-arrow next" onClick={nextPhoto} aria-label="Próxima foto">›</button>
+                        <span className="sp-count">{photo + 1}/{gallery.length}</span>
+                      </>
+                    )}
+                  </div>
+                  {gallery.length > 1 && (
+                    <div className="sp-thumbs" role="tablist" aria-label="Fotos do produto">
+                      {gallery.map((src, i) => (
+                        <button key={src} type="button" role="tab" aria-selected={i === photo} className={`sp-thumb${i === photo ? ' active' : ''}`} onClick={() => setPhoto(i)} aria-label={`Foto ${i + 1}`}>
+                          <img src={src} alt="" loading="lazy" />
+                        </button>
+                      ))}
+                    </div>
+                  )}
                 </div>
                 <div className="sp-hero-info">
                   <span className="card-brand">{item.brand || "Nike"}</span>

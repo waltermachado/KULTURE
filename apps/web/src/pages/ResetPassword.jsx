@@ -1,4 +1,5 @@
 import { useState } from "react";
+import PasswordInput from "../components/PasswordInput.jsx";
 import { useNavigate, useSearchParams } from "react-router-dom";
 
 /**
@@ -50,8 +51,8 @@ export default function ResetPassword({ auth, onOpenLogin }) {
             <h2>Nova <em>senha</em></h2>
             <p>Escolha uma senha nova para a sua conta Kulture. O link vale uma vez só.</p>
             <form onSubmit={submit}>
-              <div className="field"><label>Nova senha</label><input type="password" value={pw} onChange={(e) => setPw(e.target.value)} placeholder="mínimo 8 caracteres" autoFocus /></div>
-              <div className="field"><label>Repetir senha</label><input type="password" value={pw2} onChange={(e) => setPw2(e.target.value)} /></div>
+              <PasswordInput label="Nova senha" value={pw} onChange={(e) => setPw(e.target.value)} placeholder="mínimo 8 caracteres" autoFocus autoComplete="new-password" />
+              <PasswordInput label="Repetir senha" value={pw2} onChange={(e) => setPw2(e.target.value)} autoComplete="new-password" />
               <button className="btn-full" type="submit" disabled={busy}>{busy ? "Salvando…" : "Salvar nova senha"}</button>
               {msg && <p className="msg err" style={{ color: "var(--red)", fontSize: 12, marginTop: 10 }}>{msg}</p>}
             </form>

@@ -231,6 +231,13 @@ footer a:hover,footer .foot-link:hover{color:var(--yellow)}
 .field input{width:100%;background:var(--ink-3);border:1px solid var(--hair-3);color:var(--paper);padding:14px 16px;font-family:inherit;font-size:15px}
 .field input:focus{outline:none;border-color:var(--yellow)}
 .field input.invalid{border-color:var(--red)}
+/* campo de senha com botão mostrar/ocultar dentro da caixa */
+.pw-wrap{position:relative;display:block}
+.pw-wrap input{width:100%;padding-right:52px!important;background:var(--ink-3);border:1px solid var(--hair-3);color:var(--paper);padding:14px 16px;font-family:inherit;font-size:15px}
+.pw-wrap input:focus{outline:none;border-color:var(--yellow)}
+.pw-toggle{position:absolute;top:0;right:0;bottom:0;width:48px;display:flex;align-items:center;justify-content:center;background:transparent;border:0;border-left:1px solid var(--hair-3);color:var(--muted-2);cursor:pointer;padding:0}
+.pw-toggle:hover,.pw-toggle[aria-pressed="true"]{color:var(--yellow)}
+.pw-toggle:focus-visible{outline:2px solid var(--yellow);outline-offset:-2px}
 .cep-status{display:block;color:var(--yellow);font-size:.75rem;margin:-8px 0 10px}
 .btn-full{width:100%;background:var(--yellow);color:var(--ink);border:0;font-weight:800;text-transform:uppercase;padding:18px 20px;cursor:pointer;font-size:13px;letter-spacing:.16em;margin-top:6px;display:flex;align-items:center;justify-content:center;gap:16px}
 .btn-full:hover{background:var(--yellow-2)}
@@ -277,9 +284,20 @@ footer a:hover,footer .foot-link:hover{color:var(--yellow)}
 
 /* ============ SIZE PICKER ============ */
 .size-picker{display:flex;flex-direction:column;gap:12px}
-.sp-hero{display:grid;grid-template-columns:220px 1fr;gap:22px;align-items:center;background:var(--ink-2);border:1px solid var(--hair);padding:16px;margin-bottom:6px}
-.sp-hero-img{height:160px;display:flex;align-items:center;justify-content:center;background:radial-gradient(circle,#2A2404 0%,var(--ink) 72%);overflow:hidden}
-.sp-hero-img img{width:100%;height:100%;object-fit:contain;transform:rotate(-6deg);filter:drop-shadow(0 20px 20px rgba(0,0,0,.6))}
+.sp-hero{display:grid;grid-template-columns:300px 1fr;gap:22px;align-items:center;background:var(--ink-2);border:1px solid var(--hair);padding:16px;margin-bottom:6px}
+.sp-gallery{display:flex;flex-direction:column;gap:8px;min-width:0}
+.sp-hero-img{position:relative;height:240px;display:flex;align-items:center;justify-content:center;background:radial-gradient(circle,#2A2404 0%,var(--ink) 72%);overflow:hidden}
+.sp-hero-img img{width:100%;height:100%;object-fit:contain;transform:rotate(-6deg);filter:drop-shadow(0 20px 20px rgba(0,0,0,.6));animation:kb-pop .25s ease both}
+/* galeria: setas + contador + miniaturas */
+.sp-arrow{position:absolute;top:50%;transform:translateY(-50%);width:36px;height:44px;border:1px solid var(--hair-3);background:rgba(11,11,11,.72);color:var(--paper);font-size:26px;line-height:1;cursor:pointer;display:flex;align-items:center;justify-content:center;padding:0 0 3px;transition:.15s}
+.sp-arrow.prev{left:8px}.sp-arrow.next{right:8px}
+.sp-arrow:hover{background:var(--yellow);color:var(--ink);border-color:var(--yellow)}
+.sp-count{position:absolute;right:10px;bottom:8px;font-size:10px;letter-spacing:.16em;color:var(--muted-2);background:rgba(11,11,11,.72);padding:3px 7px}
+.sp-thumbs{display:flex;gap:6px;overflow-x:auto;padding-bottom:2px;scrollbar-width:thin}
+.sp-thumb{flex:0 0 52px;height:52px;background:var(--ink-3);border:1px solid var(--hair-2);padding:4px;cursor:pointer;opacity:.6;transition:.15s}
+.sp-thumb img{width:100%;height:100%;object-fit:contain;display:block}
+.sp-thumb:hover{opacity:1;border-color:var(--hair-3)}
+.sp-thumb.active{opacity:1;border-color:var(--yellow)}
 .sp-hero-info{display:flex;flex-direction:column;gap:6px;min-width:0}
 .sp-hero-info h4{font-size:clamp(20px,2.4vw,28px);font-weight:800;text-transform:uppercase;letter-spacing:-.03em;line-height:.95}
 .sp-hero-info .sp-sub{color:var(--muted);font-size:12px;letter-spacing:.1em;text-transform:uppercase}
@@ -300,7 +318,7 @@ footer a:hover,footer .foot-link:hover{color:var(--yellow)}
 .sp-footer button{flex:1}
 .sp-loading{text-align:center;padding:40px;color:var(--yellow);font-size:12px;letter-spacing:.2em;text-transform:uppercase}
 .sp-error{text-align:center;padding:20px;color:var(--red);font-size:.9rem}
-@media(max-width:640px){.sp-hero{grid-template-columns:1fr}.sp-hero-img{height:170px}}
+@media(max-width:640px){.sp-hero{grid-template-columns:1fr}.sp-hero-img{height:200px}}
 
 /* ============ CHECKOUT / CONFIRMAÇÃO ============ */
 .checkout-page{padding:44px 28px 80px;display:grid;grid-template-columns:1fr 420px;gap:0;align-items:start}

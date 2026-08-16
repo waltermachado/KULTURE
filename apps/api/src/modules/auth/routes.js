@@ -19,6 +19,7 @@ const ADDRESS_SCHEMA = {
  */
 export async function authRoutes(app) {
   const env = app.env;
+  const meta = (request) => ({ ip: request.ip, userAgent: request.headers["user-agent"] });
   // serviço criado em app.js (app.auth) para o módulo admin reusar createPasswordReset/safeUser
   const auth = app.auth;
   const sendResetEmail = app.sendPasswordResetEmail;
@@ -68,7 +69,7 @@ export async function authRoutes(app) {
       }
     }
   }, async (request, reply) => {
-    const result = await auth.register(request.body);
+    const result = await auth.register(request.body, meta(request));
     setRefreshCookie(reply, result.refreshToken, result.refreshExpiresAt);
     return reply.status(201).send({
       user: result.user,
@@ -97,7 +98,7 @@ export async function authRoutes(app) {
       }
     }
   }, async (request, reply) => {
-    const result = await auth.login(request.body);
+    const result = await auth.login(request.body, meta(request));
     setRefreshCookie(reply, result.refreshToken, result.refreshExpiresAt);
     return reply.send({
       user: result.user,
@@ -222,6 +223,6 @@ export async function authRoutes(app) {
       }
     }
   }, async (request) => {
-    return auth.resetPassword(request.body);
+    return auth.resetPassword(request.body, meta(request));
   });
 }
