@@ -9,6 +9,9 @@ export async function healthRoutes(app) {
       version: app.appVersion,
       uptimeSec: Math.round(process.uptime()),
       cache: app.cache.stats(),
+      // qual gateway está ativo (mock | infinitepay) e qual e-mail (log | mailersend) — para conferir a config em prod
+      paymentProvider: app.env.PAYMENT_PROVIDER,
+      mailProvider: app.env.MAIL_PROVIDER,
       // false = imagens sendo servidas da origem (Nike) porque o storage não é gravável
       storageWritable: typeof app.images?.checkWritable === "function" ? await app.images.checkWritable() : null
     })
