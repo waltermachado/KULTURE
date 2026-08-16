@@ -95,6 +95,7 @@ header.nav{position:sticky;top:0;z-index:60;background:var(--ink);border-bottom:
 .hero-copy{position:relative;padding:74px 28px 54px;display:flex;flex-direction:column;justify-content:center}
 .hero-drop{display:flex;align-items:center;gap:14px;margin-bottom:26px;animation:kb-rise .6s .05s both}
 .hero-drop b{background:var(--yellow);color:var(--ink);font-size:11px;font-weight:800;letter-spacing:.2em;padding:6px 12px}
+.hero-drop b.pre{background:transparent;color:var(--yellow);border:1px solid var(--yellow)}
 .hero-drop span{font-size:11px;letter-spacing:.24em;color:var(--muted);text-transform:uppercase}
 .hero h1{font-size:clamp(44px,6.2vw,96px);line-height:.88;font-weight:800;letter-spacing:-.045em;text-transform:uppercase;animation:kb-rise .7s .1s both}
 .hero h1 .stroke{display:block;color:transparent;-webkit-text-stroke:2px var(--yellow);animation:kb-rise .7s .18s both}
@@ -140,6 +141,9 @@ header.nav{position:sticky;top:0;z-index:60;background:var(--ink);border-bottom:
 .badge{font-size:10px;letter-spacing:.14em;background:var(--yellow);color:var(--ink);padding:5px 9px;font-weight:800;text-transform:uppercase}
 .card:hover .badge{background:var(--ink);color:var(--yellow)}
 .badge.red{background:var(--red);color:#fff}
+.badge.pre{background:transparent;color:var(--yellow);border:1px solid var(--yellow)}
+.card:hover .badge.pre{background:var(--ink);color:var(--yellow);border-color:var(--ink)}
+.tag-pre{display:inline-block;margin-left:8px;font-style:normal;font-size:9px;letter-spacing:.16em;text-transform:uppercase;font-weight:800;color:var(--yellow);border:1px solid var(--yellow);padding:2px 6px;vertical-align:middle}
 .card-ghost{position:absolute;left:0;right:0;top:34%;font-size:130px;font-weight:800;letter-spacing:-.06em;text-align:center;opacity:0;color:currentColor;transition:opacity .3s;pointer-events:none;line-height:1}
 .card:hover .card-ghost{opacity:.10}
 .card-img{flex:1;display:flex;align-items:center;justify-content:center;position:relative;z-index:2;min-height:220px;padding:14px 0}
@@ -302,6 +306,8 @@ footer a:hover,footer .foot-link:hover{color:var(--yellow)}
 .sp-hero-info h4{font-size:clamp(20px,2.4vw,28px);font-weight:800;text-transform:uppercase;letter-spacing:-.03em;line-height:.95}
 .sp-hero-info .sp-sub{color:var(--muted);font-size:12px;letter-spacing:.1em;text-transform:uppercase}
 .sp-hero-info .price{font-size:26px;margin-top:4px}
+.sp-launch{display:block;margin-top:8px;font-size:12px;line-height:1.5;color:var(--muted-2);border-left:2px solid var(--yellow);padding-left:10px}
+.sp-launch b{color:var(--yellow);text-transform:uppercase;letter-spacing:.14em;font-size:11px}
 .sp-header{display:flex;justify-content:space-between;align-items:baseline;gap:12px;flex-wrap:wrap}
 .sp-header span:first-child{font-size:11px;letter-spacing:.22em;color:var(--yellow);text-transform:uppercase;font-weight:800}
 .sp-header span:last-child{font-size:11px;letter-spacing:.12em;color:var(--muted);text-transform:uppercase}

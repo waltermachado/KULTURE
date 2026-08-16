@@ -86,6 +86,11 @@ const schema = z.object({
     .string()
     .default("true")
     .transform((v) => !["false", "0", "no"].includes(v.toLowerCase())),
+  // produto virtual "test123test" (R$ 1,00) para testar o pagamento real; desligue após validar
+  TEST_PRODUCT_ENABLED: z
+    .string()
+    .default("true")
+    .transform((v) => !["false", "0", "no"].includes(v.toLowerCase())),
 
   // ---- checkout / payments ----
   PAYMENT_PROVIDER: z.enum(["mock", "infinitepay"]).default("mock"),

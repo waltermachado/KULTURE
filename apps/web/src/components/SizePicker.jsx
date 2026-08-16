@@ -1,5 +1,6 @@
 import { useState, useEffect, useMemo } from 'react';
 import { api } from '../lib/api';
+import { launchDateLabel } from '../lib/format.js';
 
 export function SizePicker({ item, onClose, onAdd }) {
   const [product, setProduct] = useState(null);
@@ -90,6 +91,14 @@ export function SizePicker({ item, onClose, onAdd }) {
                   <h4>{product.name}</h4>
                   {product.subtitle && <span className="sp-sub">{product.subtitle}</span>}
                   {item.price != null && <span className="price">{Number(item.price).toLocaleString("pt-BR", { style: "currency", currency: "BRL" })}</span>}
+                  {product.launch?.comingSoon && (
+                    <span className="sp-launch">
+                      <b>Pré-venda</b>
+                      {launchDateLabel(product.launch.date)
+                        ? ` — lançamento na Nike US em ${launchDateLabel(product.launch.date)}. Compramos assim que liberar e te avisamos.`
+                        : " — lançamento em breve na Nike US. Compramos assim que liberar e te avisamos."}
+                    </span>
+                  )}
                 </div>
               </div>
               <div className="sp-header">

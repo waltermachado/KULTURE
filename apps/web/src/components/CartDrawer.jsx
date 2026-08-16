@@ -21,7 +21,7 @@ export default function CartDrawer({ open, onClose, cart, onCheckout }) {
                 <ProductMedia src={item.img} alt={item.name} color={item.color} />
               </div>
               <div className="cart-item-info">
-                <b>{item.name}</b>
+                <b>{item.name}{item.launch?.comingSoon ? <em className="tag-pre">Pré-venda</em> : null}</b>
                 <span>TAM BR {sizeInfo?.brLabel || sizeInfo?.nikeSize}{sizeInfo?.approximate ? ' (aprox.)' : ''} · QTD {qty}</span>
                 <span className="line-price">{brl(item.price * qty)}</span>
               </div>

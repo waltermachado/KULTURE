@@ -75,7 +75,7 @@ export async function buildApp(overrides = {}) {
     overrides.images ??
     createImageMirror({ publicBase: env.MEDIA_BASE, ...(env.STORAGE_DIR ? { storageDir: env.STORAGE_DIR } : {}), log: app.log });
   const rules = overrides.pricingRules ?? DEFAULT_PRICING_RULES; // Fase 1: tabela PricingRule
-  const catalog = createCatalogService({ scraper, cache, sizesCache, images, rules, top8Terms: env.TOP8_TERMS, log: app.log });
+  const catalog = createCatalogService({ scraper, cache, sizesCache, images, rules, top8Terms: env.TOP8_TERMS, testProduct: env.TEST_PRODUCT_ENABLED, log: app.log });
 
   app.decorate("prisma", prisma);
   app.decorate("cache", cache);

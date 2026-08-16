@@ -110,6 +110,11 @@ function normalize(data) {
         image: p?.colorwayImages?.portraitURL ?? p?.colorwayImages?.squarishURL ?? null,
         url: p?.pdpUrl?.url ?? null,
         colorDescription: p?.displayColors?.colorDescription ?? null,
+        // lançamento / pré-venda: "SNKRS_COMING_SOON" + featuredAttributes [COMING_SOON, LAUNCH, JUST_IN, BEST_SELLER…]
+        badgeAttribute: p?.badgeAttribute ?? null,
+        badgeLabel: p?.badgeLabel ?? null,
+        featuredAttributes: Array.isArray(p?.featuredAttributes) ? p.featuredAttributes : [],
+        isNewUntil: p?.isNewUntil ?? null,
         raw: undefined,
       });
     }
@@ -204,7 +209,12 @@ export async function getProductSizes(styleColor) {
     fullPriceUsd: price.fullPrice,
     onSale: Boolean(price.discounted),
     sizeChartUrl: info.productUrls?.sizeChartUrl || null,
-    isLaunch: Boolean(info.launchView),
+    isLaunch: Boolean(info.launchView) || merch.publishType === 'LAUNCH',
+    publishType: merch.publishType || null,
+    // pré-venda: launchView.startEntryDate = quando a venda abre na Nike US (ISO, UTC)
+    launch: info.launchView
+      ? { startEntryDate: info.launchView.startEntryDate || null, method: info.launchView.method || null, paymentMethod: info.launchView.paymentMethod || null }
+      : null,
     images: extractGallery(obj, info, merch.styleColor),
     sizes
   };

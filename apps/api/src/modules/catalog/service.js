@@ -4,15 +4,16 @@
 import { normalizeQuery } from "../../lib/normalize-query.js";
 import { cutoutUrls } from "./nike-image.js";
 import { toProduct } from "./normalize.js";
+import { isTestTerm, isTestStyleColor, buildTestProduct } from "./test-product.js";
 import { convertUsToBr } from "@kulture/shared/sizes";
 
 const RATE_KEY = "rate:USD-BRL";
 const MAX_IMAGES = 8; // galeria do produto: até 8 ângulos (o resto é marketing)
 // namespace das chaves de cache do catálogo: mudou o formato das imagens (v2 = recorte) → chaves novas,
 // senão cards/busca ficariam até 1h servindo os PNGs opacos antigos
-const NS = "v2";
+const NS = "v4"; // v3 = só calçados; v4 = campo launch (pré-venda)
 
-export function createCatalogService({ scraper, cache, sizesCache, images, rules, top8Terms = [], log = null }) {
+export function createCatalogService({ scraper, cache, sizesCache, images, rules, top8Terms = [], testProduct = false, log = null }) {
   const validRate = (r) => r && typeof r === "object" && Number.isFinite(Number(r.ask)) && Number(r.ask) > 0;
 
   async function getRate() {
@@ -37,6 +38,11 @@ export function createCatalogService({ scraper, cache, sizesCache, images, rules
 
   async function search(query) {
     const term = normalizeQuery(query);
+    if (testProduct && isTestTerm(query)) {
+      // produto de teste de pagamento: só com o termo exato, nunca em buscas parciais nem no top8
+      const rate = await getRate().catch(() => null);
+      return { term, cached: false, stale: false, total: 1, products: [buildTestProduct(rate)] };
+    }
     const key = `search:${NS}:${term}`;
     const fetchSearch = async () => {
       const [{ products, total }, rate] = await Promise.all([scraper.search(query), getRate()]);
@@ -114,6 +120,10 @@ export function createCatalogService({ scraper, cache, sizesCache, images, rules
   }
 
   async function getProductSizes(styleColor) {
+    if (testProduct && isTestStyleColor(styleColor)) {
+      const rate = await getRate().catch(() => null);
+      return { cached: false, stale: false, product: buildTestProduct(rate) };
+    }
     const { value, cached, stale } = await sizesCache.getOrFetch(`sizes:${NS}:${styleColor}`, async () => {
       const [raw, rate] = await Promise.all([scraper.getProductDetail(styleColor), getRate()]);
       const enriched = await enrich(raw, rate);

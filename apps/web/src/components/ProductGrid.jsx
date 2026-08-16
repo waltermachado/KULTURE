@@ -6,7 +6,7 @@ function Card({ p, i, onAdd }) {
     <article className="card" onClick={() => onAdd(p)}>
       <div className="card-top">
         <span className="card-brand">{p.brand}</span>
-        <span className={`badge${p.badgeRed ? " red" : ""}`}>{p.badge}</span>
+        <span className={`badge${p.badgeRed ? " red" : ""}${p.launch?.comingSoon ? " pre" : ""}`}>{p.badge}</span>
       </div>
       <div className="card-ghost">{String(i + 1).padStart(2, "0")}</div>
       <div className="card-img">
@@ -19,7 +19,7 @@ function Card({ p, i, onAdd }) {
           <span className="price">{brl(p.price)}</span>
           {p.old && <span className="price-old">{brl(p.old)}</span>}
         </div>
-        <span className="card-foot">Frete grátis · numeração BR</span>
+        <span className="card-foot">{p.launch?.comingSoon ? "Pré-venda · " : ""}Frete grátis · numeração BR</span>
         <div className="card-actions">
           <button className="btn-add" onClick={(e) => { e.stopPropagation(); onAdd(p); }}>
             Escolher tamanho <span>→</span>

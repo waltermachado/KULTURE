@@ -20,10 +20,19 @@ export function toCard(p, i) {
     old: p.price?.fullBrl ?? null,
     priceUsd: p.priceUsd ?? null,
     breakdown: p.price?.breakdown ?? null,
-    badge: p.onSale ? "PROMO" : i === 0 ? "#1 NBA" : "TOP",
-    badgeRed: Boolean(p.onSale) || i === 0,
+    badge: p.isTest ? "TESTE" : p.launch?.comingSoon ? "PRÉ-VENDA" : p.launch?.isLaunch ? "LANÇAMENTO" : p.onSale ? "PROMO" : i === 0 ? "#1 NBA" : "TOP",
+    badgeRed: Boolean(p.isTest) || Boolean(p.onSale) || (i === 0 && !p.launch?.comingSoon),
+    launch: p.launch ?? null,
     color: PALETTE[i % PALETTE.length],
     img: p.images?.[0] || "",
     nikeUrl: p.nikeUrl ?? null
   };
+}
+
+/** "23/08 às 11:00" (fuso do navegador) para a data de lançamento; null se não houver. */
+export function launchDateLabel(iso) {
+  if (!iso) return null;
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return null;
+  return d.toLocaleString("pt-BR", { day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit" }).replace(",", " às");
 }

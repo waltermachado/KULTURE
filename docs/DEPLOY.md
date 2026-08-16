@@ -129,7 +129,7 @@ e a resposta deve ser `200 {"success":true,"message":null}` (400 → eles retent
 Passos:
 1. App InfinitePay → Vendas → Checkout → **Checkout Integrado habilitado**; anote a **InfiniteTag** (ex.: `$kulture-br` → handle `kulture-br`, sem `$`).
 2. Railway `kulture-api` → Variables: `PAYMENT_PROVIDER=infinitepay`, `INFINITEPAY_HANDLE=<sua tag sem $>`; `PUBLIC_WEB_URL`/`PUBLIC_API_URL` públicos (o webhook só é enviado quando `PUBLIC_API_URL` não é localhost) → Deploy.
-3. Teste de R$1: crie um pedido no site, pague Pix, confira: redirect para `/pedido/confirmacao/KLT-…` → "Pagamento confirmado" (payment_check) → e-mail; no `/admin/pedidos/KLT-…` os eventos `payment_confirmed` e/ou `webhook_received`.
+3. Teste de R$1: no site, busque exatamente **`test123test`** (produto virtual de R$ 1,00, só aparece com o nome completo; `TEST_PRODUCT_ENABLED=false` desliga) → escolha o tamanho → checkout → pague Pix, confira: redirect para `/pedido/confirmacao/KLT-…` → "Pagamento confirmado" (payment_check) → e-mail; no `/admin/pedidos/KLT-…` os eventos `payment_confirmed` e/ou `webhook_received`.
 4. Se ficar "aguardando": `/admin` → pedido → **Reconsultar pagamento** (informe o transaction_nsu do painel InfinitePay se faltar). Evento `payment_amount_mismatch` = valor da cobrança ≠ total do pedido (a api não marca pago; baixa manual só depois de conferir).
 5. Voltar para o mock: `PAYMENT_PROVIDER=mock`.
 

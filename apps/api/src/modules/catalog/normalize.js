@@ -33,6 +33,33 @@ export function inferCategory(subtitle = "") {
  * @param raw   produto do scraper: { id, styleColor, name, subtitle, priceUsd, fullPriceUsd, onSale, image, url, colorDescription }
  * @param opts  { rate: {ask, timestamp}, rules?, images: string[] (já espelhadas), imageSource: string[] }
  */
+/**
+ * Lançamento / pré-venda a partir dos sinais da Nike:
+ *  - busca: badgeAttribute "SNKRS_COMING_SOON" | "SNKRS", featuredAttributes [COMING_SOON, LAUNCH, JUST_IN, BEST_SELLER, …]
+ *  - detalhe: launchView.startEntryDate (abertura da venda), publishType "LAUNCH"
+ * Só sinalização visual no site — o fluxo de compra é o mesmo (compramos assim que a Nike libera).
+ */
+export function launchInfo(raw) {
+  const attrs = new Set(
+    [...(Array.isArray(raw.featuredAttributes) ? raw.featuredAttributes : []), raw.badgeAttribute]
+      .filter(Boolean)
+      .map((a) => String(a).toUpperCase())
+  );
+  const date = raw.launch?.startEntryDate ?? null;
+  const dateInFuture = date ? new Date(date).getTime() > Date.now() : false;
+  const comingSoon = attrs.has("COMING_SOON") || attrs.has("SNKRS_COMING_SOON") || dateInFuture;
+  const isLaunch = comingSoon || raw.isLaunch === true || raw.publishType === "LAUNCH" || attrs.has("LAUNCH") || attrs.has("SNKRS");
+  if (!isLaunch && !attrs.has("BEST_SELLER") && !attrs.has("JUST_IN")) return null;
+  return {
+    isLaunch,
+    comingSoon, // pré-venda: ainda não abriu na Nike US
+    date, // ISO UTC ou null (só o detalhe do produto traz)
+    label: raw.badgeLabel ?? null,
+    bestSeller: attrs.has("BEST_SELLER"),
+    justIn: attrs.has("JUST_IN")
+  };
+}
+
 export function toProduct(raw, { rate, rules = DEFAULT_PRICING_RULES, images = [], imageSource = [] }) {
   const brand = inferBrand(raw.name);
   const category = inferCategory(raw.subtitle);
@@ -66,6 +93,7 @@ export function toProduct(raw, { rate, rules = DEFAULT_PRICING_RULES, images = [
     },
     images,
     imageSource,
+    launch: launchInfo(raw),
     nikeUrl: raw.url ?? null,
     cachedAt: new Date().toISOString()
   };

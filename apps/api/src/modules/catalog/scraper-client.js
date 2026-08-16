@@ -31,13 +31,24 @@ export function createScraperClient({ baseUrl, timeoutMs = 20_000, fetchImpl = f
     return res.json();
   }
 
-  /** Busca por termo; devolve produtos crus (USD) do scraper. */
-  async function search(term, { count = 24, anchor = 0 } = {}) {
+  /**
+   * Só tênis: a Nike devolve camisetas, meias e bolas na mesma busca ("kobe" traz 30 camisas).
+   * O scraper preserva productType (FOOTWEAR | APPAREL | EQUIPMENT…); item sem productType (formato
+   * legado) passa para não zerar o catálogo se a Nike mudar o campo.
+   */
+  const isFootwear = (p) => !p?.productType || String(p.productType).toUpperCase() === "FOOTWEAR";
+
+  /** Busca por termo; devolve produtos crus (USD) do scraper — apenas calçados. */
+  async function search(term, { count = 50, anchor = 0 } = {}) {
+    // pede 50 (Nike aceita 24|50|100) porque metade costuma ser roupa e é filtrada aqui
     const qs = new URLSearchParams({ q: term, count: String(count), anchor: String(anchor), convert: "false" });
     const data = await get(`/search?${qs}`);
+    const all = Array.isArray(data?.products) ? data.products : [];
+    const products = all.filter(isFootwear);
     return {
-      total: data?.total ?? null,
-      products: Array.isArray(data?.products) ? data.products : []
+      total: products.length,
+      totalRaw: data?.total ?? null,
+      products
     };
   }
 
@@ -47,7 +58,7 @@ export function createScraperClient({ baseUrl, timeoutMs = 20_000, fetchImpl = f
    * Pontuação: styleColor exato > todos os tokens do termo no nome > mais tokens > 1º resultado.
    */
   async function findOne(term) {
-    const { products } = await search(term, { count: 24 }); // Nike só aceita 24|50|100
+    const { products } = await search(term, { count: 50 }); // Nike só aceita 24|50|100; já vem só calçado
     if (!products.length) return null;
     const alvo = String(term).toLowerCase().trim();
     const tokens = alvo.split(/\s+/).filter(Boolean);

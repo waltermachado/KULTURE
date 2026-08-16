@@ -18,6 +18,7 @@ export default function Hero({ featured, onPick }) {
       <div className="hero-copy">
         <div className="hero-drop">
           <b>{p ? "DROP 01" : "KULTURE BR"}</b>
+          {p?.launch?.comingSoon && <b className="pre">PRÉ-VENDA</b>}
           <span>{p ? `${cat} / importado dos EUA` : "Importados originais dos EUA"}</span>
         </div>
         <h1>
