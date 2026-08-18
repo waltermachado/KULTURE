@@ -3,6 +3,7 @@ import PasswordInput from "../components/PasswordInput.jsx";
 import { useNavigate } from "react-router-dom";
 import { brl } from "../lib/format.js";
 import { StatusPill, fmtDateTime, fmtCpf, fmtPhone } from "../admin/ui.jsx";
+import { customText } from "../lib/format.js";
 
 const EMPTY_ADDR = { cep: "", street: "", number: "", complement: "", neighborhood: "", city: "", state: "" };
 
@@ -124,7 +125,7 @@ export default function Account({ auth, onOpenLogin, notify }) {
                     </div>
                     <div className="total">{brl(o.totalBrl)}</div>
                     <div className="items">
-                      {o.items.map((it, i) => <div key={i}>{it.quantity}× {it.name} — BR {it.brLabel ?? "?"}{it.nikeSize && String(it.nikeSize) !== String(it.brLabel) ? ` (US ${it.nikeSize})` : ""}</div>)}
+                      {o.items.map((it, i) => <div key={i}>{it.quantity}× {it.name} — {it.sizeLabel || `BR ${it.brLabel ?? "?"}${it.nikeSize && String(it.nikeSize) !== String(it.brLabel) ? ` (US ${it.nikeSize})` : ""}`}{it.customization ? <span style={{ color: "var(--muted)" }}> · By You{customText(it.customization) ? `: ${customText(it.customization)}` : ""}</span> : null}</div>)}
                     </div>
                     {(o.trackingCode || o.status === "shipped" || o.status === "delivered") && (
                       <div className="track">

@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useState } from "react";
 import { Link, useNavigate, useParams } from "react-router-dom";
 import { ErrorBox, Loading, StatusPill, STATUS_LABELS, METHOD_LABELS, brl, fmtDateTime, fmtPhone, fmtCpf, fmtAddress } from "./ui.jsx";
+import { customText } from "../lib/format.js";
 
 const EVENT_LABELS = {
   created: "Pedido criado",
@@ -186,7 +187,8 @@ export default function OrderDetail({ auth, notify }) {
                   <div className="thumb">{it.image ? <img src={it.image} alt="" /> : null}</div>
                   <div>
                     <b>{it.name}</b>
-                    <span>{it.styleColor}{it.breakdown?.source === "stock" ? " · PRONTA ENTREGA" : ""} · BR {it.brLabel ?? it.brSize ?? "?"}{it.nikeSize && String(it.nikeSize) !== String(it.brLabel ?? it.brSize) ? ` (US ${it.nikeSize})` : ""} · {it.colorDescription || ""}</span>
+                    <span>{it.styleColor}{it.breakdown?.source === "stock" ? " · PRONTA ENTREGA" : ""} · {it.sizeLabel || `BR ${it.brLabel ?? it.brSize ?? "?"}${it.nikeSize && String(it.nikeSize) !== String(it.brLabel ?? it.brSize) ? ` (US ${it.nikeSize})` : ""}`} · {it.colorDescription || ""}</span>
+                    {it.customization && <span style={{ color: "var(--yellow)" }}>NIKE BY YOU · {customText(it.customization) || "sem gravação"} · US para configurar: {it.nikeSize}</span>}
                   </div>
                   <div className="price">
                     {it.quantity} × {brl(it.unitPriceBrl)}

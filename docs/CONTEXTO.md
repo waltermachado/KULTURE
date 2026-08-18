@@ -59,28 +59,29 @@ docs/                  DEPLOY.md (Railway; §6b InfinitePay), CONTEXTO.md (este)
 
 ## 3. Estado do git
 
-- Último commit no GitHub: **`632cce4`** — só tênis na busca, pré-venda/lançamento, produto `test123test`.
-- **Pendente de commit** (28 arquivos modificados, nenhum novo — incl. este `docs/CONTEXTO.md`): nova precificação
-  (turismo, 7%, ↑99), selo "no Pix" + "em até 12x", redirect do pagamento no domínio do cliente, admin com "juros
-  repassados", testes atualizados (api 39/39, shared 17/17), build ok. **17/08 (mobile):** barra de busca visível no
-  celular (2ª linha do topo, largura total, `font-size:16px` para não dar zoom no iOS; `Header.jsx` — o form virou filho
-  direto de `.nav-inner`), hero empilhado mostra **foto antes do nome** (`.hero-stage{order:-1}` em ≤1024px), e fix de
-  um TDZ no `CartDrawer.jsx` (`list` usado antes do destructuring — derrubava a página inteira). Mensagem sugerida:
+- Último commit no GitHub: **`702da55`** (18/08) — precificação nova (turismo, 7%, ↑99, "no Pix" + "em até 12x"), redirect no
+  domínio do cliente, busca no mobile + hero foto→nome, fix TDZ CartDrawer, **pronta entrega** completa (BO `/admin/estoque`,
+  página `/pronta-entrega`, seletor Importados × Pronta entrega com **transição avião EUA ⇄ BR** — opção C aprovada, reserva de
+  estoque por tamanho no checkout), CTA WhatsApp na busca (`/api/config` + `WHATSAPP_CONTACT_PHONE`). Ver §5b.
+- **Pendente de commit (18/08) — dono pediu para SEGURAR o push:**
+  1. Seletor de **categoria** no cadastro de pronta entrega — `Basquete / Casual / Corrida` (coluna `stock_products.category`
+     = basketball|lifestyle|running, migração `20260818121618_stock_category`; obrigatória no form; o rótulo vira o subtítulo do
+     card/hero; `categoryLabel` na API admin/pública).
+  2. **Tamanhos por modelagem** (Masculino / Feminino / Infantil) — ver §5c. Migração `20260818123937_size_genders`
+     (`stock_products.gender` M|W|U|K default M; `order_items.size_label`).
+  3. **Nike By You** (customizado) — ver §5d. Migração `20260818124307_by_you_customization` (`order_items.customization` Json).
+  4. **Filtros respeitam a seção**: na pronta entrega, Basquete/Casual/Corrida (abas do topo, blocos, rodapé) filtram o
+     estoque por categoria (`/pronta-entrega?cat=basketball|lifestyle|running`) e a página não muda; chips "Todos · Basquete ·
+     Casual · Corrida" (com contagem) acima da lista, também no mobile. Nos importados continuam buscando na Nike.
+     "Início" na pronta entrega = limpa o filtro (fica na seção). Centralizado em `App.jsx#pickCategory` + `CATEGORIES` em
+     `lib/format.js`; a aba ativa do topo segue a URL.
+  Testes: shared 22/22, api (stock 9 + byyou 2 + demais) — ver resultado da suíte no chat; build ok. Mensagem sugerida:
 
-  `feat(pricing): nova fórmula — (USD×1,07 + 65) × dólar turismo × 1,30, arredondado ↑ até …99; preço "no Pix" + "em até 12x no cartão"; fix(payments): redirect_url no domínio usado pelo cliente; feat(web): busca no mobile + hero com foto antes do nome; fix(web): TDZ no CartDrawer`
+  `feat(stock): categoria (Basquete/Casual/Corrida) no cadastro; feat(sizes): tamanhos separados por modelagem — Masculino/Feminino/Infantil no seletor (abas), rótulo "BR 38 (US M 7)" no carrinho/pedido/e-mail, modelagem no cadastro da pronta entrega com US pela tabela oficial; feat(byyou): Nike By You — tabela padrão de tamanhos + personalização (texto ≤ 8 e nº 2 dígitos por pé) no seletor, checkout, pedido e e-mail; fix(catalog): findOne não cola "não achei" no cache; fix(web): filtros Basquete/Casual/Corrida ficam na pronta entrega (?cat=) em vez de voltar aos importados`
 
-- **17/08 (noite) — também pendente, NÃO subir ainda (dono pediu para segurar o push):** pronta entrega + WhatsApp (ver §5b).
-  Novos arquivos: `apps/api/prisma/migrations/20260817233408_stock_products/`, `apps/api/src/modules/stock/{service,routes,admin-routes}.js`,
-  `apps/api/src/modules/config/routes.js`, `apps/api/test/stock.test.js`, `apps/web/src/{pages/Stock.jsx, components/ModeBar.jsx,
-  components/WhatsappCta.jsx, hooks/useSiteConfig.js, admin/Stock.jsx, admin/StockForm.jsx}`. Testes: api **48/48** (39 + 9 novos), build ok.
-  Mensagem sugerida para esse bloco:
-
-  `feat(stock): pronta entrega — produtos em estoque próprio (BO /admin/estoque com preço/descrição/fotos/tamanhos), página /pronta-entrega, seletor Importados × Pronta entrega, reserva de estoque por tamanho no checkout; feat(web): CTA "não achou? chama no WhatsApp" na busca (/api/config + WHATSAPP_CONTACT_PHONE); feat(web): transição avião EUA ⇄ BR entre as vitrines`
-
-  **Transição de avião EUA ⇄ BR** (opção **C**, aprovada pelo dono em 17/08): implementada em `ModeBar.jsx` (voo do avião
-  entre as bandeiras + rastro + bloco amarelo deslizando, `~0,7s`) e `App.jsx` (`switchMode`: a página atual sai para um lado
-  e a nova entra do outro, sobe ao topo; wrapper `.page-view`). `prefers-reduced-motion` → troca seca; clique novo cancela o
-  anterior (token); numa aba oculta a troca acontece por timeout (o navegador não dispara o "finish" da animação).
+- Transição do avião: detalhes em `ModeBar.jsx` (voo + rastro + bloco amarelo, ~0,7s) e `App.jsx` (`switchMode`: página sai
+  para um lado e entra pelo outro, sobe ao topo; wrapper `.page-view`). `prefers-reduced-motion` → troca seca; clique novo
+  cancela o anterior (token); numa aba oculta a troca acontece por timeout (o navegador não dispara o "finish" da animação).
 
 ---
 
@@ -172,7 +173,8 @@ Também: favicon (K da marca), `/health` com providers, `/api/rate` devolve `tou
 (estoque próprio no Brasil, sem Nike). Uma barra `ModeBar` (EUA · Importados | BR · Pronta entrega) fica logo abaixo do topo nas
 duas páginas (desktop e mobile), com a transição do avião (opção C — ver §3).
 
-**Backoffice `/admin/estoque`** (`Stock.jsx` lista · `StockForm.jsx` cadastro/edição): nome, marca, categoria/subtítulo, colorway,
+**Backoffice `/admin/estoque`** (`Stock.jsx` lista · `StockForm.jsx` cadastro/edição): nome, marca, **categoria (seletor
+Basquete / Casual / Corrida — coluna `category` = basketball|lifestyle|running, obrigatória; o rótulo vira o subtítulo no card/hero)**, colorway,
 SKU Nike (informativo), descrição (aparece no seletor de tamanho), selo do card, ordem, **preço Pix**, preço "de" riscado, **custo**
 (só BO — alimenta custo/margem do dashboard via `breakdown.subtotalBrl`), ativo, **tamanhos BR com US opcional e quantidade**
 (atalhos 34–46), **fotos** por upload (redimensiona no navegador p/ 1400px WebP → `POST /api/admin/stock/:id/images` → gravada no
@@ -200,12 +202,49 @@ Mobile: logado, o botão "Admin" some do topo em ≤640px (cabe logo + nome + Sa
 
 ---
 
+## 5c. Tamanhos por modelagem (18/08 — pendente de push)
+
+Antes o seletor mostrava "38 · US 7" sem dizer se o US era masculino ou feminino (nos unissex da Nike o mesmo par é
+`M 7 / W 8.5`; num feminino "US 8" = W 8 = BR 37,5). Agora:
+- `packages/shared/src/sizes`: `detectScale`, `parseUsSizes(nikeSize, localizedSize, genders)` → `{ scale: M|W|K, us: { M, W, K } }`
+  (unissex sem W explícito: W = M + 1,5), `sizeGroupsOf(sizes)`, `sizeLabel(size, group)` → `"BR 38 (US M 7)"` / `"BR 36 (US 5Y)"`,
+  `standardSizes()` (tabela padrão para By You). O BR **não muda** com a modelagem — é a mesma numeração física.
+- Catálogo (`getProductSizes`): cada tamanho ganha `scale` + `us`; o produto ganha `sizeGroups` (ex.: `["M","W"]`). Kobe/LeBron
+  (unissex) → M+W; Sabrina GS → K.
+- Seletor (`SizePicker.jsx`): **abas Masculino / Feminino / Infantil** quando o produto tem mais de uma modelagem; uma só →
+  rótulo. Botão de tamanho mostra `US M 7` / `US W 8.5` / `US 5Y`; botão confirmar mostra o rótulo completo. O que vai para a
+  sacola: `sizeInfo.pickedGender` + `sizeInfo.sizeLabel`.
+- Checkout envia `sizeGender`; a api valida (só se o tamanho tem esse US) e grava `order_items.size_label`; e-mails, WhatsApp,
+  `/conta`, confirmação e admin usam `sizeLabel` (pedidos antigos caem no formato antigo).
+- Pronta entrega: campo **Modelagem** (Masculino / Feminino / Unissex / Infantil GS) no cadastro; o US da caixa é lido nessa
+  escala (unissex: digita o US masc., o fem. sai +1,5); os chips de BR e o preenchimento automático do US usam a tabela oficial
+  Nike BR da modelagem escolhida (`US_BY_BR_MEN/WOMEN/KIDS` em `StockForm.jsx`, mesmas do shared).
+
+## 5d. Nike By You (18/08 — pendente de push)
+
+Produtos customizáveis (`productSubType: CUSTOMIZED`, URL `/u/custom-…`, "styleColor" = id numérico do design, ex. `1685956779`)
+não têm SKU/tamanhos na API da Nike (`/product/:id` → 404 SIZES_UNAVAILABLE). Tratamento:
+- `normalize.js`: `byYou: true` (`isByYou(raw)`); card com selo **BY YOU**.
+- `catalog.getProductSizes`: no 404, busca o produto pelo id do design (`findOne` — a busca da Nike acha por id) e devolve
+  `sizes = standardSizes()` (tabela masculina completa + W = +1,5; `synthetic: true`, todos disponíveis), `sizeGroups: ["M","W"]`,
+  `sizesSynthetic: true`, `customization: { textMax: 8, numberDigits: 2 }`. Preço = o da busca (mesma fórmula).
+- Seletor: aviso "modelo customizável — escolha o seu número", abas M/W, e o box **Nike By You · personalize**: pé esquerdo e
+  pé direito, cada um com texto (≤ 8 caracteres; letras, números, espaço e `. , ' & ! ? # -`) e número (2 dígitos). Opcional.
+- Checkout: `items[].customization = { textLeft, numberLeft, textRight, numberRight }` (validado na api; só em produto By You) →
+  `order_items.customization` (Json). A sacola separa linhas por personalização (chave inclui os campos). E-mail/WhatsApp/admin
+  mostram `By You · pé E “KULTURE” nº 08 · pé D “MAMBA” nº 24`; o admin mostra também o US para configurar na Nike.
+- Prazo/estoque: o texto avisa que é sob encomenda na Nike By You e que confirmamos tamanho e gravação antes de comprar.
+- Fix de tabela: `findOne` não deixa mais um "não achei" (null) colar no cache por 60 min (rebusca; só regrava se achar).
+
+---
+
 ## 6. Banco (Prisma / Postgres)
 
 Tabelas: `cache_entries, users, refresh_tokens, password_reset_tokens, login_events, orders (com carrier/tracking_*/shipped_at/
 delivered_at/cancelled_at/refunded_at/internal_notes/stock_released_at), order_items, order_events, notifications, idempotency_keys,
 stock_products, stock_sizes, stock_images`.
-Migrações: `init, auth, orders, user_profile, admin_backoffice, login_events, stock_products` — aplicadas no boot da api (`migrate deploy`).
+Migrações: `init, auth, orders, user_profile, admin_backoffice, login_events, stock_products, stock_category, size_genders,
+by_you_customization` — aplicadas no boot da api (`migrate deploy`). `order_items` ganhou `size_label` e `customization`.
 Dev local: `apps/api/.env` aponta para Supabase (pooler us-east-2), migrado; seed de demonstração
 (`*@smoke.kulture.test`, admin `admin@smoke.kulture.test`, pedidos `KLT-2026-9*`).
 

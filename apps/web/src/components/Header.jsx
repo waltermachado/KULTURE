@@ -1,18 +1,21 @@
 import { useState } from "react";
 import { useNavigate, useLocation } from "react-router-dom";
+import { CATEGORIES } from "../lib/format.js";
 
-const TABS = [
-  { label: "Início", q: "" },
-  { label: "Basquete", q: "basketball shoes" },
-  { label: "Casual", q: "lifestyle shoes" },
-  { label: "Corrida", q: "running shoes" }
-];
+const TABS = [{ label: "Início", q: "", key: null }, ...CATEGORIES.map((c) => ({ label: c.label, q: c.q, key: c.key }))];
 
-export default function Header({ cartCount, onOpenCart, onOpenLogin, onSearch, user, isAdmin, onLogout }) {
+/**
+ * Topo: logo · abas (Início / Basquete / Casual / Corrida) · busca · conta · sacola.
+ * As abas respeitam a seção: nos importados buscam na Nike; na pronta entrega filtram o estoque (?cat=…) e a
+ * página não muda. A aba ativa segue a URL (na pronta entrega = o filtro; nos importados = a última busca por aba).
+ */
+export default function Header({ cartCount, onOpenCart, onOpenLogin, onSearch, onCategory, user, isAdmin, onLogout }) {
   const [q, setQ] = useState("");
   const [active, setActive] = useState("Início");
   const navigate = useNavigate();
   const location = useLocation();
+  const onStock = location.pathname.startsWith("/pronta-entrega");
+  const stockCat = onStock ? new URLSearchParams(location.search).get("cat") : null;
 
   function submit(e) {
     e.preventDefault();
@@ -21,9 +24,11 @@ export default function Header({ cartCount, onOpenCart, onOpenLogin, onSearch, u
   }
   function tab(t) {
     setActive(t.label);
+    if (onCategory) return onCategory(t.key ? t : null);
     if (location.pathname !== "/") navigate("/");
     onSearch(t.q);
   }
+  const isActive = (t) => (onStock ? (stockCat ? t.key === stockCat : t.key === null) : location.pathname === "/" && active === t.label);
 
   return (
     <header className="nav">
@@ -33,7 +38,7 @@ export default function Header({ cartCount, onOpenCart, onOpenLogin, onSearch, u
         </a>
         <nav className="nav-tabs" aria-label="Categorias">
           {TABS.map((t) => (
-            <button key={t.label} className={active === t.label && location.pathname === "/" ? "active" : ""} onClick={() => tab(t)}>
+            <button key={t.label} className={isActive(t) ? "active" : ""} onClick={() => tab(t)}>
               {t.label}
             </button>
           ))}

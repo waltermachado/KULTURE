@@ -176,6 +176,8 @@ model OrderItem {
   nikeSize         String   @map("nike_size")
   brSize           Decimal? @map("br_size")
   brLabel          String?  @map("br_label")
+  sizeLabel        String?  @map("size_label") // "BR 38 (US M 7)" — como o cliente viu/escolheu (masc./fem./infantil)
+  customization    Json? // Nike By You: { textLeft, numberLeft, textRight, numberRight } (texto até 8 chars, nº 2 dígitos)
   unitPriceBrl     Decimal  @map("unit_price_brl")
   unitPriceUsd     Decimal  @map("unit_price_usd")
   quantity         Int
@@ -239,7 +241,9 @@ model StockProduct {
   code             String   @unique // PE-XXXXXX
   slug             String   @unique
   name             String
-  subtitle         String? // ex.: "Basketball shoes"
+  subtitle         String? // texto livre (legado); o site usa o rótulo da categoria quando vazio
+  category         String? // basketball | lifestyle | running — mesmas 3 abas da loja (Basquete / Casual / Corrida)
+  gender           String   @default("M") // modelagem: M masculino | W feminino | U unissex (US da caixa em M; W = +1,5) | K infantil (GS)
   brand            String   @default("Nike")
   colorDescription String?  @map("color_description")
   styleColor       String?  @map("style_color") // SKU Nike real (só informativo)

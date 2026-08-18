@@ -48,8 +48,9 @@ export function buildTestProduct(rate) {
     genders: ["MEN"],
     isTest: true,
     cachedAt: new Date().toISOString(),
+    sizeGroups: ["M"],
     sizes: [
-      { nikeSize: "9", localizedSize: "M 9", brSize: 41, brLabel: "41", available: true, level: "HIGH", approximate: false }
+      { nikeSize: "9", localizedSize: "M 9", brSize: 41, brLabel: "41", available: true, level: "HIGH", approximate: false, scale: "M", us: { M: "9" } }
     ]
   };
 }

@@ -3,9 +3,9 @@
  */
 import { normalizeQuery } from "../../lib/normalize-query.js";
 import { cutoutUrls } from "./nike-image.js";
-import { toProduct } from "./normalize.js";
+import { toProduct, BY_YOU_CUSTOMIZATION } from "./normalize.js";
 import { isTestTerm, isTestStyleColor, buildTestProduct } from "./test-product.js";
-import { convertUsToBr } from "@kulture/shared/sizes";
+import { convertUsToBr, parseUsSizes, sizeGroupsOf, standardSizes } from "@kulture/shared/sizes";
 
 const RATE_KEY = "rate:USD-BRL:v2"; // v2 = traz `tourism` (dólar turismo)
 const MAX_IMAGES = 8; // galeria do produto: até 8 ângulos (o resto é marketing)
@@ -69,10 +69,20 @@ export function createCatalogService({ scraper, cache, sizesCache, images, rules
 
   async function findOne(termOrStyleColor) {
     const term = normalizeQuery(termOrStyleColor);
-    const { value, cached, stale } = await cache.getOrFetch(`product:${NS}:${term}`, async () => {
+    const key = `product:${NS}:${term}`;
+    const fetchOne = async () => {
       const [raw, rate] = await Promise.all([scraper.findOne(String(termOrStyleColor).replace(/-/g, " ")), getRate()]);
       return raw ? await enrich(raw, rate) : null;
-    });
+    };
+    let { value, cached, stale } = await cache.getOrFetch(key, fetchOne);
+    // "não achei" vindo do cache (Nike/scraper fora na hora) não pode colar por 60 min: tenta de novo agora
+    if (cached && value == null) {
+      const fresh = await fetchOne();
+      if (fresh) await cache.set(key, fresh);
+      value = fresh;
+      cached = false;
+      stale = false;
+    }
     return { cached, stale, product: value };
   }
 
@@ -135,11 +145,26 @@ export function createCatalogService({ scraper, cache, sizesCache, images, rules
       return { cached: false, stale: false, product };
     }
     const { value, cached, stale } = await sizesCache.getOrFetch(`sizes:${NS}:${styleColor}`, async () => {
-      const [raw, rate] = await Promise.all([scraper.getProductDetail(styleColor), getRate()]);
+      let raw;
+      try {
+        raw = await scraper.getProductDetail(styleColor);
+      } catch (err) {
+        if (!isSizesUnavailable(err)) throw err;
+        // Nike By You (customizado): não existe SKU/tamanhos na API da Nike. O id do design é pesquisável na
+        // busca → pega o produto (nome, preço) por lá e oferece a tabela padrão de tamanhos; o cliente escolhe o
+        // seu número e personaliza (texto/número por pé); o dono confirma na Nike By You antes de comprar.
+        const { product: found } = await findOne(styleColor);
+        if (!found?.byYou) throw err;
+        const sizes = standardSizes();
+        return { ...found, sizes, sizeGroups: sizeGroupsOf(sizes), sizesSynthetic: true, customization: BY_YOU_CUSTOMIZATION };
+      }
+      const rate = await getRate();
       const enriched = await enrich(raw, rate);
       // Converte os tamanhos usando o shared/sizes
       const sizes = (raw.sizes || []).map(s => {
         const { brSize, approximate } = convertUsToBr(s.nikeSize, s.localizedSize, raw.genders || []);
+        // escala + números US por gênero ("M 7 / W 8.5") — o seletor separa Masculino × Feminino × Infantil
+        const { scale, us } = parseUsSizes(s.nikeSize, s.localizedSize, raw.genders || []);
         return {
           nikeSize: s.nikeSize,
           localizedSize: s.localizedSize,
@@ -147,13 +172,22 @@ export function createCatalogService({ scraper, cache, sizesCache, images, rules
           brLabel: brSize ? String(brSize) : null,
           available: s.available,
           level: s.level,
-          approximate
+          approximate,
+          scale,
+          us
         };
       });
-      return { ...enriched, sizes };
+      return { ...enriched, sizes, sizeGroups: sizeGroupsOf(sizes) };
     });
     return { cached, stale, product: value };
   }
 
   return { search, findOne, getProductSizes, top8, warmTop8, getRate };
+}
+
+/** 404 do scraper em /product/:styleColor ("Sizes unavailable") — produto sem SKU na Nike (By You, descontinuado…). */
+function isSizesUnavailable(err) {
+  const msg = String(err?.message || "");
+  const body = String(err?.details?.body || "");
+  return err?.status === 404 || /respondeu 404/.test(msg) || /SIZES_UNAVAILABLE/.test(body) || /SIZES_UNAVAILABLE/.test(msg);
 }

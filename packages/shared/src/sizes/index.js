@@ -38,19 +38,75 @@ const KIDS_APPROX = {
  * @param {Array<string>} genders - Gêneros do produto (ex: ["MEN", "WOMEN"])
  * @returns {{brSize: number|null, approximate: boolean}} O tamanho BR e se é aproximado.
  */
+/**
+ * Escala usada pela Nike para o `nikeSize` deste SKU: 'M' (masculino), 'W' (feminino) ou 'K' (infantil).
+ * Mesma precedência de sempre: prefixo do localizedSize > sufixo C/Y > gênero do produto > M.
+ */
+export function detectScale(nikeSize, localizedSize, genders = []) {
+  const size = String(nikeSize ?? '').trim().toUpperCase();
+  const loc = localizedSize ? String(localizedSize).trim().toUpperCase() : '';
+  if (loc.startsWith('M ')) return 'M';
+  if (loc.startsWith('W ')) return 'W';
+  if (size.endsWith('C') || size.endsWith('Y')) return 'K';
+  if (genders.includes('MEN') && !genders.includes('WOMEN')) return 'M';
+  if (genders.includes('WOMEN') && !genders.includes('MEN')) return 'W';
+  if (genders.includes('BOYS') || genders.includes('GIRLS')) return 'K';
+  return 'M'; // fallback (maioria dos unissex / masculinos)
+}
+
+const fmtUs = (n) => (Number.isFinite(n) ? String(Math.round(n * 2) / 2).replace(/\.0$/, '') : null);
+
+/**
+ * Números US por gênero de um tamanho da Nike, para mostrar "US M 7 / US W 8.5" em vez de um "US 7" ambíguo.
+ *   localizedSize "M 7 / W 8.5" → { scale:'M', us:{ M:'7', W:'8.5' } }
+ *   "W 8"                       → { scale:'W', us:{ W:'8' } }
+ *   "10.5" + genders [MEN,WOMEN] → { scale:'M', us:{ M:'10.5', W:'12' } }   (unissex sem W explícito: W = M + 1,5)
+ *   "5Y"                        → { scale:'K', us:{ K:'5Y' } }
+ * @returns {{ scale: 'M'|'W'|'K', us: { M?: string, W?: string, K?: string } }}
+ */
+export function parseUsSizes(nikeSize, localizedSize, genders = []) {
+  const scale = detectScale(nikeSize, localizedSize, genders);
+  const us = {};
+  const loc = localizedSize ? String(localizedSize).trim().toUpperCase() : '';
+  for (const part of loc.split('/')) {
+    const p = part.trim();
+    let m;
+    if ((m = /^M\s*([\d.]+)$/.exec(p))) us.M = m[1];
+    else if ((m = /^W\s*([\d.]+)$/.exec(p))) us.W = m[1];
+    else if ((m = /^([\d.]+[CY])$/.exec(p))) us.K = m[1];
+  }
+  const size = String(nikeSize ?? '').trim().toUpperCase();
+  if (size && !us[scale]) us[scale] = size;
+  const unisex = genders.includes('MEN') && genders.includes('WOMEN');
+  if (unisex && scale === 'M' && us.M && !us.W) us.W = fmtUs(Number(us.M) + 1.5);
+  if (unisex && scale === 'W' && us.W && !us.M) us.M = fmtUs(Number(us.W) - 1.5);
+  return { scale, us };
+}
+
+/** Grupos (abas do seletor) presentes numa lista de tamanhos, na ordem M, W, K. */
+export function sizeGroupsOf(sizes = []) {
+  const set = new Set();
+  for (const s of sizes) for (const k of Object.keys(s?.us || {})) if (s.us[k]) set.add(k);
+  if (!set.size) for (const s of sizes) if (s?.scale) set.add(s.scale);
+  return ['M', 'W', 'K'].filter((k) => set.has(k));
+}
+
+export const SIZE_GROUP_LABELS = { M: 'Masculino', W: 'Feminino', K: 'Infantil' };
+
+/** "BR 38 (US M 7)" · "BR 37,5 (US W 8)" · "BR 36 (US 5Y)" · "BR 41" — rótulo completo de um tamanho escolhido. */
+export function sizeLabel(size, group = null) {
+  if (!size) return '';
+  const br = size.brLabel ?? size.brSize ?? '?';
+  const g = group && size.us?.[group] ? group : (size.scale && size.us?.[size.scale] ? size.scale : null);
+  const usNum = g ? size.us[g] : null;
+  if (!usNum) return `BR ${br}`;
+  return g === 'K' ? `BR ${br} (US ${usNum})` : `BR ${br} (US ${g} ${usNum})`;
+}
+
 export function convertUsToBr(nikeSize, localizedSize, genders = []) {
   if (!nikeSize) return { brSize: null, approximate: false };
 
-  let scale = null; // 'M', 'W', 'K'
-  const loc = localizedSize ? localizedSize.trim().toUpperCase() : '';
-
-  if (loc.startsWith('M ')) scale = 'M';
-  else if (loc.startsWith('W ')) scale = 'W';
-  else if (nikeSize.endsWith('C') || nikeSize.endsWith('Y')) scale = 'K';
-  else if (genders.includes('MEN') && !genders.includes('WOMEN')) scale = 'M';
-  else if (genders.includes('WOMEN') && !genders.includes('MEN')) scale = 'W';
-  else if (genders.includes('BOYS') || genders.includes('GIRLS')) scale = 'K';
-  else scale = 'M'; // Fallback final (maioria dos unisex / mens)
+  const scale = detectScale(nikeSize, localizedSize, genders);
 
   let table = {};
   let approxTable = {};
@@ -73,4 +129,30 @@ export function convertUsToBr(nikeSize, localizedSize, genders = []) {
   }
 
   return { brSize: null, approximate: false };
+}
+
+/**
+ * Lista "padrão" de tamanhos para produtos sem SKU na Nike (Nike By You / customizados): toda a tabela masculina,
+ * com o US feminino equivalente (M + 1,5, até W 12) para o seletor mostrar as duas modelagens. `synthetic: true`
+ * avisa que a disponibilidade não foi consultada — o dono confirma na Nike By You antes de comprar.
+ */
+export function standardSizes() {
+  const rows = [...Object.entries(MENS_TABLE).map(([us, br]) => [us, br, false]), ...Object.entries(MENS_APPROX).map(([us, br]) => [us, br, true])]
+    .sort((a, b) => Number(a[0]) - Number(b[0])); // chaves inteiras de objeto vêm antes das decimais → ordena pelo US
+  return rows.map(([us, br, approximate]) => {
+    const w = Number(us) + 1.5;
+    const usW = w <= 12 ? fmtUs(w) : null;
+    return {
+      nikeSize: us,
+      localizedSize: usW ? `M ${us} / W ${usW}` : `M ${us}`,
+      brSize: br,
+      brLabel: String(br),
+      available: true,
+      level: 'UNKNOWN',
+      approximate,
+      scale: 'M',
+      us: { M: us, W: usW },
+      synthetic: true
+    };
+  });
 }

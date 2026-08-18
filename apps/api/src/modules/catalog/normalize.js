@@ -113,6 +113,18 @@ export function toProduct(raw, { rate, rules = DEFAULT_PRICING_RULES, images = [
     imageSource,
     launch: launchInfo(raw),
     nikeUrl: raw.url ?? null,
+    // Nike By You (customizado): productSubType CUSTOMIZED, URL /u/custom-…; não tem SKU/tamanhos na API da Nike
+    byYou: isByYou(raw),
     cachedAt: new Date().toISOString()
   };
 }
+
+/** Nike By You: produto customizável (o "styleColor" é o id do design, ex.: 1685956779). */
+export function isByYou(raw) {
+  return String(raw?.productSubType || "").toUpperCase() === "CUSTOMIZED"
+    || /\/u\/custom-/i.test(String(raw?.url || ""))
+    || /\bby you\b/i.test(String(raw?.name || ""));
+}
+
+/** Limites da personalização Nike By You que o site aceita (texto por pé + número de 2 dígitos por pé). */
+export const BY_YOU_CUSTOMIZATION = { textMax: 8, numberDigits: 2, fields: ["textLeft", "numberLeft", "textRight", "numberRight"] };

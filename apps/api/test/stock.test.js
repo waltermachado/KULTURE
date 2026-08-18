@@ -82,7 +82,7 @@ describe("pronta entrega (estoque próprio)", { timeout: 60000 }, () => {
     const ok = await app.inject({
       method: "POST", url: "/api/admin/stock", headers: auth(),
       payload: {
-        name: `test-stock-Kobe 6 Protro ${STAMP}`, subtitle: "Basketball shoes", colorDescription: "Grinch",
+        name: `test-stock-Kobe 6 Protro ${STAMP}`, category: "basketball", gender: "U", colorDescription: "Grinch",
         description: "Par novo na caixa, pronta entrega.", priceBrl: 1899, fullPriceBrl: 2199, costBrl: 1200, badge: "último par",
         sizes: [{ br: "41", us: "9", qty: 1 }, { br: "42", us: "10", qty: 2 }, { br: "43", qty: 0 }],
         images: ["https://example.com/foto.webp"]
@@ -95,6 +95,14 @@ describe("pronta entrega (estoque próprio)", { timeout: 60000 }, () => {
     expect(product.sizes).toHaveLength(3);
     expect(product.totalQty).toBe(3);
     expect(product.costBrl).toBe(1200);
+    expect(product.category).toBe("basketball");
+    expect(product.categoryLabel).toBe("Basquete");
+    expect(product.gender).toBe("U");
+    const badGender = await app.inject({ method: "PATCH", url: `/api/admin/stock/${product.id}`, headers: auth(), payload: { gender: "X" } });
+    expect(badGender.statusCode).toBe(400);
+
+    const badCat = await app.inject({ method: "PATCH", url: `/api/admin/stock/${product.id}`, headers: auth(), payload: { category: "skate" } });
+    expect(badCat.statusCode).toBe(400);
   });
 
   it("admin: upload de foto vai para o banco e é servida em /media/estoque/:id", async () => {
@@ -121,6 +129,8 @@ describe("pronta entrega (estoque próprio)", { timeout: 60000 }, () => {
     const p = r.json().products.find((x) => x.styleColor === product.code);
     expect(p).toBeTruthy();
     expect(p.source).toBe("stock");
+    expect(p.category).toBe("basketball");
+    expect(p.subtitle).toBe("Basquete"); // rótulo da categoria vira o subtítulo mostrado no card/hero
     expect(p.price.brl).toBe(1899);
     expect(p.price.fullBrl).toBe(2199);
     expect(p.price.breakdown).toBeUndefined();
@@ -132,13 +142,15 @@ describe("pronta entrega (estoque próprio)", { timeout: 60000 }, () => {
     expect(d.statusCode).toBe(200);
     // sem ?all → só disponíveis (43 tem qty 0)
     expect(d.json().product.sizes.map((s) => s.brLabel)).toEqual(["41", "42"]);
-    expect(d.json().product.sizes[0]).toMatchObject({ nikeSize: "9", brLabel: "41", usSize: "9", available: true, qty: 1 });
+    // unissex: US masc. da caixa + fem. (+1,5) → o seletor mostra abas Masculino/Feminino
+    expect(d.json().product.sizeGroups).toEqual(["M", "W"]);
+    expect(d.json().product.sizes[0]).toMatchObject({ nikeSize: "9", brLabel: "41", usSize: "9", available: true, qty: 1, scale: "M", us: { M: "9", W: "10.5" } });
     expect(d.json().product.price.breakdown).toBeUndefined();
   });
 
   it("checkout reserva o estoque na transação; segundo pedido do último par é recusado", async () => {
     const payload = (n) => ({
-      items: [{ styleColor: product.code, nikeSize: "9", quantity: 1 }],
+      items: [{ styleColor: product.code, nikeSize: "9", quantity: 1, sizeGender: "W" }],
       customer: { name: "Cliente Estoque", email: `test-stock-cli-${STAMP}-${n}@kulture.test`, cpf: "12345678909" },
       address: { cep: "01000-000", city: "São Paulo", state: "SP" }
     });
@@ -152,6 +164,7 @@ describe("pronta entrega (estoque próprio)", { timeout: 60000 }, () => {
 
     const order = await prisma.order.findUnique({ where: { number: orderNumber }, include: { items: true } });
     expect(order.items[0].breakdown).toMatchObject({ source: "stock", stockSizeId: size41.id, subtotalBrl: 1200 });
+    expect(order.items[0].sizeLabel).toBe("BR 41 (US W 10.5)"); // escolhido na aba Feminino
     expect(Number(order.items[0].unitPriceUsd)).toBe(0);
 
     const r2 = await app.inject({ method: "POST", url: "/api/checkout", headers: { "idempotency-key": `test-stock-${STAMP}-2` }, payload: payload(2) });

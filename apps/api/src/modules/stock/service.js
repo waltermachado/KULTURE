@@ -21,6 +21,11 @@ export const STOCK_CODE_RE = /^PE-[A-Z0-9]{4,12}$/i;
 export const isStockCode = (v) => STOCK_CODE_RE.test(String(v ?? "").trim());
 export const STOCK_MEDIA_BASE = "/media/estoque";
 
+/** Categorias = as 3 abas da loja. Chave interna igual à do catálogo Nike (inferCategory), rótulo em PT para o site. */
+export const STOCK_CATEGORIES = { basketball: "Basquete", lifestyle: "Casual", running: "Corrida" };
+/** Modelagem do par: US da caixa é lido nessa escala. U = unissex (caixa em M; W = M + 1,5). K = infantil (GS: "5Y"). */
+export const STOCK_GENDERS = { M: "Masculino", W: "Feminino", U: "Unissex", K: "Infantil (GS)" };
+
 const IMAGE_MIMES = new Set(["image/jpeg", "image/png", "image/webp"]);
 const MAX_IMAGE_BYTES = 4 * 1024 * 1024; // 4 MB decodificados (o painel já redimensiona antes de enviar)
 const MAX_IMAGES = 12;
@@ -59,6 +64,8 @@ const sizeSchema = z.object({
 export const productInputSchema = z.object({
   name: z.string().trim().min(2).max(120),
   subtitle: optText(120),
+  category: z.preprocess(emptyToNull, z.enum(Object.keys(STOCK_CATEGORIES)).nullable().optional()),
+  gender: z.preprocess(emptyToNull, z.enum(Object.keys(STOCK_GENDERS)).optional()),
   brand: z.preprocess(emptyToNull, z.string().trim().max(60).nullable().optional()),
   colorDescription: optText(160),
   styleColor: optText(40),
@@ -91,8 +98,24 @@ export function createStockService({ prisma, log = null }) {
 
   const withSizes = { sizes: { orderBy: [{ sortOrder: "asc" }, { br: "asc" }] } };
 
+  /** US por gênero a partir da modelagem do produto e do US da caixa (mesmo formato dos tamanhos da Nike). */
+  function usMapOf(gender, us) {
+    const v = us ? String(us).trim() : null;
+    if (gender === "W") return { W: v };
+    if (gender === "K") return { K: v };
+    if (gender === "U") {
+      const n = Number(v);
+      const w = Number.isFinite(n) ? String(Math.round((n + 1.5) * 2) / 2).replace(/\.0$/, "") : null;
+      return { M: v, W: v ? w : null };
+    }
+    return { M: v };
+  }
+  const scaleOf = (gender) => (gender === "W" ? "W" : gender === "K" ? "K" : "M");
+  const groupsOf = (gender) => (gender === "U" ? ["M", "W"] : [scaleOf(gender)]);
+
   // ---- formato público (mesmo contrato do toProduct do catálogo, + sizes) ----
   function toPublic(row) {
+    const gender = row.gender || "M";
     const sizes = (row.sizes || []).map((s) => {
       const brNum = Number(String(s.br).replace(",", "."));
       return {
@@ -101,6 +124,8 @@ export function createStockService({ prisma, log = null }) {
         brSize: Number.isFinite(brNum) ? brNum : null,
         brLabel: String(s.br),
         usSize: s.us || null,
+        scale: scaleOf(gender),
+        us: usMapOf(gender, s.us),
         available: s.qty > 0,
         level: s.qty <= 0 ? "OOS" : s.qty === 1 ? "LOW" : "HIGH",
         approximate: false,
@@ -117,9 +142,11 @@ export function createStockService({ prisma, log = null }) {
       code: row.code,
       slug: row.slug,
       name: row.name,
-      subtitle: row.subtitle || null,
+      // subtítulo = rótulo da categoria (Basquete/Casual/Corrida) — texto livre só se tiver sido preenchido (legado)
+      subtitle: row.subtitle || STOCK_CATEGORIES[row.category] || null,
       brand: row.brand || "Nike",
-      category: null,
+      category: row.category || null,
+      categoryLabel: STOCK_CATEGORIES[row.category] || null,
       colorDescription: row.colorDescription || null,
       sku: row.styleColor || null,
       description: row.description || null,
@@ -142,6 +169,9 @@ export function createStockService({ prisma, log = null }) {
       badge: row.badge || null,
       source: "stock",
       readyToShip: true,
+      gender,
+      genderLabel: STOCK_GENDERS[gender] || null,
+      sizeGroups: groupsOf(gender),
       stock: { total: sizes.reduce((a, s) => a + s.qty, 0), sizes: sizes.length },
       // internos (o catálogo/orders usam; nunca saem na API pública)
       stockProductId: row.id,
@@ -157,6 +187,10 @@ export function createStockService({ prisma, log = null }) {
       slug: row.slug,
       name: row.name,
       subtitle: row.subtitle,
+      category: row.category,
+      categoryLabel: STOCK_CATEGORIES[row.category] || null,
+      gender: row.gender || "M",
+      genderLabel: STOCK_GENDERS[row.gender || "M"] || null,
       brand: row.brand,
       colorDescription: row.colorDescription,
       styleColor: row.styleColor,

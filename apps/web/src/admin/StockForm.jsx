@@ -9,12 +9,31 @@ import { ErrorBox, Loading, brl } from "./ui.jsx";
  * Fotos: upload redimensionado no navegador (máx. 1400px, WebP) → POST /api/admin/stock/:id/images (vai para o
  * banco, servido em /media/estoque/:id) ou URL externa colada. A primeira foto é a capa do card.
  */
+/** Mesmas 3 categorias das abas da loja (chave = a do catálogo Nike; rótulo em PT) */
+export const CATEGORIES = [
+  { key: "basketball", label: "Basquete" },
+  { key: "lifestyle", label: "Casual" },
+  { key: "running", label: "Corrida" }
+];
+
+/** Modelagem do par (o US da caixa é lido nessa escala). U = unissex: digite o US masculino da caixa (o feminino é +1,5). */
+export const GENDERS = [
+  { key: "M", label: "Masculino", us: "US masc." },
+  { key: "W", label: "Feminino", us: "US fem." },
+  { key: "U", label: "Unissex", us: "US masc. da caixa (fem. = +1,5)" },
+  { key: "K", label: "Infantil (GS)", us: "US infantil (ex.: 5Y)" }
+];
+
 const EMPTY = {
-  name: "", brand: "Nike", subtitle: "", colorDescription: "", styleColor: "", badge: "", description: "",
+  name: "", brand: "Nike", category: "", gender: "M", colorDescription: "", styleColor: "", badge: "", description: "",
   priceBrl: "", fullPriceBrl: "", costBrl: "", active: true, sortOrder: 0, images: [], sizes: []
 };
-const BR_PRESETS = ["34", "35", "36", "37", "38", "39", "40", "41", "42", "43", "44", "45", "46"];
-const US_BY_BR = { 34: "5", 35: "6", 36: "6.5", 37: "7", 38: "7.5", 39: "8.5", 40: "9", 41: "9.5", 42: "10.5", 43: "11", 44: "12", 45: "13", 46: "14" }; // referência masculina Nike; editável
+// Tabela oficial Nike BR (mesma do packages/shared/src/sizes): BR → US, por modelagem — preenche o US ao clicar no BR
+const US_BY_BR_MEN = { "34": "3.5", "34.5": "4", "35": "4.5", "35.5": "5", "36": "5.5", "37": "6", "37.5": "6.5", "38": "7", "39": "7.5", "39.5": "8", "40": "8.5", "40.5": "9", "41": "9.5", "42": "10", "42.5": "10.5", "43": "11", "43.5": "11.5", "44": "12", "45": "12.5", "46": "13", "46.5": "13.5", "47": "14", "48": "15" };
+const US_BY_BR_WOMEN = { "33.5": "5", "34": "5.5", "35": "6", "35.5": "6.5", "36": "7", "37": "7.5", "37.5": "8", "38": "8.5", "39": "9", "39.5": "9.5", "40": "10", "41": "10.5", "41.5": "11", "42": "11.5", "43": "12" };
+const US_BY_BR_KIDS = { "31": "1Y", "32": "1.5Y", "33": "2.5Y", "34": "3.5Y", "35": "4.5Y", "36": "5.5Y", "36.5": "6Y", "37": "6.5Y", "38": "7Y" };
+const usTableFor = (gender) => (gender === "W" ? US_BY_BR_WOMEN : gender === "K" ? US_BY_BR_KIDS : US_BY_BR_MEN);
+const presetsFor = (gender) => Object.keys(usTableFor(gender)).sort((a, b) => Number(a) - Number(b)); // chaves inteiras vêm antes das decimais → ordena
 
 const parseMoney = (v) => {
   if (v === "" || v == null) return null;
@@ -63,7 +82,7 @@ export default function StockForm({ auth, notify }) {
       setProduct(d);
       setForm({
         ...EMPTY, ...d,
-        subtitle: d.subtitle || "", colorDescription: d.colorDescription || "", styleColor: d.styleColor || "", badge: d.badge || "", description: d.description || "",
+        category: d.category || "", gender: d.gender || "M", colorDescription: d.colorDescription || "", styleColor: d.styleColor || "", badge: d.badge || "", description: d.description || "",
         priceBrl: fmtMoneyInput(d.priceBrl), fullPriceBrl: fmtMoneyInput(d.fullPriceBrl), costBrl: fmtMoneyInput(d.costBrl),
         images: d.images || [], sizes: (d.sizes || []).map((s) => ({ br: s.br, us: s.us || "", qty: s.qty }))
       });
@@ -77,7 +96,12 @@ export default function StockForm({ auth, notify }) {
 
   const f = (k) => (e) => setForm((s) => ({ ...s, [k]: e.target.type === "checkbox" ? e.target.checked : e.target.value }));
   const setSize = (i, k, v) => setForm((s) => ({ ...s, sizes: s.sizes.map((x, j) => (j === i ? { ...x, [k]: v } : x)) }));
-  const addSize = (br = "") => setForm((s) => (br && s.sizes.some((x) => x.br === br) ? s : { ...s, sizes: [...s.sizes, { br, us: br && US_BY_BR[br] ? US_BY_BR[br] : "", qty: 1 }] }));
+  const addSize = (br = "") => setForm((s) => (br && s.sizes.some((x) => x.br === br) ? s : { ...s, sizes: [...s.sizes, { br, us: br && usTableFor(s.gender)[br] ? usTableFor(s.gender)[br] : "", qty: 1 }] }));
+  // trocar a modelagem re-preenche o US dos tamanhos que vieram da tabela (não mexe em US digitado à mão fora dela)
+  const setGender = (gender) => setForm((s) => {
+    const oldT = usTableFor(s.gender), newT = usTableFor(gender);
+    return { ...s, gender, sizes: s.sizes.map((x) => (!x.us || x.us === oldT[x.br] ? { ...x, us: newT[x.br] || "" } : x)) };
+  });
   const rmSize = (i) => setForm((s) => ({ ...s, sizes: s.sizes.filter((_, j) => j !== i) }));
   const moveImg = (i, d) => setForm((s) => {
     const arr = [...s.images]; const j = i + d;
@@ -91,11 +115,12 @@ export default function StockForm({ auth, notify }) {
     const price = parseMoney(form.priceBrl);
     if (!form.name.trim()) throw new Error("Informe o nome do produto");
     if (!(price > 0)) throw new Error("Informe o preço no Pix (ex.: 1899,00)");
+    if (!form.category) throw new Error("Escolha a categoria (Basquete, Casual ou Corrida)");
     const full = parseMoney(form.fullPriceBrl), cost = parseMoney(form.costBrl);
     if (Number.isNaN(full) || Number.isNaN(cost)) throw new Error("Preço 'de' ou custo inválido");
     const sizes = form.sizes.map((s) => ({ br: String(s.br).trim(), us: String(s.us || "").trim() || null, qty: Math.max(0, parseInt(s.qty, 10) || 0) })).filter((s) => s.br);
     return {
-      name: form.name.trim(), brand: form.brand.trim() || "Nike", subtitle: form.subtitle, colorDescription: form.colorDescription, styleColor: form.styleColor,
+      name: form.name.trim(), brand: form.brand.trim() || "Nike", category: form.category || null, gender: form.gender || "M", colorDescription: form.colorDescription, styleColor: form.styleColor,
       badge: form.badge, description: form.description, priceBrl: price, fullPriceBrl: full, costBrl: cost,
       active: Boolean(form.active), sortOrder: parseInt(form.sortOrder, 10) || 0, images: form.images, sizes
     };
@@ -198,7 +223,19 @@ export default function StockForm({ auth, notify }) {
             <div className="form-grid">
               <div className="field span2"><label>Nome *</label><input value={form.name} onChange={f("name")} placeholder="Ex.: Kobe 6 Protro" required /></div>
               <div className="field"><label>Marca</label><input value={form.brand} onChange={f("brand")} placeholder="Nike" /></div>
-              <div className="field"><label>Categoria / subtítulo</label><input value={form.subtitle} onChange={f("subtitle")} placeholder="Ex.: Basketball shoes" /></div>
+              <div className="field">
+                <label>Categoria</label>
+                <select value={form.category} onChange={f("category")}>
+                  <option value="">— escolher —</option>
+                  {CATEGORIES.map((c) => <option key={c.key} value={c.key}>{c.label}</option>)}
+                </select>
+              </div>
+              <div className="field">
+                <label>Modelagem</label>
+                <select value={form.gender} onChange={(e) => setGender(e.target.value)}>
+                  {GENDERS.map((g) => <option key={g.key} value={g.key}>{g.label}</option>)}
+                </select>
+              </div>
               <div className="field"><label>Colorway (cor)</label><input value={form.colorDescription} onChange={f("colorDescription")} placeholder="Ex.: Grinch / Green Apple" /></div>
               <div className="field"><label>SKU Nike (opcional)</label><input value={form.styleColor} onChange={f("styleColor")} placeholder="Ex.: CW2190-300" /></div>
               <div className="field span2"><label>Descrição (aparece no seletor de tamanho)</label><textarea rows={5} value={form.description} onChange={f("description")} placeholder="Par novo na caixa, com nota fiscal da Nike US. Pronta entrega — sai em até 1 dia útil." /></div>
@@ -208,10 +245,10 @@ export default function StockForm({ auth, notify }) {
           </div>
 
           <div className="adm-card">
-            <h3>Tamanhos e quantidade <small>numeração BR · US da caixa (opcional) · pares disponíveis</small></h3>
+            <h3>Tamanhos e quantidade <small>numeração BR · {GENDERS.find((g) => g.key === form.gender)?.us || "US"} (opcional) · pares disponíveis</small></h3>
             <div className="adm-chips" style={{ marginBottom: 12 }}>
-              {BR_PRESETS.map((br) => (
-                <button type="button" key={br} className={form.sizes.some((s) => s.br === br) ? "on" : ""} onClick={() => addSize(br)}>{br}</button>
+              {presetsFor(form.gender).map((br) => (
+                <button type="button" key={br} className={form.sizes.some((s) => s.br === br) ? "on" : ""} onClick={() => addSize(br)} title={`US ${usTableFor(form.gender)[br]}`}>{br}</button>
               ))}
               <button type="button" onClick={() => addSize("")}>+ outro</button>
             </div>
@@ -220,7 +257,7 @@ export default function StockForm({ auth, notify }) {
             ) : (
               <div className="adm-table-wrap">
                 <table>
-                  <thead><tr><th>BR</th><th>US (caixa)</th><th>Qtd</th><th></th></tr></thead>
+                  <thead><tr><th>BR</th><th>{GENDERS.find((g) => g.key === form.gender)?.us || "US (caixa)"}</th><th>Qtd</th><th></th></tr></thead>
                   <tbody>
                     {form.sizes.map((s, i) => (
                       <tr key={i}>
@@ -236,6 +273,7 @@ export default function StockForm({ auth, notify }) {
             )}
             <p className="sub" style={{ marginTop: 10, fontSize: 11, color: "var(--muted)" }}>
               Qtd 0 = tamanho esgotado (some do seletor). A quantidade baixa sozinha quando um pedido é criado e volta se ele for cancelado/abandonado.
+              O US é preenchido pela tabela oficial Nike BR da modelagem escolhida (pode corrigir à mão pelo que está na caixa); no site o cliente vê "BR 38 (US M 7)" ou "(US W 8.5)".
             </p>
           </div>
 

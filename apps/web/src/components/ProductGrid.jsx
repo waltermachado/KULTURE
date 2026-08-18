@@ -47,6 +47,7 @@ export default function ProductGrid({
   state,
   onAdd,
   kicker,
+  filters = null,
   loadingMsg = "Buscando na Nike US…",
   emptyMsg,
   errorMsg = "Catálogo indisponível no momento. Tente de novo em instantes.",
@@ -64,6 +65,7 @@ export default function ProductGrid({
           </div>
           <span className="sub">{sub}</span>
         </div>
+        {filters}
       </section>
       <div className="grid">
         {status === "loading" && <p className="grid-msg">{loadingMsg}</p>}

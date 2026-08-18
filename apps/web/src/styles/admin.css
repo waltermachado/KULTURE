@@ -46,7 +46,8 @@
 .adm select option{background:var(--ink-3)}
 .adm .field{display:flex;flex-direction:column;gap:6px;margin:0}
 .adm .field label{font-size:10px;letter-spacing:.18em;text-transform:uppercase;color:var(--muted)}
-.adm .field input{width:100%;padding:0 12px;font-size:14px}
+.adm .field input,.adm .field select{width:100%;padding:0 12px;font-size:14px}
+.adm .field select{padding-right:30px}
 .adm .form-grid{display:grid;grid-template-columns:repeat(2,1fr);gap:14px}
 .adm .form-grid .span2{grid-column:span 2}
 @media(max-width:720px){.adm .form-grid{grid-template-columns:1fr}.adm .form-grid .span2{grid-column:span 1}}

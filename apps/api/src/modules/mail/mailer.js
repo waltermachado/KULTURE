@@ -54,8 +54,17 @@ export function createMailer(env, log) {
 const brl = (v) => Number(v).toLocaleString("pt-BR", { style: "currency", currency: "BRL" });
 /** "BR 41 (US 8.5)" — sem o US quando o item é de pronta entrega sem numeração US (chave = BR). */
 const sizeLabel = (i) => {
+  if (i.sizeLabel) return i.sizeLabel; // "BR 38 (US M 7)" — como o cliente escolheu (masc./fem./infantil)
   const br = i.brLabel ?? i.brSize ?? "?";
   return i.nikeSize && String(i.nikeSize) !== String(br) ? `BR ${br} (US ${i.nikeSize})` : `BR ${br}`;
+};
+/** Nike By You: gravação por pé, quando houver. */
+const customLine = (i) => {
+  const c = i.customization;
+  if (!c || typeof c !== "object") return "";
+  const foot = (t, n, lbl) => { const p = []; if (t) p.push(`“${t}”`); if (n) p.push(`nº ${n}`); return p.length ? `pé ${lbl} ${p.join(" ")}` : null; };
+  const parts = [foot(c.textLeft, c.numberLeft, "E"), foot(c.textRight, c.numberRight, "D")].filter(Boolean);
+  return parts.length ? ` — By You: ${parts.join(" · ")}` : " — By You";
 };
 
 const escapeHtml = (s) => String(s).replace(/&/g, "&amp;").replace(/</g, "&lt;");
@@ -92,7 +101,7 @@ export function buildOrderShippedEmail(order, { siteUrl } = {}) {
     order.trackingUrl ? `Acompanhe: ${order.trackingUrl}` : null,
     "",
     "Itens:",
-    (order.items || []).map((i) => `• ${i.name} — tam. ${sizeLabel(i)} × ${i.quantity}`).join("\n"),
+    (order.items || []).map((i) => `• ${i.name} — tam. ${sizeLabel(i)} × ${i.quantity}${customLine(i)}`).join("\n"),
     "",
     siteUrl ? `Veja seus pedidos em: ${siteUrl}/conta` : null,
     "",
@@ -136,7 +145,7 @@ export function buildOrderCancelledEmail(order, { siteUrl, refunded = false } = 
 /** E-mail de confirmação de pagamento para o cliente. */
 export function buildOrderPaidEmail(order, { siteUrl } = {}) {
   const items = (order.items || [])
-    .map((i) => `• ${i.name} — tam. ${sizeLabel(i)} × ${i.quantity} — ${brl(i.unitPriceBrl)}`)
+    .map((i) => `• ${i.name} — tam. ${sizeLabel(i)} × ${i.quantity} — ${brl(i.unitPriceBrl)}${customLine(i)}`)
     .join("\n");
   const method = order.paymentMethod === "pix" ? "Pix" : order.paymentMethod === "credit_card" ? "Cartão" : order.paymentMethod || "-";
   const text = [

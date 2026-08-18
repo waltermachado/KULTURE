@@ -21,11 +21,13 @@ export function toCard(p, i) {
     old: p.price?.fullBrl ?? null,
     priceUsd: p.priceUsd ?? null,
     breakdown: p.price?.breakdown ?? null,
-    badge: isStock ? (p.badge || "PRONTA ENTREGA") : p.isTest ? "TESTE" : p.launch?.comingSoon ? "PRÉ-VENDA" : p.launch?.isLaunch ? "LANÇAMENTO" : p.onSale ? "PROMO" : i === 0 ? "#1 NBA" : "TOP",
+    badge: isStock ? (p.badge || "PRONTA ENTREGA") : p.isTest ? "TESTE" : p.byYou ? "BY YOU" : p.launch?.comingSoon ? "PRÉ-VENDA" : p.launch?.isLaunch ? "LANÇAMENTO" : p.onSale ? "PROMO" : i === 0 ? "#1 NBA" : "TOP",
     badgeRed: isStock ? Boolean(p.badge) : Boolean(p.isTest) || Boolean(p.onSale) || (i === 0 && !p.launch?.comingSoon),
     stock: isStock,
     stockQty: isStock ? (p.stock?.total ?? null) : null,
     description: p.description ?? null,
+    byYou: Boolean(p.byYou),
+    category: p.category ?? null, // basketball | lifestyle | running (filtro da pronta entrega)
     launch: p.launch ?? null,
     pix: p.price?.pix !== false,
     installmentsLabel: p.price?.installments?.label || null,
@@ -42,3 +44,42 @@ export function launchDateLabel(iso) {
   if (Number.isNaN(d.getTime())) return null;
   return d.toLocaleString("pt-BR", { day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit" }).replace(",", " às");
 }
+
+export const SIZE_GROUP_LABELS = { M: "Masculino", W: "Feminino", K: "Infantil" };
+
+/**
+ * "BR 38 (US M 7)" · "BR 37.5 (US W 8)" · "BR 36 (US 5Y)" · "BR 41" — rótulo do tamanho escolhido.
+ * `group` = aba escolhida (M/W/K); sem `us` (carrinho antigo / estoque sem US) cai no formato antigo.
+ */
+export function sizeText(size, group = size?.pickedGender ?? null) {
+  if (!size) return "";
+  if (size.sizeLabel) return size.sizeLabel;
+  const br = size.brLabel ?? size.brSize ?? "?";
+  const us = size.us && typeof size.us === "object" ? size.us : null;
+  const g = us && group && us[group] ? group : us && size.scale && us[size.scale] ? size.scale : null;
+  if (g) return g === "K" ? `BR ${br} (US ${us[g]})` : `BR ${br} (US ${g} ${us[g]})`;
+  if (size.nikeSize && String(size.nikeSize) !== String(br)) return `BR ${br} (US ${size.nikeSize})`;
+  return `BR ${br}`;
+}
+
+/** Nike By You: "pé E “KULTURE” nº 08 · pé D “MAMBA” nº 24" (só o preenchido); null se não houver personalização. */
+export function customText(c) {
+  if (!c || typeof c !== "object") return null;
+  const foot = (t, n, lbl) => { const p = []; if (t) p.push(`“${t}”`); if (n) p.push(`nº ${n}`); return p.length ? `pé ${lbl} ${p.join(" ")}` : null; };
+  const parts = [foot(c.textLeft, c.numberLeft, "E"), foot(c.textRight, c.numberRight, "D")].filter(Boolean);
+  return parts.length ? parts.join(" · ") : null;
+}
+
+/** Chave da personalização para o carrinho não juntar dois By You diferentes do mesmo tamanho. */
+export function customKey(c) {
+  if (!c) return "";
+  const v = [c.textLeft, c.numberLeft, c.textRight, c.numberRight].map((x) => String(x || "").trim().toUpperCase());
+  return v.some(Boolean) ? `|${v.join("~")}` : "";
+}
+
+/** Categorias da loja — mesmas 3 das abas do topo, dos blocos e do cadastro da pronta entrega. */
+export const CATEGORIES = [
+  { key: "basketball", label: "Basquete", q: "basketball shoes" },
+  { key: "lifestyle", label: "Casual", q: "lifestyle shoes" },
+  { key: "running", label: "Corrida", q: "running shoes" }
+];

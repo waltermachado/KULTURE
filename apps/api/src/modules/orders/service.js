@@ -1,5 +1,6 @@
 import { AppError } from '../../lib/errors.js';
 import { pricingRateOf } from '../catalog/normalize.js';
+import { sizeLabel as buildSizeLabel } from "@kulture/shared/sizes";
 
 import { buildOrderPaidEmail } from "../mail/mailer.js";
 
@@ -27,10 +28,39 @@ export function resolveWebUrl(env, webOrigin) {
   return env.PUBLIC_WEB_URL;
 }
 
-/** "BR 41 (US 8.5)" — omite o US quando o item é de pronta entrega sem numeração US (chave = BR). */
+/** Rótulo do tamanho do item do pedido: o salvo no checkout ("BR 38 (US M 7)") ou, em pedidos antigos, "BR 41 (US 8.5)". */
 export function sizeLabelOf(item) {
+  if (item.sizeLabel) return item.sizeLabel;
   const br = item.brLabel ?? item.brSize ?? "?";
   return item.nikeSize && String(item.nikeSize) !== String(br) ? `BR ${br} (US ${item.nikeSize})` : `BR ${br}`;
+}
+
+/** Nike By You: "By You · pé E “KULTURE” nº 08 · pé D “MAMBA” nº 24" (só o que foi preenchido). */
+export function customizationLabelOf(c) {
+  if (!c || typeof c !== "object") return null;
+  const foot = (t, n, lbl) => {
+    const parts = [];
+    if (t) parts.push(`“${t}”`);
+    if (n) parts.push(`nº ${n}`);
+    return parts.length ? `pé ${lbl} ${parts.join(" ")}` : null;
+  };
+  const items = [foot(c.textLeft, c.numberLeft, "E"), foot(c.textRight, c.numberRight, "D")].filter(Boolean);
+  return items.length ? `By You · ${items.join(" · ")}` : "By You · sem gravação";
+}
+
+const CUSTOM_TEXT_RE = /^[A-Za-z0-9 .,'&!?#\-]{0,8}$/;
+/** Valida/normaliza a personalização enviada pelo cliente (texto ≤ 8 chars por pé, número 0–99 por pé). */
+function normalizeCustomization(raw) {
+  if (!raw || typeof raw !== "object") return null;
+  const text = (v) => (v == null ? "" : String(v).trim().slice(0, 40));
+  const num = (v) => (v == null ? "" : String(v).trim().replace(/\D/g, "").slice(0, 2));
+  const out = { textLeft: text(raw.textLeft), numberLeft: num(raw.numberLeft), textRight: text(raw.textRight), numberRight: num(raw.numberRight) };
+  for (const k of ["textLeft", "textRight"]) {
+    if (out[k].length > 8) throw AppError.badRequest(`Personalização: o texto do pé ${k === "textLeft" ? "esquerdo" : "direito"} tem no máximo 8 caracteres`);
+    if (!CUSTOM_TEXT_RE.test(out[k])) throw AppError.badRequest("Personalização: use só letras, números, espaço e . , ' & ! ? # -");
+  }
+  const any = Object.values(out).some(Boolean);
+  return any ? out : null;
 }
 
 /** `stock` (opcional) = serviço de pronta entrega: reserva por tamanho na criação do pedido. */
@@ -51,6 +81,8 @@ export function createOrderService(env, prisma, catalog, gateway, notifier, log,
     let msg = text + `\n\nPedido: *${order.number}*\nCliente: ${order.customerName}\nLocal: ${order.address?.city || ''}/${order.address?.state || ''}\n\n*Itens:*`;
     for(const item of order.items) {
       msg += `\n- ${item.name} — tam. ${sizeLabelOf(item)} × ${item.quantity} — R$ ${item.unitPriceBrl}`;
+      const cust = customizationLabelOf(item.customization);
+      if (cust) msg += `\n  ${cust}`;
     }
     msg += `\n\n*Total:* R$ ${order.totalBrl}`;
     if (order.paymentMethod) msg += `\nForma de pagamento: ${order.paymentMethod === 'pix' ? 'Pix' : 'Cartão'}`;
@@ -175,6 +207,11 @@ export function createOrderService(env, prisma, catalog, gateway, notifier, log,
           const sizeInfo = product.sizes.find(s => s.nikeSize === item.nikeSize);
           if (!sizeInfo) throw AppError.badRequest(`Tamanho ${item.nikeSize} inválido para ${product.name}`);
           if (!sizeInfo.available) throw AppError.badRequest(`Tamanho ${item.nikeSize} do ${product.name} esgotado`);
+          // modelagem escolhida (aba Masculino/Feminino/Infantil): só vale se o tamanho tem esse US; senão a escala do SKU
+          const gender = ["M", "W", "K"].includes(item.sizeGender) && sizeInfo.us?.[item.sizeGender] ? item.sizeGender : null;
+          const sizeLabel = buildSizeLabel(sizeInfo, gender);
+          // Nike By You: personalização por pé (texto ≤ 8, nº 2 dígitos); ignorada em produto que não é By You
+          const customization = product.byYou ? normalizeCustomization(item.customization) : null;
 
           const qty = Math.max(1, Math.min(10, Number(item.quantity) || 1));
           const unitBrl = product.price.brl;
@@ -195,6 +232,8 @@ export function createOrderService(env, prisma, catalog, gateway, notifier, log,
             nikeSize: sizeInfo.nikeSize,
             brSize: sizeInfo.brSize,
             brLabel: sizeInfo.brLabel,
+            sizeLabel,
+            customization,
             unitPriceBrl: unitBrl,
             unitPriceUsd: product.priceUsd ?? 0,
             quantity: qty,
@@ -408,7 +447,7 @@ export function createOrderService(env, prisma, catalog, gateway, notifier, log,
         select: {
           number: true, status: true, totalBrl: true, paymentMethod: true, paidAt: true, createdAt: true,
           carrier: true, trackingCode: true, trackingUrl: true, shippedAt: true, deliveredAt: true, receiptUrl: true,
-          items: { select: { name: true, image: true, nikeSize: true, brLabel: true, quantity: true, unitPriceBrl: true, styleColor: true } }
+          items: { select: { name: true, image: true, nikeSize: true, brLabel: true, sizeLabel: true, customization: true, quantity: true, unitPriceBrl: true, styleColor: true } }
         }
       });
       return { orders: rows };

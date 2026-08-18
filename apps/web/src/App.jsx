@@ -158,6 +158,22 @@ export default function App() {
     pageAnims.current = [];
   }, [navigate]);
 
+  /**
+   * Basquete / Casual / Corrida (abas do topo, blocos de categoria, rodapé) respeitam a seção atual:
+   * na pronta entrega filtram o estoque (?cat=…) e ficam na página; nos importados buscam na Nike.
+   * `key` null = "Início"/todos.
+   */
+  const pickCategory = useCallback((cat) => {
+    const key = cat?.key ?? null;
+    if (location.pathname.startsWith("/pronta-entrega")) {
+      navigate({ pathname: "/pronta-entrega", search: key ? `?cat=${key}` : "" });
+      setTimeout(() => document.getElementById("drops")?.scrollIntoView({ behavior: "smooth", block: "start" }), 50);
+      return;
+    }
+    search(cat?.q || "");
+    navigate("/");
+  }, [location.pathname, navigate, search]);
+
   const handleLogout = async () => {
     await auth.logout();
     notify("Você saiu da conta");
@@ -173,6 +189,7 @@ export default function App() {
           onOpenCart={() => { setModal((m) => ({ ...m, open: false })); setDrawerOpen(true); }}
           onOpenLogin={() => openModal("login")}
           onSearch={(q) => { search(q); navigate('/'); }}
+          onCategory={pickCategory}
           user={auth.user}
           isAdmin={auth.isAdmin}
           onLogout={handleLogout}
@@ -181,8 +198,8 @@ export default function App() {
       {showModeBar && <ModeBar onSwitch={switchMode} />}
       <div className="page-view" ref={pageRef}>
       <Routes>
-        <Route path="/" element={<Home grid={grid} setSelectedProductForSize={setSelectedProductForSize} onSearch={(q) => { search(q); document.getElementById("drops")?.scrollIntoView({ behavior: "smooth" }); }} />} />
-        <Route path="/pronta-entrega" element={<Stock setSelectedProductForSize={setSelectedProductForSize} onSearch={(q) => { search(q); navigate("/"); }} />} />
+        <Route path="/" element={<Home grid={grid} setSelectedProductForSize={setSelectedProductForSize} onCategory={pickCategory} />} />
+        <Route path="/pronta-entrega" element={<Stock setSelectedProductForSize={setSelectedProductForSize} onCategory={pickCategory} />} />
         <Route path="/checkout" element={<Checkout cart={cart} auth={auth} notify={notify} />} />
         <Route path="/pedido/confirmacao" element={<Confirmation auth={auth} />} />
         <Route path="/pedido/confirmacao/:number" element={<Confirmation auth={auth} />} />
@@ -192,7 +209,7 @@ export default function App() {
         <Route path="/admin/*" element={<AdminApp auth={auth} onOpenLogin={() => openModal("login")} notify={notify} />} />
       </Routes>
       </div>
-      {!isAdminArea && <Footer onOpenModal={openModal} onSearch={(q) => { search(q); navigate('/'); }} />}
+      {!isAdminArea && <Footer onOpenModal={openModal} onCategory={pickCategory} onSearch={(q) => { search(q); navigate('/'); }} />}
 
       <div className={`overlay${overlayOpen ? " open" : ""}`} onClick={closeAll} />
       <AuthModal open={modal.open} view={modal.view} onSwitch={(view) => setModal({ open: true, view })} onClose={closeAll} notify={notify} auth={auth} />

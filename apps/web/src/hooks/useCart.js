@@ -29,7 +29,8 @@ export function useCart() {
 
   const add = useCallback((item, sizeInfo) => {
     if (!sizeInfo) return;
-    const compositeKey = `${item.styleColor}|${sizeInfo.nikeSize}`;
+    // By You: a personalização entra na chave (mesmo tamanho com gravações diferentes = linhas diferentes)
+    const compositeKey = `${item.styleColor}|${sizeInfo.nikeSize}${sizeInfo.customKey || ""}`;
     
     setItems((prev) => {
       const cur = prev[compositeKey];

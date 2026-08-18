@@ -70,7 +70,7 @@ export default function Stock({ auth }) {
                       <div className="stk-thumb">{p.images?.[0] ? <img src={p.images[0]} alt="" /> : <span>—</span>}</div>
                       <div>
                         <b>{p.name}</b>
-                        <span className="sub">{[p.brand, p.colorDescription || p.subtitle].filter(Boolean).join(" · ")}</span>
+                        <span className="sub">{[p.brand, p.categoryLabel || p.subtitle, p.genderLabel, p.colorDescription].filter(Boolean).join(" · ")}</span>
                       </div>
                     </div>
                   </td>

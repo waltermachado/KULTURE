@@ -1,5 +1,5 @@
 import { expect, test, describe } from 'vitest';
-import { convertUsToBr } from '../src/sizes/index.js';
+import { convertUsToBr, parseUsSizes, sizeGroupsOf, sizeLabel, standardSizes } from '../src/sizes/index.js';
 
 describe('convertUsToBr', () => {
   test('converte MENS exato (prefixo M)', () => {
@@ -46,5 +46,43 @@ describe('convertUsToBr', () => {
 
   test('trata falsy safety', () => {
     expect(convertUsToBr(undefined, undefined)).toEqual({ brSize: null, approximate: false });
+  });
+});
+
+
+describe('parseUsSizes / sizeGroupsOf / sizeLabel (masculino × feminino × infantil)', () => {
+  test('unissex com localizedSize completo', () => {
+    expect(parseUsSizes('7', 'M 7 / W 8.5', ['MEN', 'WOMEN'])).toEqual({ scale: 'M', us: { M: '7', W: '8.5' } });
+  });
+  test('unissex sem W explícito → W = M + 1,5', () => {
+    expect(parseUsSizes('10.5', '10.5', ['MEN', 'WOMEN'])).toEqual({ scale: 'M', us: { M: '10.5', W: '12' } });
+  });
+  test('só masculino / só feminino / infantil', () => {
+    expect(parseUsSizes('10', 'M 10', ['MEN'])).toEqual({ scale: 'M', us: { M: '10' } });
+    expect(parseUsSizes('8', 'W 8', ['WOMEN'])).toEqual({ scale: 'W', us: { W: '8' } });
+    expect(parseUsSizes('5', '5', ['WOMEN'])).toEqual({ scale: 'W', us: { W: '5' } });
+    expect(parseUsSizes('5Y', '5Y', ['BOYS'])).toEqual({ scale: 'K', us: { K: '5Y' } });
+  });
+  test('grupos e rótulo', () => {
+    const sizes = [
+      { nikeSize: '7', brLabel: '38', scale: 'M', us: { M: '7', W: '8.5' } },
+      { nikeSize: '8', brLabel: '39.5', scale: 'M', us: { M: '8', W: '9.5' } }
+    ];
+    expect(sizeGroupsOf(sizes)).toEqual(['M', 'W']);
+    expect(sizeGroupsOf([{ scale: 'W', us: { W: '8' } }])).toEqual(['W']);
+    expect(sizeLabel(sizes[0])).toBe('BR 38 (US M 7)');
+    expect(sizeLabel(sizes[0], 'W')).toBe('BR 38 (US W 8.5)');
+    expect(sizeLabel({ brLabel: '36', scale: 'K', us: { K: '5Y' } })).toBe('BR 36 (US 5Y)');
+    expect(sizeLabel({ brLabel: '41', scale: 'M', us: { M: null } })).toBe('BR 41');
+  });
+});
+
+describe('standardSizes (Nike By You)', () => {
+  test('tabela masculina completa em ordem, com W = M + 1,5 até W 12', () => {
+    const list = standardSizes();
+    expect(list.map((s) => s.brLabel).slice(0, 5)).toEqual(['34', '34.5', '35', '35.5', '36']);
+    expect(list.at(-1)).toMatchObject({ nikeSize: '18', brLabel: '51', approximate: true });
+    expect(list.find((s) => s.brLabel === '38')).toMatchObject({ nikeSize: '7', us: { M: '7', W: '8.5' }, synthetic: true, available: true });
+    expect(list.find((s) => s.brLabel === '43').us.W).toBeNull(); // M 11 → W 12.5 não existe na tabela feminina
   });
 });

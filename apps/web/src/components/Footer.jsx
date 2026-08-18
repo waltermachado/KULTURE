@@ -1,11 +1,12 @@
 import { Link } from "react-router-dom";
 
-export default function Footer({ onOpenModal, onSearch }) {
+export default function Footer({ onOpenModal, onSearch, onCategory }) {
   const link = (view, label) => (
     <button className="foot-link" key={label} onClick={() => onOpenModal(view)}>{label}</button>
   );
-  const cat = (q, label) => (
-    <button className="foot-link" key={label} onClick={() => onSearch?.(q)}>{label}</button>
+  // categorias respeitam a seção atual (pronta entrega filtra; importados busca); "Jordan" é só busca na Nike
+  const cat = (q, label, key = null) => (
+    <button className="foot-link" key={label} onClick={() => (key ? onCategory?.({ key, q, label }) : onSearch?.(q))}>{label}</button>
   );
   return (
     <footer>
@@ -21,9 +22,9 @@ export default function Footer({ onOpenModal, onSearch }) {
         <div>
           <h4>Loja</h4>
           <Link className="foot-link" to="/pronta-entrega">Pronta entrega (no Brasil)</Link>
-          {cat("basketball shoes", "Basquete")}
-          {cat("lifestyle shoes", "Casual")}
-          {cat("running shoes", "Corrida")}
+          {cat("basketball shoes", "Basquete", "basketball")}
+          {cat("lifestyle shoes", "Casual", "lifestyle")}
+          {cat("running shoes", "Corrida", "running")}
           {cat("air jordan", "Jordan")}
         </div>
         <div>

@@ -5,18 +5,17 @@ const PROMISES = [
   { n: "04", t: "Compra protegida", d: "Pagamento via InfinitePay (Pix ou cartão) e acompanhamento por e-mail." }
 ];
 
-const CATS = [
-  { n: "01", label: "Basquete", q: "basketball shoes" },
-  { n: "02", label: "Casual", q: "lifestyle shoes" },
-  { n: "03", label: "Corrida", q: "running shoes" }
-];
+import { CATEGORIES } from "../lib/format.js";
 
-export default function Features({ onSearch }) {
+const CATS = CATEGORIES.map((c, i) => ({ ...c, n: String(i + 1).padStart(2, "0") }));
+
+/** Blocos Basquete / Casual / Corrida — `onCategory(cat)` decide se filtra a pronta entrega ou busca nos importados. */
+export default function Features({ onCategory }) {
   return (
     <>
       <div className="cats">
         {CATS.map((c) => (
-          <button key={c.label} onClick={() => onSearch?.(c.q)}>
+          <button key={c.label} onClick={() => onCategory?.(c)}>
             <div>
               <span className="n">{c.n}</span>
               <span className="t">{c.label}</span>
