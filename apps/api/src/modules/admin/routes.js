@@ -35,6 +35,7 @@ export async function adminRoutes(app) {
     env: app.env,
     mailer: app.mailer,
     orders: app.orders,
+    stock: app.stock,
     log: app.log
   });
   app.decorate("admin", admin);

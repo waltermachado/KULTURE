@@ -124,7 +124,7 @@ export default function Account({ auth, onOpenLogin, notify }) {
                     </div>
                     <div className="total">{brl(o.totalBrl)}</div>
                     <div className="items">
-                      {o.items.map((it, i) => <div key={i}>{it.quantity}× {it.name} — BR {it.brLabel ?? "?"} (US {it.nikeSize})</div>)}
+                      {o.items.map((it, i) => <div key={i}>{it.quantity}× {it.name} — BR {it.brLabel ?? "?"}{it.nikeSize && String(it.nikeSize) !== String(it.brLabel) ? ` (US ${it.nikeSize})` : ""}</div>)}
                     </div>
                     {(o.trackingCode || o.status === "shipped" || o.status === "delivered") && (
                       <div className="track">

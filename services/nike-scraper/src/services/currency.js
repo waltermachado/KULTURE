@@ -14,6 +14,8 @@ const STALE_MAX_MS = Number(process.env.RATE_STALE_MAX_HOURS || 72) * 3_600_000;
 const FAIL_BACKOFF_MS = Number(process.env.RATE_FAIL_BACKOFF_SEC || 90) * 1000;
 const MARGIN = Number(process.env.MARGIN_PERCENT || 0);
 const FALLBACK = Number(process.env.RATE_FALLBACK_USD_BRL || 0);
+// dólar TURISMO (usado na precificação): AwesomeAPI USD-BRLT; se não vier, comercial + spread fixo em R$
+const TOURISM_SPREAD_BRL = Number(process.env.RATE_TOURISM_SPREAD_BRL ?? 0.25);
 
 const KEY = 'rate:USD-BRL';
 const LAST_KEY = 'rate:USD-BRL:last'; // sem TTL curto: guarda o último válido por muito tempo
@@ -27,12 +29,22 @@ const num = (v) => {
 const SOURCES = [
   {
     name: 'economia.awesomeapi.com.br',
-    url: 'https://economia.awesomeapi.com.br/json/last/USD-BRL',
+    // comercial + turismo numa chamada só
+    url: 'https://economia.awesomeapi.com.br/json/last/USD-BRL,USD-BRLT',
     parse(data) {
       const q = data?.USDBRL;
       const ask = num(q?.ask);
       if (!ask) return null;
-      return { bid: num(q.bid) ?? ask, ask, high: num(q.high), low: num(q.low), timestamp: q.create_date || new Date().toISOString() };
+      const t = data?.USDBRLT;
+      const tourismAsk = num(t?.ask);
+      return {
+        bid: num(q.bid) ?? ask,
+        ask,
+        high: num(q.high),
+        low: num(q.low),
+        timestamp: q.create_date || new Date().toISOString(),
+        tourism: tourismAsk ? { bid: num(t.bid) ?? tourismAsk, ask: tourismAsk, timestamp: t.create_date || null, source: 'economia.awesomeapi.com.br (USD-BRLT)' } : null
+      };
     }
   },
   {
@@ -71,14 +83,30 @@ async function fetchFrom(src) {
   }
 }
 
+/** Garante `tourism` (dólar turismo): vem da AwesomeAPI (USD-BRLT) ou = comercial + TOURISM_SPREAD_BRL. */
+function withTourism(rate) {
+  if (rate?.tourism?.ask) return rate;
+  const ask = Number(rate.ask);
+  const round4 = (v) => Math.round(v * 10000) / 10000;
+  return {
+    ...rate,
+    tourism: {
+      bid: round4((Number(rate.bid) || ask) + TOURISM_SPREAD_BRL),
+      ask: round4(ask + TOURISM_SPREAD_BRL),
+      timestamp: rate.timestamp || null,
+      source: `fallback: comercial + R$ ${TOURISM_SPREAD_BRL.toFixed(2)}`
+    }
+  };
+}
+
 export async function getUsdBrlRate() {
   const cached = cacheGet(KEY);
-  if (cached) return { ...cached, cached: true };
+  if (cached) return { ...withTourism(cached), cached: true };
 
   const errors = [];
   for (const src of SOURCES) {
     try {
-      const rate = await fetchFrom(src);
+      const rate = withTourism(await fetchFrom(src));
       cacheSet(KEY, rate, RATE_TTL);
       cacheSet(LAST_KEY, { ...rate, fetchedAt: Date.now() }, 24 * 60 * 365); // 1 ano: é o "último conhecido"
       return { ...rate, cached: false };
@@ -91,11 +119,11 @@ export async function getUsdBrlRate() {
   const last = cacheGet(LAST_KEY);
   if (last && Date.now() - (last.fetchedAt || 0) < STALE_MAX_MS) {
     const { fetchedAt, ...rate } = last;
-    return { ...rate, cached: true, stale: true, staleSince: new Date(fetchedAt).toISOString(), errors };
+    return { ...withTourism(rate), cached: true, stale: true, staleSince: new Date(fetchedAt).toISOString(), errors };
   }
 
   if (FALLBACK) {
-    return { pair: 'USD-BRL', bid: FALLBACK, ask: FALLBACK, high: null, low: null, timestamp: new Date().toISOString(), source: 'fallback-env', cached: false, stale: true, errors };
+    return withTourism({ pair: 'USD-BRL', bid: FALLBACK, ask: FALLBACK, high: null, low: null, timestamp: new Date().toISOString(), source: 'fallback-env', cached: false, stale: true, errors });
   }
 
   const err = new Error(`Cotação indisponível: ${errors.join(' | ')}`);

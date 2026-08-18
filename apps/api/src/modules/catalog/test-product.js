@@ -37,7 +37,9 @@ export function buildTestProduct(rate) {
       fullBrl: null,
       breakdown: {}, // sem economics: não distorce custo/margem no dashboard
       rulesApplied: { test: true },
-      exchange: { usdToBrl: Math.round(usdToBrl * 100) / 100, timestamp: rate?.timestamp ?? null }
+      exchange: { usdToBrl: Math.round(usdToBrl * 100) / 100, timestamp: rate?.timestamp ?? null },
+      pix: true,
+      installments: { max: 1, label: "" }
     },
     // foto = logo da marca (servida pelo front em /logo.png)
     images: ["/logo.png"],

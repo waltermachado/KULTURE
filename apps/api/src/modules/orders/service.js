@@ -1,8 +1,40 @@
 import { AppError } from '../../lib/errors.js';
+import { pricingRateOf } from '../catalog/normalize.js';
 
 import { buildOrderPaidEmail } from "../mail/mailer.js";
 
-export function createOrderService(env, prisma, catalog, gateway, notifier, log, mailer = null) {
+/**
+ * Só aceita como URL de retorno origens conhecidas: PUBLIC_WEB_URL/PUBLIC_API_URL, domínio do Railway,
+ * hosts extras (PUBLIC_WEB_HOSTS) e localhost em dev. Qualquer outra → PUBLIC_WEB_URL.
+ */
+export function resolveWebUrl(env, webOrigin) {
+  if (!webOrigin) return env.PUBLIC_WEB_URL;
+  try {
+    const u = new URL(webOrigin);
+    const allowed = new Set(
+      [env.PUBLIC_WEB_URL, env.PUBLIC_API_URL]
+        .map((x) => { try { return new URL(x).hostname; } catch { return null; } })
+        .concat(process.env.RAILWAY_PUBLIC_DOMAIN || null, ...(env.PUBLIC_WEB_HOSTS || []))
+        .filter(Boolean)
+        .map((h) => String(h).toLowerCase())
+    );
+    const host = u.hostname.toLowerCase();
+    const isLocal = env.NODE_ENV !== 'production' && (host === 'localhost' || host === '127.0.0.1');
+    if (allowed.has(host) || isLocal) return `${u.protocol}//${u.host}`;
+  } catch {
+    /* origem inválida → canônica */
+  }
+  return env.PUBLIC_WEB_URL;
+}
+
+/** "BR 41 (US 8.5)" — omite o US quando o item é de pronta entrega sem numeração US (chave = BR). */
+export function sizeLabelOf(item) {
+  const br = item.brLabel ?? item.brSize ?? "?";
+  return item.nikeSize && String(item.nikeSize) !== String(br) ? `BR ${br} (US ${item.nikeSize})` : `BR ${br}`;
+}
+
+/** `stock` (opcional) = serviço de pronta entrega: reserva por tamanho na criação do pedido. */
+export function createOrderService(env, prisma, catalog, gateway, notifier, log, mailer = null, stock = null) {
   /** E-mail de confirmação ao cliente (não bloqueia; falha só loga). */
   async function emailPaid(order) {
     if (!mailer || !order?.customerEmail) return;
@@ -18,7 +50,7 @@ export function createOrderService(env, prisma, catalog, gateway, notifier, log,
   const formatMsg = (order, text) => {
     let msg = text + `\n\nPedido: *${order.number}*\nCliente: ${order.customerName}\nLocal: ${order.address?.city || ''}/${order.address?.state || ''}\n\n*Itens:*`;
     for(const item of order.items) {
-      msg += `\n- ${item.name} — tam. BR ${item.brLabel || item.nikeSize} (US ${item.nikeSize}) × ${item.quantity} — R$ ${item.unitPriceBrl}`;
+      msg += `\n- ${item.name} — tam. ${sizeLabelOf(item)} × ${item.quantity} — R$ ${item.unitPriceBrl}`;
     }
     msg += `\n\n*Total:* R$ ${order.totalBrl}`;
     if (order.paymentMethod) msg += `\nForma de pagamento: ${order.paymentMethod === 'pix' ? 'Pix' : 'Cartão'}`;
@@ -107,13 +139,17 @@ export function createOrderService(env, prisma, catalog, gateway, notifier, log,
       },
       include: { items: true }
     });
+    // pronta entrega: pedido abandonado (estoque devolvido) que acabou pago → reserva de novo
+    if (stock && order.stockReleasedAt) {
+      await stock.ensureReservedForPaid(updatedOrder).catch((err) => log?.error({ err: err.message, order: order.number }, 'stock: falha ao re-reservar'));
+    }
     await notify(updatedOrder, 'paid');
     emailPaid(updatedOrder); // fire-and-forget
     return { paid: true };
   }
 
   return {
-    async checkout({ items, customer, address }, idempotencyKey, userId = null) {
+    async checkout({ items, customer, address }, idempotencyKey, userId = null, { webOrigin = null } = {}) {
       if (idempotencyKey) {
         const existing = await prisma.idempotencyKey.findUnique({ where: { key: idempotencyKey } });
         if (existing) {
@@ -129,19 +165,27 @@ export function createOrderService(env, prisma, catalog, gateway, notifier, log,
         
         let subtotalBrl = 0;
         const orderItemsData = [];
+        const reservations = []; // pronta entrega: decremento condicional dentro da transação do pedido
         const rate = await catalog.getRate();
 
         for (const item of items) {
           const { product } = await catalog.getProductSizes(item.styleColor);
           if (!product) throw AppError.badRequest(`Produto ${item.styleColor} não encontrado`);
-          
+
           const sizeInfo = product.sizes.find(s => s.nikeSize === item.nikeSize);
           if (!sizeInfo) throw AppError.badRequest(`Tamanho ${item.nikeSize} inválido para ${product.name}`);
           if (!sizeInfo.available) throw AppError.badRequest(`Tamanho ${item.nikeSize} do ${product.name} esgotado`);
-          
-          const qty = item.quantity || 1;
+
+          const qty = Math.max(1, Math.min(10, Number(item.quantity) || 1));
           const unitBrl = product.price.brl;
           subtotalBrl += unitBrl * qty;
+
+          const isStock = product.source === 'stock';
+          if (isStock) {
+            if (!stock) throw AppError.badRequest(`Produto ${item.styleColor} indisponível`);
+            if (Number(sizeInfo.qty) < qty) throw AppError.badRequest(`${product.name} (BR ${sizeInfo.brLabel}): só ${sizeInfo.qty} unidade(s) disponível(is)`);
+            reservations.push({ stockSizeId: sizeInfo.stockSizeId, qty, label: `${product.name} (BR ${sizeInfo.brLabel})` });
+          }
 
           orderItemsData.push({
             styleColor: product.styleColor || product.id,
@@ -152,9 +196,13 @@ export function createOrderService(env, prisma, catalog, gateway, notifier, log,
             brSize: sizeInfo.brSize,
             brLabel: sizeInfo.brLabel,
             unitPriceBrl: unitBrl,
-            unitPriceUsd: product.priceUsd,
+            unitPriceUsd: product.priceUsd ?? 0,
             quantity: qty,
-            breakdown: product.price.breakdown || {}
+            // pronta entrega: breakdown guarda a origem + ids do estoque (para devolver/re-reservar) e o custo
+            // como `subtotalBrl` (mesmo campo que o dashboard usa para estimar custo/margem)
+            breakdown: isStock
+              ? { ...(product.price.breakdown || {}), source: 'stock', stockProductId: product.stockProductId, stockSizeId: sizeInfo.stockSizeId }
+              : (product.price.breakdown || {})
           });
         }
 
@@ -175,6 +223,9 @@ export function createOrderService(env, prisma, catalog, gateway, notifier, log,
         const orderNumber = `KLT-${new Date().getFullYear()}-${Math.floor(Math.random()*1000000).toString().padStart(6,'0')}`;
 
         const order = await prisma.$transaction(async (tx) => {
+          // pronta entrega: reserva (qty >= n) na mesma transação — se dois clientes disputarem o último par,
+          // só um pedido é criado; o outro recebe 409 STOCK_OUT
+          if (reservations.length) await stock.reserve(tx, reservations);
           const created = await tx.order.create({
             data: {
               number: orderNumber,
@@ -187,7 +238,7 @@ export function createOrderService(env, prisma, catalog, gateway, notifier, log,
               subtotalBrl,
               shippingBrl,
               totalBrl,
-              exchangeRate: rate.ask,
+              exchangeRate: pricingRateOf(rate).usdToBrl, // dólar turismo usado na precificação
               pricingSnapshot: {}, 
               paymentProvider: env.PAYMENT_PROVIDER,
               items: {
@@ -219,7 +270,7 @@ export function createOrderService(env, prisma, catalog, gateway, notifier, log,
           }
         }
 
-        const checkoutLink = await gateway.createCheckoutLink(order);
+        const checkoutLink = await gateway.createCheckoutLink(order, { webUrl: resolveWebUrl(env, webOrigin) });
 
         const updatedOrder = await prisma.order.update({
           where: { id: order.id },

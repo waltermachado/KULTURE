@@ -9,6 +9,7 @@ const PALETTE = ["#e33", "#F6B234", "#FFD167"];
 /** Converte o produto da API no modelo do card (badge, cor do placeholder, imagem). */
 export function toCard(p, i) {
   const brandLabel = p.brand === "Jordan" ? "Jordan" : p.category === "basketball" ? "Nike Basketball" : p.brand || "Nike";
+  const isStock = p.source === "stock"; // pronta entrega (estoque próprio no Brasil)
   return {
     key: p.styleColor || p.id || `${p.name}-${i}`,
     styleColor: p.styleColor ?? null,
@@ -20,9 +21,14 @@ export function toCard(p, i) {
     old: p.price?.fullBrl ?? null,
     priceUsd: p.priceUsd ?? null,
     breakdown: p.price?.breakdown ?? null,
-    badge: p.isTest ? "TESTE" : p.launch?.comingSoon ? "PRÉ-VENDA" : p.launch?.isLaunch ? "LANÇAMENTO" : p.onSale ? "PROMO" : i === 0 ? "#1 NBA" : "TOP",
-    badgeRed: Boolean(p.isTest) || Boolean(p.onSale) || (i === 0 && !p.launch?.comingSoon),
+    badge: isStock ? (p.badge || "PRONTA ENTREGA") : p.isTest ? "TESTE" : p.launch?.comingSoon ? "PRÉ-VENDA" : p.launch?.isLaunch ? "LANÇAMENTO" : p.onSale ? "PROMO" : i === 0 ? "#1 NBA" : "TOP",
+    badgeRed: isStock ? Boolean(p.badge) : Boolean(p.isTest) || Boolean(p.onSale) || (i === 0 && !p.launch?.comingSoon),
+    stock: isStock,
+    stockQty: isStock ? (p.stock?.total ?? null) : null,
+    description: p.description ?? null,
     launch: p.launch ?? null,
+    pix: p.price?.pix !== false,
+    installmentsLabel: p.price?.installments?.label || null,
     color: PALETTE[i % PALETTE.length],
     img: p.images?.[0] || "",
     nikeUrl: p.nikeUrl ?? null

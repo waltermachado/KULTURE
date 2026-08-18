@@ -2,6 +2,8 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { Routes, Route, useNavigate, useLocation } from "react-router-dom";
 import Header from "./components/Header.jsx";
 import Home from "./pages/Home.jsx";
+import Stock from "./pages/Stock.jsx";
+import ModeBar from "./components/ModeBar.jsx";
 import Checkout from "./pages/Checkout.jsx";
 import Confirmation from "./pages/Confirmation.jsx";
 import MockInfinitePay from "./pages/MockInfinitePay.jsx";
@@ -29,6 +31,8 @@ export default function App() {
   const navigate = useNavigate();
   const location = useLocation();
   const isAdminArea = location.pathname === "/admin" || location.pathname.startsWith("/admin/");
+  // seletor Importados × Pronta entrega só nas duas páginas de vitrine
+  const showModeBar = location.pathname === "/" || location.pathname.startsWith("/pronta-entrega");
   const cart = useCart();
   const auth = useAuth();
   const [grid, setGrid] = useState({ status: "loading", products: [], title: TOP8_TITLE, sub: TOP8_SUB, query: "" });
@@ -37,6 +41,9 @@ export default function App() {
   const [selectedProductForSize, setSelectedProductForSize] = useState(null);
   const [toast, setToast] = useState({ message: "", visible: false });
   const toastTimer = useRef(null);
+  const pageRef = useRef(null);      // wrapper das rotas — é ele que desliza na transição EUA ⇄ BR
+  const pageAnims = useRef([]);
+  const switchToken = useRef(0);
 
   const notify = useCallback((message) => {
     setToast({ message, visible: true });
@@ -113,6 +120,44 @@ export default function App() {
     notify("Adicionado ao carrinho! 🔥");
   };
 
+  /**
+   * Transição entre as vitrines (opção C): a página atual sai para um lado (EUA→BR desliza para a esquerda,
+   * BR→EUA para a direita) e a nova entra do lado oposto, enquanto o avião voa na ModeBar. Sobe ao topo na troca.
+   * Um novo clique cancela a animação em curso; com prefers-reduced-motion só troca a rota.
+   */
+  const switchMode = useCallback(async (to, dir, { animate = true } = {}) => {
+    const el = pageRef.current;
+    const token = ++switchToken.current; // um clique novo invalida o anterior
+    const stale = () => switchToken.current !== token;
+    pageAnims.current.forEach((a) => { try { a.cancel(); } catch { /* ok */ } });
+    pageAnims.current = [];
+    const goTo = () => { navigate(to); window.scrollTo({ top: 0, behavior: "instant" }); };
+    if (!animate || !el || typeof el.animate !== "function") { goTo(); return; }
+    // resolve quando a animação termina OU por tempo — numa aba oculta o navegador não dispara o "finish"
+    const settle = (anim, ms) => Promise.race([anim.finished.catch(() => {}), new Promise((r) => setTimeout(r, ms))]);
+    const dx = dir === "east" ? -1 : 1; // sai para a esquerda quando vai para o Brasil (leste na barra)
+    const dist = window.innerWidth < 640 ? 36 : 48;
+    const easing = "cubic-bezier(.4,0,.2,1)";
+    const out = el.animate(
+      [{ transform: "translateX(0)", opacity: 1 }, { transform: `translateX(${dx * dist}px)`, opacity: 0 }],
+      { duration: 260, easing, fill: "forwards" }
+    );
+    pageAnims.current.push(out);
+    await settle(out, 320);
+    if (stale()) return;
+    goTo();
+    const inn = el.animate(
+      [{ transform: `translateX(${-dx * dist}px)`, opacity: 0 }, { transform: "translateX(0)", opacity: 1 }],
+      { duration: 400, easing, fill: "both" }
+    );
+    pageAnims.current.push(inn);
+    await settle(inn, 460);
+    if (stale()) return;
+    // libera o transform/opacity (fill) — não deixa containing block em position:fixed nem página presa invisível
+    try { out.cancel(); inn.cancel(); } catch { /* ok */ }
+    pageAnims.current = [];
+  }, [navigate]);
+
   const handleLogout = async () => {
     await auth.logout();
     notify("Você saiu da conta");
@@ -133,8 +178,11 @@ export default function App() {
           onLogout={handleLogout}
         />
       )}
+      {showModeBar && <ModeBar onSwitch={switchMode} />}
+      <div className="page-view" ref={pageRef}>
       <Routes>
         <Route path="/" element={<Home grid={grid} setSelectedProductForSize={setSelectedProductForSize} onSearch={(q) => { search(q); document.getElementById("drops")?.scrollIntoView({ behavior: "smooth" }); }} />} />
+        <Route path="/pronta-entrega" element={<Stock setSelectedProductForSize={setSelectedProductForSize} onSearch={(q) => { search(q); navigate("/"); }} />} />
         <Route path="/checkout" element={<Checkout cart={cart} auth={auth} notify={notify} />} />
         <Route path="/pedido/confirmacao" element={<Confirmation auth={auth} />} />
         <Route path="/pedido/confirmacao/:number" element={<Confirmation auth={auth} />} />
@@ -143,6 +191,7 @@ export default function App() {
         <Route path="/redefinir-senha" element={<ResetPassword auth={auth} onOpenLogin={() => openModal("login")} />} />
         <Route path="/admin/*" element={<AdminApp auth={auth} onOpenLogin={() => openModal("login")} notify={notify} />} />
       </Routes>
+      </div>
       {!isAdminArea && <Footer onOpenModal={openModal} onSearch={(q) => { search(q); navigate('/'); }} />}
 
       <div className={`overlay${overlayOpen ? " open" : ""}`} onClick={closeAll} />

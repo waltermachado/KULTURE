@@ -33,16 +33,25 @@ export default function Header({ cartCount, onOpenCart, onOpenLogin, onSearch, u
         </a>
         <nav className="nav-tabs" aria-label="Categorias">
           {TABS.map((t) => (
-            <button key={t.label} className={active === t.label ? "active" : ""} onClick={() => tab(t)}>
+            <button key={t.label} className={active === t.label && location.pathname === "/" ? "active" : ""} onClick={() => tab(t)}>
               {t.label}
             </button>
           ))}
         </nav>
+        {/* filho direto da grade: no desktop fica entre as abas e as ações; no mobile (≤640px) desce para uma 2ª linha, largura total */}
+        <form className="search-box" onSubmit={submit} role="search">
+          <input
+            type="search"
+            value={q}
+            onChange={(e) => setQ(e.target.value)}
+            placeholder="Buscar modelo"
+            autoComplete="off"
+            enterKeyHint="search"
+            aria-label="Buscar modelo"
+          />
+          <button type="submit" title="Buscar" aria-label="Buscar">→</button>
+        </form>
         <div className="nav-actions">
-          <form className="search-box" onSubmit={submit} role="search">
-            <input type="search" value={q} onChange={(e) => setQ(e.target.value)} placeholder="Buscar modelo" autoComplete="off" aria-label="Buscar modelo" />
-            <button type="submit" title="Buscar" aria-label="Buscar">→</button>
-          </form>
           {user ? (
             <div className="user-menu">
               {isAdmin && (

@@ -11,6 +11,8 @@ import OrderDetail from "./OrderDetail.jsx";
 import Deliveries from "./Deliveries.jsx";
 import Customers from "./Customers.jsx";
 import CustomerDetail from "./CustomerDetail.jsx";
+import Stock from "./Stock.jsx";
+import StockForm from "./StockForm.jsx";
 
 export default function AdminApp({ auth, onOpenLogin, notify }) {
   const navigate = useNavigate();
@@ -69,6 +71,7 @@ export default function AdminApp({ auth, onOpenLogin, notify }) {
           <NavLink to="/admin/pedidos">Pedidos {pending ? <span className="n">{pending}</span> : null}</NavLink>
           <NavLink to="/admin/entregas">Entregas {toShip ? <span className="n">{toShip}</span> : null}</NavLink>
           <NavLink to="/admin/clientes">Clientes</NavLink>
+          <NavLink to="/admin/estoque">Pronta entrega</NavLink>
         </nav>
         <div className="adm-side-foot">
           <b title={auth.user.email}>{auth.user.name}</b>
@@ -88,6 +91,9 @@ export default function AdminApp({ auth, onOpenLogin, notify }) {
           <Route path="entregas" element={<Deliveries auth={auth} notify={notify} />} />
           <Route path="clientes" element={<Customers auth={auth} />} />
           <Route path="clientes/:id" element={<CustomerDetail auth={auth} notify={notify} />} />
+          <Route path="estoque" element={<Stock auth={auth} />} />
+          <Route path="estoque/novo" element={<StockForm auth={auth} notify={notify} />} />
+          <Route path="estoque/:id" element={<StockForm auth={auth} notify={notify} />} />
           <Route path="*" element={<Navigate to="/admin" replace />} />
         </Routes>
       </main>

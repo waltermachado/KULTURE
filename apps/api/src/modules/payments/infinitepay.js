@@ -19,7 +19,8 @@ export function createInfinitePayGateway(env, log) {
   }
 
   return {
-    async createCheckoutLink(order) {
+    async createCheckoutLink(order, { webUrl } = {}) {
+      const siteUrl = webUrl || env.PUBLIC_WEB_URL;
       // 100 centavos = R$ 1,00
       const items = order.items.map(item => ({
         description: `${item.name} — tam. BR ${item.brLabel || item.nikeSize} (US ${item.nikeSize})`,
@@ -32,7 +33,7 @@ export function createInfinitePayGateway(env, log) {
         order_nsu: order.number,
         items,
         // sem query string: a InfinitePay anexa ?transaction_nsu=&slug=&capture_method=&receipt_url=&order_nsu=
-        redirect_url: `${env.PUBLIC_WEB_URL}/pedido/confirmacao/${encodeURIComponent(order.number)}`,
+        redirect_url: `${siteUrl}/pedido/confirmacao/${encodeURIComponent(order.number)}`,
       };
 
       if (!env.PUBLIC_API_URL.includes('localhost')) {

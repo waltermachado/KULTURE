@@ -89,7 +89,7 @@ describe("apps/api", () => {
     expect(res.json().code).toBe("VALIDATION_ERROR");
   });
 
-  it("GET /api/search precifica no core (30% + US$65) e cacheia", async () => {
+  it("GET /api/search precifica no core ((USD×1,07+65)×turismo×1,30 ↑99) e cacheia", async () => {
     const first = await app.inject({ method: "GET", url: "/api/search?q=Kobe%206" });
     expect(first.statusCode).toBe(200);
     const body = first.json();
@@ -99,12 +99,16 @@ describe("apps/api", () => {
     const p = body.products[0];
     expect(p.brand).toBe("Nike");
     expect(p.category).toBe("basketball");
-    // (190 + 65) * 5 = 1275 → +30% = 1657.5
-    expect(p.price.brl).toBe(1657.5);
+    // scraper fake dá só o comercial (5) → turismo = 5 + 0,25 (fallback) = 5,25
+    // (190×1,07 + 65) = 268,30 × 5,25 = 1408,58 → +30% = 1831,15 → arredonda ↑ até …99 = 1899
+    expect(p.price.brl).toBe(1899);
     // regra do negócio: frete/comissão são embutidos — o breakdown NUNCA sai na resposta pública
     expect(p.price.breakdown).toBeUndefined();
     expect(p.price.rulesApplied).toBeUndefined();
-    expect(p.price.exchange.usdToBrl).toBe(5);
+    expect(p.price.exchange.usdToBrl).toBe(5.25);
+    expect(p.price.exchange.kind).toMatch(/turismo/);
+    expect(p.price.pix).toBe(true);
+    expect(p.price.installments.label).toMatch(/^em até \d+x no cartão$/);
 
     const second = await app.inject({ method: "GET", url: "/api/search?q=kobe%206" });
     expect(second.json().cached).toBe(true);

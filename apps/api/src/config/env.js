@@ -86,6 +86,10 @@ const schema = z.object({
     .string()
     .default("true")
     .transform((v) => !["false", "0", "no"].includes(v.toLowerCase())),
+  // texto "em até Nx no cartão" mostrado ao lado do preço Pix (o juro/parcelas reais são configurados na conta InfinitePay)
+  MAX_INSTALLMENTS: z.coerce.number().int().positive().default(12),
+  // dólar turismo: vem do scraper (AwesomeAPI USD-BRLT); se faltar, comercial + este spread (R$ por dólar)
+  RATE_TOURISM_SPREAD_BRL: z.coerce.number().nonnegative().default(0.25),
   // produto virtual "test123test" (R$ 1,00) para testar o pagamento real; desligue após validar
   TEST_PRODUCT_ENABLED: z
     .string()
@@ -100,6 +104,8 @@ const schema = z.object({
   // (RAILWAY_PUBLIC_DOMAIN) e, por último, localhost.
   PUBLIC_WEB_URL: publicUrl("http://localhost:5173"),
   PUBLIC_API_URL: publicUrl("http://localhost:3000"),
+  // hosts extras aceitos como URL de retorno do pagamento (além dos dois acima e do domínio do Railway)
+  PUBLIC_WEB_HOSTS: z.string().default("lojakulture.com.br,www.lojakulture.com.br").transform(csv),
 
   // ---- notifications ----
   // ---- e-mail transacional (MailerSend via API HTTP) ----
@@ -111,6 +117,13 @@ const schema = z.object({
 
   WHATSAPP_PROVIDER: z.enum(["log", "evolution"]).default("log"),
   WHATSAPP_TO: z.string().default(""), // Opcional no mock
+  // WhatsApp de ATENDIMENTO mostrado no site ("não achou o tênis? chama a gente"): DDI+DDD+número, só dígitos.
+  // Vazio = o botão não aparece. Independe do WHATSAPP_PROVIDER (que é o envio de notificações).
+  WHATSAPP_CONTACT_PHONE: z
+    .string()
+    .default("")
+    .transform((v) => String(v).replace(/\D/g, ""))
+    .refine((v) => v === "" || (v.length >= 10 && v.length <= 15), { message: "WHATSAPP_CONTACT_PHONE: use DDI+DDD+número, só dígitos (ex.: 5511999998888)" }),
   EVOLUTION_URL: z.string().url().default("http://localhost:8080"),
   EVOLUTION_INSTANCE: z.string().default("instance"),
   EVOLUTION_APIKEY: z.string().default(""),

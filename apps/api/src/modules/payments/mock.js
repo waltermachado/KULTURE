@@ -2,10 +2,11 @@ import crypto from 'crypto';
 
 export function createMockGateway(env, log) {
   return {
-    async createCheckoutLink(order) {
+    async createCheckoutLink(order, { webUrl } = {}) {
+      const siteUrl = webUrl || env.PUBLIC_WEB_URL;
       // Retorna uma URL local para simular a aprovação/recusa
       const mockSlug = `mock_slug_${crypto.randomBytes(4).toString('hex')}`;
-      const url = `${env.PUBLIC_WEB_URL}/mock/infinitepay/${encodeURIComponent(order.number)}?slug=${mockSlug}`;
+      const url = `${siteUrl}/mock/infinitepay/${encodeURIComponent(order.number)}?slug=${mockSlug}`;
       log?.info({ orderNumber: order.number, url }, 'MockGateway: createCheckoutLink');
       return { url, providerRef: mockSlug };
     },

@@ -17,7 +17,12 @@ export async function orderRoutes(app) {
       // Guest
     }
 
-    return orders.checkout({ items, customer, address }, idempotencyKey, userId);
+    // origem que o cliente está usando (lojakulture.com.br ou o domínio do Railway) → redirect volta para ela
+    const proto = String(req.headers['x-forwarded-proto'] || req.protocol || 'https').split(',')[0].trim();
+    const host = String(req.headers['x-forwarded-host'] || req.headers.host || '').split(',')[0].trim();
+    const webOrigin = req.headers.origin || (host ? `${proto}://${host}` : null);
+
+    return orders.checkout({ items, customer, address }, idempotencyKey, userId, { webOrigin });
   });
 
   app.post('/api/orders/:number/confirm', async (req) => {

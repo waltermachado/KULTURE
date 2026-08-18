@@ -1,192 +1,238 @@
-# Kulture BR — Contexto completo do projeto (sessão de 15/08/2026)
+# Kulture BR — Contexto de handoff (sessões de 16/08 e 17/08/2026)
 
-> Documento de handoff: tudo o que foi decidido, construído, testado e o que falta. Serve para retomar o trabalho
-> em qualquer ferramenta (Claude Code, Antigravity, TRAE) sem depender do histórico da conversa.
-> **Não contém segredos.** Tokens/senhas ficam só nos `.env` (fora do git) e no painel do Railway.
-
----
-
-## 1. O que é o produto
-
-**Kulture BR** — loja de tênis importados originais (Nike US), foco em basquete/casual/corrida.
-Cliente busca o modelo, escolhe o **tamanho em numeração brasileira**, coloca na sacola, paga via **InfinitePay
-(CloudWalk)** por link de pagamento e recebe confirmação. O preço em BRL já embute frete internacional e comissão —
-o cliente **nunca vê frete como custo** (checkout mostra "Frete: Grátis").
-
-Regras de negócio fixadas pelo dono (não voltar a perguntar):
-- **Preço** = (USD do produto + US$65 de frete por par) × câmbio × (1 + 30% comissão) [+ imposto/taxa parametrizáveis, hoje 0].
-  Regras são modulares por escopo (global/brand/category/model/sku) e comissão pode ser por faixa de preço.
-- **Frete é valor embutido**, por par. Nunca aparece como linha de custo; se aparecer, "Grátis". Assunto encerrado.
-- **Checkout como convidado** liberado; se logado, pedido fica vinculado ao usuário e o perfil é atualizado.
-- **Breakdown interno** (frete/comissão/câmbio/regras) **nunca sai na API pública** — só `price.brl`, `price.fullBrl`, `price.exchange.usdToBrl`.
-- **Bling (NF-e) e WhatsApp: adiados** (após o painel Admin). WhatsApp fica em `WHATSAPP_PROVIDER=log`.
-- E-mail transacional: **MailerSend via API HTTP** (não SMTP).
-- Gateway: **InfinitePay** (não "Cloudwalk" no env — o valor aceito é `infinitepay`).
+> Documento para retomar o trabalho em qualquer ferramenta (Claude Code, Antigravity, TRAE) sem depender do
+> histórico da conversa. **Sem segredos** — tokens/senhas ficam só nos `.env` (fora do git) e no painel do Railway.
+> Substitui o handoff de 15/08.
 
 ---
 
-## 2. Onde está o código
+## 1. Produto e regras fixas do dono
+
+**Kulture BR** — loja de tênis Nike US importados. Cliente busca o modelo, escolhe o tamanho em **numeração BR**,
+coloca na sacola, paga via **InfinitePay** (link de pagamento) e recebe confirmação. Checkout como convidado ou logado.
+
+Regras que não voltam a ser discutidas:
+- **Preço em BRL fechado, frete embutido** — o cliente nunca vê frete como custo (se aparecer, "Grátis").
+- **Breakdown de preço** (câmbio, frete, comissão, regras) **nunca sai na API pública** — só `price.brl`, `price.fullBrl`,
+  `price.exchange.usdToBrl`, `price.pix`, `price.installments.label`.
+- **Bling (NF-e) e WhatsApp: adiados.** WhatsApp fica em `WHATSAPP_PROVIDER=log`.
+- E-mail transacional: **MailerSend via API HTTP**. Gateway: **InfinitePay** (`PAYMENT_PROVIDER=infinitepay`).
+
+### Precificação (decidida em 16/08 — implementada, aguardando push; ver §3)
+
+```
+Preço Pix = arredondar↑ até …99 ( [ (USD × 1,07 + 65) × dólar TURISMO ] × 1,30 )
+```
+- 7% incide **só sobre o preço do tênis** (antes do frete); frete US$ 65 por par; comissão 30% sobre o total.
+- Arredonda **para cima** até o próximo valor terminado em 99: 1714→1799 · 1880→1899 · 1899 fica · 1900→1999.
+- **Dólar turismo** = AwesomeAPI par `USD-BRLT` (ask). Fallback quando faltar: **comercial + R$ 0,25** (`RATE_TOURISM_SPREAD_BRL`).
+- Site mostra o preço grande com selo **"no Pix"** e, pequeno, **"ou em até Nx no cartão"** (`MAX_INSTALLMENTS`, padrão 12).
+  ⚠️ O dono escreveu "12x" e "até 5 vezes" — **confirmar qual**; se 5, `MAX_INSTALLMENTS=5` no Railway.
+- Parcelas/juros reais são **configuração da conta InfinitePay** (a API do link não tem campo). O admin mostra
+  "juros repassados ao cliente: +R$ Y" quando `paid_amount > amount` (só aparece em pagamento no cartão parcelado).
+- Regras vivem em `packages/shared/src/pricing/default-rules.js` (`productSurchargeRate`, `shippingUsd`, `commission`,
+  `roundUpToEnding`); modulares por escopo global/brand/category/model/sku.
+- Produto virtual `test123test` (R$ 1,00) fica fora da fórmula.
+
+---
+
+## 2. Código e forma de trabalhar
 
 - **Repo:** `~/Desktop/KULTURE` → GitHub `waltermachado/KULTURE`, branch `main`.
-- Landing antiga (clara, Tailwind) em `~/Desktop/Projetos Trae/BuscadorTenis` é **só origem histórica** — não editar.
 - Monorepo npm workspaces:
 
 ```
-apps/web               React 19 + Vite (SEM Tailwind; CSS próprio em src/styles/kulture.css)     dev :5173/5174
-apps/api               "kulture-core": Fastify 5 + Prisma 6 / Postgres                          :3000 (serve o front em prod)
-services/nike-scraper  Express — único que fala com a Nike US (endpoints não-oficiais)          :3001 (privado)
-packages/shared        motor de preço (pricing/) + conversão de tamanhos US→BR (sizes/)
-deploy/                Dockerfiles (api, scraper), entrypoint, railway.*.json
-docs/                  PLANO.md (fases), DEPLOY.md (Railway), CONTEXTO.md (este), reference/ (site vanilla antigo, esboço)
+apps/web               React 19 + Vite, CSS próprio (src/styles/kulture.css + admin.css)     dev :5173
+apps/api               Fastify 5 + Prisma 6/Postgres; em prod serve o front (apps/web/dist)   :3000
+services/nike-scraper  Express — único que fala com a Nike US (endpoints não-oficiais)        :3001 (privado)
+packages/shared        pricing/ (motor de preço) + sizes/ (US→BR por lookup)
+deploy/                Dockerfiles (api, scraper), api-entrypoint.sh (prisma migrate deploy), railway.*.json
+docs/                  DEPLOY.md (Railway; §6b InfinitePay), CONTEXTO.md (este), PLANO.md
 ```
 
-Ferramentas: o dono usa **Antigravity** para commit/push (e às vezes implementar fases por prompt); Claude Code
-implementa/audita e **não commita** (regra do dono). Antigravity commita como `waltermachado@users.noreply.github.com`.
+- **Fluxo:** Claude Code implementa/audita e **não commita**. O dono cola um prompt no **Antigravity**, que confere
+  `git status --short` (sem `.env`/storage/dist), faz `git add -A`, commit com a mensagem dada, `git push origin main`
+  e devolve o hash. O dono **testa a UI ele mesmo** — validar por curl, testes automatizados e build; não fazer
+  fluxos longos no navegador embutido. Não usar o Chrome do dono.
 
 ---
 
-## 3. Arquitetura (produção)
+## 3. Estado do git
+
+- Último commit no GitHub: **`632cce4`** — só tênis na busca, pré-venda/lançamento, produto `test123test`.
+- **Pendente de commit** (28 arquivos modificados, nenhum novo — incl. este `docs/CONTEXTO.md`): nova precificação
+  (turismo, 7%, ↑99), selo "no Pix" + "em até 12x", redirect do pagamento no domínio do cliente, admin com "juros
+  repassados", testes atualizados (api 39/39, shared 17/17), build ok. **17/08 (mobile):** barra de busca visível no
+  celular (2ª linha do topo, largura total, `font-size:16px` para não dar zoom no iOS; `Header.jsx` — o form virou filho
+  direto de `.nav-inner`), hero empilhado mostra **foto antes do nome** (`.hero-stage{order:-1}` em ≤1024px), e fix de
+  um TDZ no `CartDrawer.jsx` (`list` usado antes do destructuring — derrubava a página inteira). Mensagem sugerida:
+
+  `feat(pricing): nova fórmula — (USD×1,07 + 65) × dólar turismo × 1,30, arredondado ↑ até …99; preço "no Pix" + "em até 12x no cartão"; fix(payments): redirect_url no domínio usado pelo cliente; feat(web): busca no mobile + hero com foto antes do nome; fix(web): TDZ no CartDrawer`
+
+- **17/08 (noite) — também pendente, NÃO subir ainda (dono pediu para segurar o push):** pronta entrega + WhatsApp (ver §5b).
+  Novos arquivos: `apps/api/prisma/migrations/20260817233408_stock_products/`, `apps/api/src/modules/stock/{service,routes,admin-routes}.js`,
+  `apps/api/src/modules/config/routes.js`, `apps/api/test/stock.test.js`, `apps/web/src/{pages/Stock.jsx, components/ModeBar.jsx,
+  components/WhatsappCta.jsx, hooks/useSiteConfig.js, admin/Stock.jsx, admin/StockForm.jsx}`. Testes: api **48/48** (39 + 9 novos), build ok.
+  Mensagem sugerida para esse bloco:
+
+  `feat(stock): pronta entrega — produtos em estoque próprio (BO /admin/estoque com preço/descrição/fotos/tamanhos), página /pronta-entrega, seletor Importados × Pronta entrega, reserva de estoque por tamanho no checkout; feat(web): CTA "não achou? chama no WhatsApp" na busca (/api/config + WHATSAPP_CONTACT_PHONE); feat(web): transição avião EUA ⇄ BR entre as vitrines`
+
+  **Transição de avião EUA ⇄ BR** (opção **C**, aprovada pelo dono em 17/08): implementada em `ModeBar.jsx` (voo do avião
+  entre as bandeiras + rastro + bloco amarelo deslizando, `~0,7s`) e `App.jsx` (`switchMode`: a página atual sai para um lado
+  e a nova entra do outro, sobe ao topo; wrapper `.page-view`). `prefers-reduced-motion` → troca seca; clique novo cancela o
+  anterior (token); numa aba oculta a troca acontece por timeout (o navegador não dispara o "finish" da animação).
+
+---
+
+## 4. Deploy — Railway (projeto "glorious-trust", ambiente production)
 
 ```
-Internet ──► kulture-api (Railway, público)  ── serve apps/web/dist + /api + /media  (mesma origem, sem CORS)
+Internet ──► kulture-api (público)  serve apps/web/dist + /api + /media (mesma origem, sem CORS)
                  │ rede privada IPv6
-                 ├► kulture-scraper (Railway, sem domínio)  ── Nike US product_wall + threads/v3
-                 └► Postgres (plugin Railway)               ── DATABASE_URL (Supabase foi abandonado)
+                 ├► kulture-scraper (sem domínio)  http://kulture-scraper.railway.internal:3001
+                 └► Postgres (plugin)               DATABASE_URL
 ```
 
-- Front servido pela api via `apps/api/src/plugins/serve-web.js` (SPA fallback; `/assets` cache 1 ano; `index.html` no-cache).
-- `deploy/api-entrypoint.sh`: `prisma migrate deploy` (usa `DIRECT_URL` ou cai em `DATABASE_URL`) → `node apps/api/src/server.js`.
-- `TRUST_PROXY=true` no Dockerfile (rate limit por IP real atrás do proxy).
-- Cloudflare: **só DNS + proxy** na frente do Railway quando houver domínio (`www.lojakulture.com.br` → CNAME). **Não** hospedar o front no Cloudflare/Pages/Workers nem a api no Supabase Edge (quebra mesma origem/cookies; api precisa de Node com fs, argon2, processo vivo).
+- **Site: `https://lojakulture.com.br`** (custom domain OK). `www.lojakulture.com.br` não resolve (falta CNAME +
+  custom domain no Railway). O domínio `kulture-api-production.up.railway.app` também responde; o `-9eea` dá 502 (apagar).
+- `curl …/health` → `paymentProvider` (mock|infinitepay), `mailProvider`, `storageWritable`; `…/health/deps` → scraper
+  `ok/url/cause` (tabela de diagnóstico em `docs/DEPLOY.md` §3).
+- Em 16/08: `paymentProvider: infinitepay`, `mailProvider: mailersend`, `storageWritable: false`, scraper ok.
+- **Pagamento real de R$ 1 funcionou** (Pix, via `test123test`). O redirect voltou no domínio Railway porque
+  `PUBLIC_WEB_URL` apontava para lá → corrigido no código (usa o domínio que o cliente estava usando, com allowlist)
+  **e** o dono deve trocar as variáveis (abaixo).
+- Câmbio: AwesomeAPI devolve 429 no IP compartilhado do Railway → scraper cai para Frankfurter/open.er-api (só
+  comercial) e o turismo vira comercial + 0,25 nesses momentos.
+- Rede privada: scraper escuta em `[::]:3001` (log mostra "rede privada: http://…railway.internal:3001").
+
+### Variáveis (`kulture-api`) — mudar e clicar **Deploy**
+
+| Objetivo | Variável |
+|---|---|
+| Links de e-mail/reset/redirect/webhook no domínio certo | `PUBLIC_WEB_URL=https://lojakulture.com.br` e `PUBLIC_API_URL=https://lojakulture.com.br` |
+| Imagens gravadas no volume (hoje vêm da Nike) | `RAILWAY_RUN_UID=0` |
+| Frase de parcelamento | `MAX_INSTALLMENTS=12` (ou 5) |
+| WhatsApp de atendimento no site ("não achou? chama a gente") | `WHATSAPP_CONTACT_PHONE=5585992578888` (DDI+DDD+número; sem ela usa o do rodapé) |
+| Desligar o produto de teste após validar | `TEST_PRODUCT_ENABLED=false` |
+| Admins do backoffice | `ADMIN_EMAILS=email1,email2` |
+| Limpeza | remover `RAILWAY_PRIVATE_DOMAIN` criada à mão no serviço da api |
+| **Segurança** | rotacionar `JWT_SECRET` (`openssl rand -base64 48`, desloga todo mundo) e o token MailerSend — ambos apareceram no chat |
+
+Demais variáveis: `DATABASE_URL=${{Postgres.DATABASE_URL}}`, `SCRAPER_URL=http://kulture-scraper.railway.internal:3001`,
+`INFINITEPAY_HANDLE=<InfiniteTag sem $>`, `MAIL_PROVIDER=mailersend`, `MAILERSEND_API_TOKEN`, `MAIL_FROM`, `MAIL_FROM_NAME`,
+`TOP8_TERMS`, `TOP8_WARM=true`, `CACHE_FRESH_MIN=60`, `CACHE_STALE_MIN=1440`, `SIZES_CACHE_MIN=10`, `JWT_EXPIRES_IN=15m`,
+`REFRESH_EXPIRES_DAYS=7`, `LOG_LEVEL=info`, `WHATSAPP_PROVIDER=log`, `RATE_TOURISM_SPREAD_BRL=0.25`.
+`kulture-scraper`: `NIKE_SEARCH_URL`, `NIKE_CHANNEL_ID`, `NIKE_CALLER_ID`, `PRODUCT_CACHE_TTL_MIN=60`, `RATE_CACHE_TTL_MIN=60`,
+`CORS_ORIGINS=*`, `RATE_TOURISM_SPREAD_BRL=0.25` (opcional: `RATE_STALE_MAX_HOURS`, `RATE_FAIL_BACKOFF_SEC`, `RATE_FALLBACK_USD_BRL`).
 
 ---
 
-## 4. Fluxos implementados
+## 5. O que foi construído em 16/08 (tudo no ar, exceto o pendente do §3)
 
-### Catálogo
-- `GET /api/search?q=` · `GET /api/products/top8` · `GET /api/product/:styleColor` (com `sizes[]`) · `GET /api/rate` · `/media/produtos/*` (imagens espelhadas em `apps/api/storage/produtos/<styleColor>/`, fora do git; volume no Railway).
-- Scraper: `GET /search?q=&count=` (Nike só aceita `count` 24|50|100 — normalizado), `GET /product/:styleColor` (threads/v3 com `filter=channelId(...)`; disponibilidade em **`availableGtins`** por `gtin`; SKU ausente = indisponível), `GET /rate` (AwesomeAPI). Preserva `productType` (FOOTWEAR/APPAREL) — base do filtro só-tênis (ainda não aplicado).
-- Cache SWR (fresco 60 min, stale 24 h, single-flight) persistido na tabela `cache_entries`; tamanhos com TTL curto `SIZES_CACHE_MIN=10`.
-- Conversão US→BR por **lookup** (`packages/shared/src/sizes/`), tabelas oficiais Nike Brasil (masc/fem/infantil) + tabela "aproximados" com flag `approximate` (US 13.5+, alguns infantis). Escala pelo prefixo de `localizedSize` ("M "/"W ").
-- Top8: `TOP8_TERMS` (Nike US usa numerais romanos: Kobe IX, LeBron XXIII); `findOne` pontua por tokens e dedupe por styleColor.
+**Backoffice `/admin`** (exige `role=admin`; `ADMIN_EMAILS` promove no login/cadastro, ou `npm run admin:make -w apps/api -- email`):
+dashboard financeiro (receita, ticket médio, conversão, custo/margem estimados pelo breakdown dos itens, série diária,
+top produtos, pagamentos por método), pedidos (filtros, detalhe com itens/eventos/notificações, transições de status
+com rastreio + e-mail ao cliente, notas internas, reconsultar `payment_check`, reenviar e-mail, baixa manual),
+entregas (fila com ações inline), clientes (lista com gasto e último acesso; detalhe com edição de cadastro/role,
+pedidos incl. convidado por e-mail, link de redefinição de senha, revogar sessões, **acessos** com IP/navegador).
 
-### Auth (própria, não Supabase Auth)
-- `POST /api/auth/register|login|refresh|logout`, `GET /api/auth/me`. argon2, JWT 15 min (`sub` = id), refresh em cookie httpOnly `kulture_refresh` (path `/api/auth`) com **rotação** e detecção de reuso por `family`; refresh gravado como sha256. Rate limit 10/min em login/register. E-mail normalizado (trim+lower).
-- `User` tem `phone` e `address` (JSON); cadastro envia telefone/endereço; checkout pré-preenche do perfil e **atualiza o perfil** ao finalizar.
+**Conta do cliente:** `/conta` (editar cadastro, trocar senha, meus pedidos com rastreio), "esqueci minha senha" real
+(token uso único 60 min → `/redefinir-senha`), botão mostrar/ocultar senha em todos os campos, rastrear pedido no modal,
+tabela `login_events` + `users.last_login_at`, pedido de convidado vinculado à conta pelo e-mail (sem alterar perfil).
 
-### Sacola / Checkout / Pedido
-- Carrinho local (`localStorage kulture:cart:v2`), chave `styleColor|nikeSize`, item guarda `sizeInfo` (BR/US/approximate).
-- `POST /api/checkout` (Idempotency-Key obrigatório; reprecifica no servidor; convidado ou logado via Bearer) → cria `Order(pending_payment)` + itens + evento → gateway cria link → responde `{orderNumber, checkoutUrl, totalBrl, shipping:"free"}`.
-- Gateway `PAYMENT_PROVIDER=mock|infinitepay`. Mock redireciona para página local `/mock/infinitepay/:number` (Aprovar Pix/Cartão/Voltar). Real: `POST https://api.checkout.infinitepay.io/links` (handle `kulture-br`, price em centavos, customer+address, redirect_url `/pedido/confirmacao?order=`, webhook_url só se `PUBLIC_API_URL` não for localhost); confirmação por `POST .../payment_check`.
-- `/pedido/confirmacao` lê `transaction_nsu/slug/capture_method/receipt_url` da URL, chama `POST /api/orders/:number/confirm` (payment_check) e faz polling de `GET /api/orders/:number`. Webhook `POST /api/webhooks/infinitepay` idempotente.
-- Job de checkout abandonado (`ABANDON_AFTER_MIN`) e notificações (`notifications` table; provider `log`).
-- E-mail de "pedido pago" ao cliente via MailerSend (`MAIL_PROVIDER=mailersend`, `MAIL_FROM` precisa de domínio verificado; falha nunca derruba o fluxo).
+**Segurança:** `GET /api/orders/:number` mascarado para convidado (sem CPF/e-mail/telefone/endereço); dono/admin veem tudo.
 
-### Front (tema atual = Claude Design do cliente, arquivo `~/Downloads/KultureBR.dc.html`)
-- Archivo 800 caixa-alta; `#0B0B0B/#FFD31F/#F4F2ED`; hairlines; cantos retos.
-- Nav (logo PNG em `apps/web/public/logo.png`, abas Início/Basquete/Casual/Corrida, busca, Entrar, Sacola) · Hero editorial com o 1º produto do top8 e o par flutuando · ticker · grid 3 col com hover amarelo e "Escolher tamanho →" · categorias · poster "Garantia Kulture" · rodapé com contato do cliente ((85) 99257-8888, contato@kulturebr.com, CNPJ 64.579.440/0001-28).
-- SizePicker: modal largo, foto do tênis, BR grande com US embaixo, "Aprox." sinalizado.
-- Copy que **não** foi usada (promessas que hoje não cumprimos): Sedex 2–4 dias, desconto Pix, NF no CPF, troca 7 dias.
+**Catálogo:** busca da Nike segue o redirect (`analyzer.action.redirectUrl` — "kobe" voltava vazio); **só FOOTWEAR**
+(roupas/meias fora; pede 50 à Nike); fotos **recortadas** (URL da CDN reescrita para `w_1000,f_webp,q_auto/<id>` —
+remove a camada de fundo; espelho `v2-*.webp` em paralelo); **galeria** no seletor de tamanho (até 8 ângulos, setas,
+miniaturas, teclado); **pré-venda/lançamento** (`product.launch {isLaunch, comingSoon, date, label, bestSeller, justIn}` a
+partir de `badgeAttribute`/`featuredAttributes`/`launchView.startEntryDate` — Kobe 10 lança 23/08/2026 14:00 UTC; selo
+PRÉ-VENDA no card/hero, data no seletor, tag na sacola/checkout — fluxo de compra igual); caches nunca guardam resultado
+vazio; chaves versionadas (`search/top8/sizes:v5`, `rate:USD-BRL:v2`).
 
-### Backoffice `/admin` (sessão 16/08/2026)
-- **Acesso**: `User.role = admin`. Bootstrap por `ADMIN_EMAILS=a@x.com,b@y.com` (promove no login/cadastro/refresh) ou
-  `npm run admin:make -w apps/api -- email` (`--revoke` rebaixa). Guard `requireAdmin` (`apps/api/src/lib/guards.js`) confere o role **no banco** a cada chamada.
-- **API** `apps/api/src/modules/admin/` (`routes.js` + `service.js`): `GET /api/admin/me|dashboard?days|orders|orders/:number|customers|customers/:id`,
-  `PATCH /api/admin/orders/:number` (status/rastreio/notas → `OrderEvent` com autor + e-mail ao cliente), `POST …/recheck` (payment_check de novo),
-  `POST …/resend-email`, `PATCH /api/admin/customers/:id` (cadastro/role), `POST …/password-reset` (gera link + e-mail; devolve o link para repassar por WhatsApp),
-  `POST …/revoke-sessions`.
-- **Transições** (`ORDER_TRANSITIONS`): pending_payment→paid (baixa manual)|cancelled|abandoned · abandoned→paid|cancelled · paid→sourcing|shipped|cancelled|refunded ·
-  sourcing→shipped|cancelled|refunded · shipped→delivered|refunded · delivered→refunded. "Enviado" exige rastreio (ou `allowNoTracking`).
-- **Dashboard financeiro**: receita = pedidos em `paid|sourcing|shipped|delivered` (por `paidAt`), ticket médio, conversão, série diária, top produtos,
-  forma de pagamento, **custo estimado + margem estimada** a partir do `breakdown` salvo em cada `OrderItem` (produto+frete US+taxas vs comissão).
-- **Front** `apps/web/src/admin/` (`AdminApp` layout+guard, `Dashboard`, `Orders`, `OrderDetail`, `Deliveries` (fila com ações inline), `Customers`,
-  `CustomerDetail`, `ui.jsx` helpers) + `apps/web/src/styles/admin.css`. Header da loja mostra botão **Admin** para role admin.
-- **Cliente**: `/conta` (editar cadastro `PATCH /api/auth/me`, trocar senha `POST /api/auth/password`, meus pedidos `GET /api/orders/mine` com rastreio),
-  "Esqueci minha senha" real (`POST /api/auth/forgot` → e-mail com link `/redefinir-senha?token=` → `POST /api/auth/reset`, uso único, 60 min, derruba sessões),
-  "Rastrear pedido" no modal usa a visão pública mascarada.
-- **Segurança**: `GET /api/orders/:number` para convidado agora devolve só status/itens/total/rastreio/primeiro nome (`scope:"public"`); dono ou admin recebem `scope:"full"`.
+**Robustez:** `SCRAPER_URL` tolerante (aspas/espaços/prefixo) e nunca fatal; storage não gravável degrada (imagens da Nike)
+em vez de derrubar a busca; câmbio multi-fonte (AwesomeAPI → Frankfurter → open.er-api) + último conhecido + backoff em 429;
+scraper loga o bind real.
+
+**InfinitePay conforme doc oficial:** `paid` só com `paid===true` (`success` = consulta ok), conferência de valor
+(`payment_amount_mismatch` não marca pago), webhook responde `{success:true,message:null}` / 400 para retentativa,
+`redirect_url` por path (`/pedido/confirmacao/:number`; front aceita `:number`, `?order=`, `?order_nsu=`), `settle()`
+único para redirect/webhook/reconsulta, `redirect_url` no domínio que o cliente usou (allowlist `PUBLIC_WEB_HOSTS`).
+
+**Produto virtual `test123test`:** R$ 1,00, foto = logo, "teste gateway", só aparece buscando exatamente o nome, um
+tamanho; `TEST_PRODUCT_ENABLED=false` desliga.
+
+Também: favicon (K da marca), `/health` com providers, `/api/rate` devolve `tourism`.
 
 ---
 
-## 5. Banco (Prisma, Postgres)
-Tabelas: `cache_entries`, `users`, `refresh_tokens`, `password_reset_tokens`, `orders` (+ `carrier`, `tracking_code`, `tracking_url`, `shipped_at`, `delivered_at`, `cancelled_at`, `refunded_at`, `internal_notes`), `order_items`, `order_events`, `notifications`, `idempotency_keys`.
-Migrações: `init`, `auth`, `orders`, `user_profile`, `admin_backoffice`. Aplicadas no boot da api (`migrate deploy`).
+## 5b. Pronta entrega + WhatsApp (17/08, noite — pendente de push)
+
+**Duas seções na loja:** `/` = **Importados** (busca ao vivo na Nike US, como sempre) e `/pronta-entrega` = **Pronta entrega**
+(estoque próprio no Brasil, sem Nike). Uma barra `ModeBar` (EUA · Importados | BR · Pronta entrega) fica logo abaixo do topo nas
+duas páginas (desktop e mobile), com a transição do avião (opção C — ver §3).
+
+**Backoffice `/admin/estoque`** (`Stock.jsx` lista · `StockForm.jsx` cadastro/edição): nome, marca, categoria/subtítulo, colorway,
+SKU Nike (informativo), descrição (aparece no seletor de tamanho), selo do card, ordem, **preço Pix**, preço "de" riscado, **custo**
+(só BO — alimenta custo/margem do dashboard via `breakdown.subtotalBrl`), ativo, **tamanhos BR com US opcional e quantidade**
+(atalhos 34–46), **fotos** por upload (redimensiona no navegador p/ 1400px WebP → `POST /api/admin/stock/:id/images` → gravada no
+banco `stock_images`, servida em `/media/estoque/:id` com cache imutável — não depende do volume) ou por URL; primeira foto = capa.
+
+**API:** `GET /api/stock` (público, sem custo/ids internos), `GET /api/product/PE-XXXXXX` (o catálogo intercepta o prefixo `PE-` em
+`getProductSizes` → responde do banco: seletor de tamanho e checkout funcionam sem mudanças), `GET /api/config`
+(`{ whatsapp:{phone,url}|null, installments, stock }`), admin `GET/POST /api/admin/stock`, `GET/PATCH/DELETE /api/admin/stock/:id`,
+`POST /api/admin/stock/:id/images`. `code` PE-XXXXXX é o `styleColor` do item no carrinho/pedido; `nikeSize` = US da caixa
+(se informado) senão o BR — e-mails/telas mostram "(US x)" só quando difere do BR.
+
+**Estoque por tamanho (tabela `stock_sizes`):** reservado na **criação do pedido** (decremento condicional `qty >= n` dentro da
+transação — dois clientes disputando o último par: só um pedido é criado, o outro recebe erro), **devolvido** quando o pedido vira
+`cancelled`/`abandoned` (admin ou job de 30 min; `orders.stock_released_at` evita devolver 2×; evento `stock_released`) e
+**re-reservado** se um pedido abandonado acabar pago (`settle()`/baixa manual; sem estoque → evento `stock_oversold` + nota interna
+para o dono conferir). Estorno (`refunded`) NÃO devolve sozinho — ajustar a qtd no painel. Preço da pronta entrega é o digitado
+(a fórmula de importação não se aplica); a frase "em até Nx" segue `MAX_INSTALLMENTS`.
+
+**WhatsApp "não achou?":** `WhatsappCta.jsx` — banner grande quando a busca dá vazio/erro e faixa compacta abaixo dos resultados
+(também na pronta entrega), com mensagem pré-preenchida (inclui o termo buscado). Número vem de `WHATSAPP_CONTACT_PHONE` na api
+(`/api/config`); se faltar, usa o do rodapé (`5585992578888`, `useSiteConfig.js`). Obs.: a busca da Nike é "fuzzy" — quase nunca
+volta vazia — por isso a faixa abaixo dos resultados é o ponto principal.
+
+Mobile: logado, o botão "Admin" some do topo em ≤640px (cabe logo + nome + Sair + Sacola); o admin chega pelo `/conta` → "ir para o backoffice".
 
 ---
 
-## 6. Variáveis de ambiente (produção — Railway `kulture-api`)
-Sem aspas, sem `<< >>`. Referência completa em `docs/DEPLOY.md`.
+## 6. Banco (Prisma / Postgres)
 
-```
-DATABASE_URL=${{Postgres.DATABASE_URL}}
-JWT_SECRET=<32+ chars aleatórios>
-SCRAPER_URL=http://kulture-scraper.railway.internal:3001
-PUBLIC_WEB_URL=https://kulture-api-production.up.railway.app   (se faltar/errar, a api usa RAILWAY_PUBLIC_DOMAIN)
-PUBLIC_API_URL=https://kulture-api-production.up.railway.app
-MEDIA_BASE=/media/produtos
-TOP8_TERMS=Kobe 10 Protro,Kobe IX Elite Low EM Protro,Kobe III Protro,Sabrina 3,LeBron XXIII,Book 2,Air Jordan 1 Low OG,G.T. Cut 3
-TOP8_WARM=true  CACHE_FRESH_MIN=60  CACHE_STALE_MIN=1440  SIZES_CACHE_MIN=10
-JWT_EXPIRES_IN=15m  REFRESH_EXPIRES_DAYS=7  LOG_LEVEL=info
-ADMIN_EMAILS=ti@neofolic.com.br            (quem pode abrir /admin; vírgula para vários)  PASSWORD_RESET_TTL_MIN=60
-PAYMENT_PROVIDER=mock            (→ infinitepay após teste real)
-INFINITEPAY_HANDLE=kulture-br
-MAIL_PROVIDER=mailersend  MAILERSEND_API_TOKEN=<token>  MAIL_FROM=no-reply@lojakulture.com.br  MAIL_FROM_NAME=Kulture
-WHATSAPP_PROVIDER=log
-```
-`kulture-scraper`: `NIKE_SEARCH_URL`, `NIKE_CHANNEL_ID=d9a5bc42-4b9c-4976-858a-f159cf99c647`, `NIKE_CALLER_ID`, `PRODUCT_CACHE_TTL_MIN=60`, `RATE_CACHE_TTL_MIN=60`, `CORS_ORIGINS=*`.
-
-⚠️ Segredos que apareceram no chat e devem ser **rotacionados** depois que o site estabilizar: token MailerSend e o JWT_SECRET gerado na conversa.
+Tabelas: `cache_entries, users, refresh_tokens, password_reset_tokens, login_events, orders (com carrier/tracking_*/shipped_at/
+delivered_at/cancelled_at/refunded_at/internal_notes/stock_released_at), order_items, order_events, notifications, idempotency_keys,
+stock_products, stock_sizes, stock_images`.
+Migrações: `init, auth, orders, user_profile, admin_backoffice, login_events, stock_products` — aplicadas no boot da api (`migrate deploy`).
+Dev local: `apps/api/.env` aponta para Supabase (pooler us-east-2), migrado; seed de demonstração
+(`*@smoke.kulture.test`, admin `admin@smoke.kulture.test`, pedidos `KLT-2026-9*`).
 
 ---
 
-## 7. Estado do deploy (atualizado 16/08/2026)
-- **`https://kulture-api-production.up.railway.app` está NO AR** (health 200, front servido). O domínio `-9eea` dá 502 (target port errado — pode apagar).
-- **Problema atual: a api não fala com o scraper** (`/health/deps` → `scraper.ok:false, fetch failed`) → catálogo/busca/cotação falham e o site parece "sem backend".
-  Não é local/Docker: é o `kulture-api` do Railway sem alcançar `kulture-scraper`. Hipótese principal: `SCRAPER_URL` ausente/errada no serviço (default `localhost:3001`).
-  Depois deste deploy o `/health/deps` mostra `url` + `cause` (ECONNREFUSED/ENOTFOUND…) — tabela de correção em `docs/DEPLOY.md` §3.
-- Histórico: 1º 502 era `PUBLIC_*_URL` com placeholder → corrigido (fallback `RAILWAY_PUBLIC_DOMAIN`).
-- Cloudflare Workers Builds tentado pelo dono → erro esperado ("workspace root"); **não usar** — o front sai da api.
-- InfinitePay: conta com **checkout externo habilitado**; link de R$1 gerado pelo dono; pagamento real ainda **não** testado. Response do `POST /links` assumido como `data.url` (confirmar).
+## 7. Pendências (ordem sugerida)
+
+1. Rodar o push pendente (§3) → ajustar variáveis (§4, + `WHATSAPP_CONTACT_PHONE`) → confirmar **12x vs 5x** → fazer um pagamento
+   **no cartão parcelado** e conferir "juros repassados" no `/admin`. Cadastrar os primeiros pares em `/admin/estoque`.
+2. `www.lojakulture.com.br` (CNAME no Cloudflare + custom domain no Railway) — se quiser.
+3. Rotacionar segredos; `TEST_PRODUCT_ENABLED=false` após validar o gateway.
+4. Tradução PT→EN na busca ("tênis" → "shoes") — não feita.
+5. Admin: regras de preço editáveis (tabela PricingRule) — hoje só em código.
+6. Bling (NF-e) → WhatsApp (Evolution API) — adiados.
+7. Testes de auth/admin batem no banco real (separar em CI).
 
 ---
 
-## 8. Bugs relevantes encontrados e corrigidos (para não regredir)
-- `node-fetch` importado sem estar no package (funcionava só por um `~/node_modules` solto do Mac) → removido, fetch nativo.
-- SizePicker chamava `api.get` (inexistente) → `api.product`.
-- Checkout usava `cart.items/unitPriceBrl` (contrato errado) → tela em branco; URLs `localhost:3000` fixas; `auth.token` (é `getToken()`).
-- Confirmação não chamava `/confirm` (ficaria "aguardando" para sempre sem webhook público).
-- Rota de checkout lia `req.user.id` (JWT usa `sub`) → pedidos logados salvos como convidado.
-- Auth: refresh/logout com `Content-Type` sem body (400), e-mail case-sensitive, rate limit com allowList 127.0.0.1.
-- Nike: `count` só 24|50|100; top8 com termos que não existem mais na Nike US.
-- Teste `app.test.js` desatualizado após remoção do breakdown público.
-- (16/08) `AppError.forbidden/conflict` eram usados sem existir → 500 silencioso; criados. Câmbio inválido gravado no cache SWR
-  (mock antigo devolvia número) envenenava o checkout por 24h → `getRate` valida o formato e rebusca. Testes da api rodavam
-  arquivos em paralelo no mesmo banco e `orders.test` apagava os pedidos dos outros → `vitest.config.js` serializa (`fileParallelism:false`).
+## 8. Comandos
 
----
-
-## 9. Pendências (ordem sugerida)
-1. **Railway: ligar api → scraper** (`SCRAPER_URL` no `kulture-api`; ver `docs/DEPLOY.md` §3 com o novo `/health/deps`) → validar fluxo completo na URL pública → mandar link ao cliente.
-2. Definir `ADMIN_EMAILS` no Railway → cadastrar/entrar → abrir `/admin`.
-3. Testar pagamento real de R$1 → `PAYMENT_PROVIDER=infinitepay` → confirmar `payment_check` + e-mail.
-4. Domínio próprio via Cloudflare DNS (CNAME → Railway) → `PUBLIC_*_URL` para o domínio (liga o webhook e os links de e-mail).
-5. Rotacionar segredos expostos (MailerSend token, JWT_SECRET).
-6. Filtro só-tênis + tradução PT→EN na busca ("tênis" ainda traz polo).
-7. Bling (NF-e) → depois WhatsApp (Evolution API). Backoffice v2: exportar CSV, filtros por data no dashboard, editar endereço do pedido, cupons.
-8. Testes de auth/admin batem no banco real (separar em CI com Postgres efêmero).
-9. Imagens da Nike vêm com fundo branco (design pede recorte) — avaliar tratamento.
-
----
-
-## 10. Comandos úteis
 ```bash
 npm install && npm run dev            # web :5173, api :3000, scraper :3001
-npm test                              # 54 testes (api 39 + shared 15) — api serializada, ~2 min no banco remoto
-npm run admin:make -w apps/api -- seu@email.com   # promove a admin (ou ADMIN_EMAILS no .env)
+npm test                              # api 39 + shared 17
 npm run build -w apps/web
-docker build -f deploy/api.Dockerfile -t kulture-api .        # validado localmente
-docker build -f deploy/scraper.Dockerfile -t kulture-scraper .
-curl -s https://kulture-api-production.up.railway.app/health/deps
+curl -s https://lojakulture.com.br/health
+curl -s https://lojakulture.com.br/health/deps
 ```
-Prompt-padrão para o Antigravity commitar (nunca alterar arquivos): conferir `git status` sem `.env`/storage/dist,
-`git add -A`, commit com mensagem dada, `git push origin main`, devolver hash.
+
+Prompt-padrão do Antigravity: conferir `git status --short` (sem `.env`/storage/dist; se aparecer algo inesperado, PARAR),
+`git add -A`, commit com a mensagem dada, `git push origin main`, devolver o hash.

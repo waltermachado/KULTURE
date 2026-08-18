@@ -1,4 +1,5 @@
 import { AppError } from "../../lib/errors.js";
+import { stripStockInternal } from "../stock/service.js";
 
 const productSchema = {
   type: "object",
@@ -22,6 +23,7 @@ export async function catalogRoutes(app) {
   // Helper to remove internal breakdown info from public API
   const stripInternal = (product) => {
     if (!product || !product.price) return product;
+    if (product.source === "stock") return stripStockInternal(product); // pronta entrega: tira custo e ids internos
     const { breakdown, rulesApplied, ...publicPrice } = product.price;
     return { ...product, price: publicPrice };
   };

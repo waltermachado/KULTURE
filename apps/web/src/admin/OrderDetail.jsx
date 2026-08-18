@@ -186,7 +186,7 @@ export default function OrderDetail({ auth, notify }) {
                   <div className="thumb">{it.image ? <img src={it.image} alt="" /> : null}</div>
                   <div>
                     <b>{it.name}</b>
-                    <span>{it.styleColor} · BR {it.brLabel ?? it.brSize ?? "?"} (US {it.nikeSize}) · {it.colorDescription || ""}</span>
+                    <span>{it.styleColor}{it.breakdown?.source === "stock" ? " · PRONTA ENTREGA" : ""} · BR {it.brLabel ?? it.brSize ?? "?"}{it.nikeSize && String(it.nikeSize) !== String(it.brLabel ?? it.brSize) ? ` (US ${it.nikeSize})` : ""} · {it.colorDescription || ""}</span>
                   </div>
                   <div className="price">
                     {it.quantity} × {brl(it.unitPriceBrl)}
@@ -198,7 +198,7 @@ export default function OrderDetail({ auth, notify }) {
             <dl className="kv" style={{ marginTop: 16, borderTop: "1px solid var(--hair)", paddingTop: 12 }}>
               <dt>Subtotal</dt><dd>{brl(order.subtotalBrl)}</dd>
               <dt>Frete</dt><dd>Grátis (embutido)</dd>
-              <dt>Total</dt><dd><b>{brl(order.totalBrl)}</b>{order.paidAmountBrl != null && Number(order.paidAmountBrl) !== Number(order.totalBrl) ? ` · pago ${brl(order.paidAmountBrl)}` : ""}</dd>
+              <dt>Total</dt><dd><b>{brl(order.totalBrl)}</b>{order.paidAmountBrl != null && Number(order.paidAmountBrl) !== Number(order.totalBrl) ? ` · pago ${brl(order.paidAmountBrl)} (${Number(order.paidAmountBrl) > Number(order.totalBrl) ? "juros repassados ao cliente: +" : "diferença: "}${brl(Math.abs(Number(order.paidAmountBrl) - Number(order.totalBrl)))})` : order.paidAt ? " · pago sem juros" : ""}</dd>
               <dt>Câmbio</dt><dd>US$ 1 = R$ {Number(order.exchangeRate).toFixed(2)}</dd>
               <dt>Custo estimado</dt><dd>{brl(order.economics.costBrl)} <small style={{ color: "var(--muted)" }}>(produto + frete US + taxas, pelo breakdown salvo)</small></dd>
               <dt>Margem estimada</dt><dd><b style={{ color: "var(--green)" }}>{brl(order.economics.marginBrl)}</b></dd>

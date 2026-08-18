@@ -155,8 +155,8 @@ export default function Checkout({ cart, auth, notify }) {
             <div key={key} style={{ display: "flex", gap: 12, fontSize: 14 }}>
               <img src={item.img} alt={item.name} style={{ width: 50, height: 50, objectFit: "cover", borderRadius: 4, background: "#222" }} />
               <div>
-                <div style={{ fontWeight: 600 }}>{item.name}{item.launch?.comingSoon ? <em className="tag-pre">Pré-venda</em> : null}</div>
-                <div style={{ color: "#888", fontSize: 12 }}>Tam: BR {sizeInfo?.brLabel ?? "?"} (US {sizeInfo?.nikeSize}) × {qty}</div>
+                <div style={{ fontWeight: 600 }}>{item.name}{item.launch?.comingSoon ? <em className="tag-pre">Pré-venda</em> : null}{item.stock ? <em className="tag-pre tag-stock">Pronta entrega</em> : null}</div>
+                <div style={{ color: "#888", fontSize: 12 }}>Tam: BR {sizeInfo?.brLabel ?? "?"}{sizeInfo?.nikeSize && String(sizeInfo.nikeSize) !== String(sizeInfo?.brLabel) ? ` (US ${sizeInfo.nikeSize})` : ""} × {qty}</div>
                 <div style={{ color: "var(--k-yellow)", fontWeight: 700 }}>{brl((item.price || 0) * qty)}</div>
               </div>
             </div>
@@ -173,7 +173,7 @@ export default function Checkout({ cart, auth, notify }) {
             <span style={{ color: "var(--k-green)" }}>Grátis</span>
           </div>
           <div style={{ display: "flex", justifyContent: "space-between", marginTop: 8, fontSize: 18, fontWeight: 700, color: "var(--k-yellow)" }}>
-            <span>Total</span>
+            <span>Total no Pix</span>
             <span>{brl(subtotal)}</span>
           </div>
         </div>

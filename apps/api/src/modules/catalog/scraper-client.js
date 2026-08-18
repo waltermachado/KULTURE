@@ -83,12 +83,15 @@ export function createScraperClient({ baseUrl, timeoutMs = 20_000, fetchImpl = f
   async function rate() {
     const data = await get("/rate");
     if (!Number.isFinite(Number(data?.ask))) throw AppError.upstream("cotação inválida do scraper");
+    const t = data.tourism && Number.isFinite(Number(data.tourism.ask)) && Number(data.tourism.ask) > 0 ? data.tourism : null;
     return {
       pair: data.pair ?? "USD-BRL",
       bid: Number(data.bid),
       ask: Number(data.ask),
       timestamp: data.timestamp ?? null,
-      source: data.source ?? "nike-scraper"
+      source: data.source ?? "nike-scraper",
+      // dólar turismo (base da precificação); null → o core usa comercial + spread
+      tourism: t ? { bid: Number(t.bid) || Number(t.ask), ask: Number(t.ask), timestamp: t.timestamp ?? null, source: t.source ?? null } : null
     };
   }
 

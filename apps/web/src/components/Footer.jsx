@@ -1,3 +1,5 @@
+import { Link } from "react-router-dom";
+
 export default function Footer({ onOpenModal, onSearch }) {
   const link = (view, label) => (
     <button className="foot-link" key={label} onClick={() => onOpenModal(view)}>{label}</button>
@@ -18,6 +20,7 @@ export default function Footer({ onOpenModal, onSearch }) {
         </div>
         <div>
           <h4>Loja</h4>
+          <Link className="foot-link" to="/pronta-entrega">Pronta entrega (no Brasil)</Link>
           {cat("basketball shoes", "Basquete")}
           {cat("lifestyle shoes", "Casual")}
           {cat("running shoes", "Corrida")}

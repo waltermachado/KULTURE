@@ -60,16 +60,32 @@ export function launchInfo(raw) {
   };
 }
 
+/** Spread aplicado ao comercial quando o scraper não trouxer o dólar turismo (R$ por dólar). */
+export const TOURISM_SPREAD_BRL = Number(process.env.RATE_TOURISM_SPREAD_BRL ?? 0.25);
+
+/** Câmbio usado na precificação = dólar TURISMO (ask). Fallback: comercial + R$ 0,25. */
+export function pricingRateOf(rate) {
+  const t = Number(rate?.tourism?.ask);
+  if (Number.isFinite(t) && t > 0) return { usdToBrl: t, kind: "turismo", source: rate.tourism.source ?? null };
+  const c = Number(rate?.ask);
+  return { usdToBrl: Math.round((c + TOURISM_SPREAD_BRL) * 10000) / 10000, kind: "turismo (comercial + spread)", source: `fallback +${TOURISM_SPREAD_BRL}` };
+}
+
+/** Texto do parcelamento mostrado no site (o juro é configurado na conta InfinitePay, não aqui). */
+export const MAX_INSTALLMENTS = Math.max(1, Number(process.env.MAX_INSTALLMENTS || 12));
+export const installmentsInfo = () => ({ max: MAX_INSTALLMENTS, label: `em até ${MAX_INSTALLMENTS}x no cartão` });
+
 export function toProduct(raw, { rate, rules = DEFAULT_PRICING_RULES, images = [], imageSource = [] }) {
   const brand = inferBrand(raw.name);
   const category = inferCategory(raw.subtitle);
   const base = { brand, category, name: raw.name, styleColor: raw.styleColor };
 
-  const pricing = calculateFinalPrice({ product: { ...base, priceUsd: raw.priceUsd }, exchangeRate: rate.ask, rules });
+  const fx = pricingRateOf(rate);
+  const pricing = calculateFinalPrice({ product: { ...base, priceUsd: raw.priceUsd }, exchangeRate: fx.usdToBrl, rules });
 
   let fullPriceBrl = null;
   if (raw.onSale && raw.fullPriceUsd != null && raw.fullPriceUsd > raw.priceUsd) {
-    fullPriceBrl = calculateFinalPrice({ product: { ...base, priceUsd: raw.fullPriceUsd }, exchangeRate: rate.ask, rules }).costs
+    fullPriceBrl = calculateFinalPrice({ product: { ...base, priceUsd: raw.fullPriceUsd }, exchangeRate: fx.usdToBrl, rules }).costs
       .finalPriceBrl;
   }
 
@@ -89,7 +105,9 @@ export function toProduct(raw, { rate, rules = DEFAULT_PRICING_RULES, images = [
       fullBrl: fullPriceBrl,
       breakdown: pricing.costs,
       rulesApplied: pricing.rulesApplied,
-      exchange: { usdToBrl: pricing.exchange.usdToBrl, timestamp: rate.timestamp ?? null }
+      exchange: { usdToBrl: pricing.exchange.usdToBrl, kind: fx.kind, commercialUsdToBrl: Number(rate.ask) || null, timestamp: rate.timestamp ?? null },
+      pix: true, // o preço exibido é o valor à vista (Pix)
+      installments: installmentsInfo()
     },
     images,
     imageSource,

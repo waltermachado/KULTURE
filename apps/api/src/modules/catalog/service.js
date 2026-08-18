@@ -7,13 +7,18 @@ import { toProduct } from "./normalize.js";
 import { isTestTerm, isTestStyleColor, buildTestProduct } from "./test-product.js";
 import { convertUsToBr } from "@kulture/shared/sizes";
 
-const RATE_KEY = "rate:USD-BRL";
+const RATE_KEY = "rate:USD-BRL:v2"; // v2 = traz `tourism` (dólar turismo)
 const MAX_IMAGES = 8; // galeria do produto: até 8 ângulos (o resto é marketing)
 // namespace das chaves de cache do catálogo: mudou o formato das imagens (v2 = recorte) → chaves novas,
 // senão cards/busca ficariam até 1h servindo os PNGs opacos antigos
-const NS = "v4"; // v3 = só calçados; v4 = campo launch (pré-venda)
+const NS = "v5"; // v3 só calçados · v4 launch · v5 nova precificação (turismo, 7%, ↑99)
 
-export function createCatalogService({ scraper, cache, sizesCache, images, rules, top8Terms = [], testProduct = false, log = null }) {
+/**
+ * `stock` (opcional) = serviço de pronta entrega: códigos PE-XXXXXX são respondidos do banco em
+ * getProductSizes() — é o único ponto que o seletor de tamanho e o checkout usam, então o produto de
+ * estoque passa pelo mesmo fluxo (preço validado no servidor, snapshot no pedido) sem tocar em orders/.
+ */
+export function createCatalogService({ scraper, cache, sizesCache, images, rules, top8Terms = [], testProduct = false, stock = null, log = null }) {
   const validRate = (r) => r && typeof r === "object" && Number.isFinite(Number(r.ask)) && Number(r.ask) > 0;
 
   async function getRate() {
@@ -123,6 +128,11 @@ export function createCatalogService({ scraper, cache, sizesCache, images, rules
     if (testProduct && isTestStyleColor(styleColor)) {
       const rate = await getRate().catch(() => null);
       return { cached: false, stale: false, product: buildTestProduct(rate) };
+    }
+    if (stock && stock.isStockCode(styleColor)) {
+      // pronta entrega: sempre fresco do banco (disponibilidade por tamanho muda a cada venda)
+      const product = await stock.getProductByCode(styleColor);
+      return { cached: false, stale: false, product };
     }
     const { value, cached, stale } = await sizesCache.getOrFetch(`sizes:${NS}:${styleColor}`, async () => {
       const [raw, rate] = await Promise.all([scraper.getProductDetail(styleColor), getRate()]);

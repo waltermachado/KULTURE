@@ -59,7 +59,7 @@ function orderRevenue(order) {
   return num(order.paidAmountBrl ?? order.totalBrl);
 }
 
-export function createAdminService({ prisma, env, mailer, gateway, orders, log }) {
+export function createAdminService({ prisma, env, mailer, gateway, orders, stock = null, log }) {
   const siteUrl = env.PUBLIC_WEB_URL;
 
   async function sendMail(order, build, extra = {}) {
@@ -328,6 +328,17 @@ export function createAdminService({ prisma, env, mailer, gateway, orders, log }
       data: { ...data, ...(events.length ? { events: { create: events } } : {}) },
       include: { items: true }
     });
+
+    // pronta entrega: cancelado/abandonado devolve a reserva ao estoque; baixa manual de um pedido que já
+    // tinha devolvido (abandonado → pago) reserva de novo (ou registra stock_oversold para conferência)
+    if (stock && data.status) {
+      try {
+        if (data.status === "cancelled" || data.status === "abandoned") await stock.releaseOrder(updated, data.status);
+        else if (data.status === "paid" && updated.stockReleasedAt) await stock.ensureReservedForPaid(updated);
+      } catch (err) {
+        log?.error({ err: err.message, order: number }, "admin: falha ao ajustar estoque de pronta entrega");
+      }
+    }
 
     if (mailKind && patch.notifyCustomer !== false) {
       const build =

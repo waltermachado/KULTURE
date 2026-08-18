@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   applyRoundEnding,
+  roundUpToEnding,
   calculateFinalPrice,
   commissionRateFor,
   resolvePricingRules,
@@ -10,17 +11,28 @@ import {
 const product = { brand: "Nike", name: "Nike Kobe 6 Protro", styleColor: "CW2288-111", priceUsd: 190 };
 
 describe("calculateFinalPrice (regra padrão)", () => {
-  it("aplica 30% de comissão + frete de US$65 sem imposto", () => {
+  it("fórmula do dono: (USD×1,07 + 65) × câmbio × 1,30, arredondado ↑ até …99", () => {
     const r = calculateFinalPrice({ product, exchangeRate: 5 });
-    // (190 + 65) = 255 USD → ×5 = 1275 BRL → +30% = 1657.5
+    // 190 × 1,07 = 203,30 (+13,30 de sobretaxa) + 65 = 268,30 USD → ×5 = 1341,50 BRL → +30% = 1743,95 → ↑99 = 1799
+    expect(r.costs.surchargeUsd).toBe(13.3);
+    expect(r.costs.adjustedProductUsd).toBe(203.3);
     expect(r.costs.shippingUsd).toBe(65);
-    expect(r.costs.subtotalUsd).toBe(255);
-    expect(r.costs.subtotalBrl).toBe(1275);
+    expect(r.costs.subtotalUsd).toBe(268.3);
+    expect(r.costs.subtotalBrl).toBe(1341.5);
     expect(r.costs.importDutyBrl).toBe(0);
-    expect(r.costs.commissionBrl).toBe(382.5);
-    expect(r.costs.finalPriceBrl).toBe(1657.5);
+    expect(r.costs.commissionBrl).toBe(402.45);
+    expect(r.costs.finalPriceBrl).toBe(1799);
+    expect(r.costs.roundingAdjustmentBrl).toBe(55.05);
     expect(r.rulesApplied.commissionRate).toBe(0.3);
+    expect(r.rulesApplied.productSurchargeRate).toBe(0.07);
+    expect(r.rulesApplied.roundUpToEnding).toBe(99);
     expect(r.rulesApplied.matchedRuleIds).toEqual(["default"]);
+  });
+
+  it("Kobe 10 (US$190) com dólar turismo 5,58938 → R$ 1.999 no Pix", () => {
+    const r = calculateFinalPrice({ product, exchangeRate: 5.58938 });
+    expect(r.costs.finalPriceBrl).toBe(1999);
+    expect(r.exchange.usdToBrl).toBe(5.59);
   });
 
   it("rejeita preço/câmbio inválidos", () => {
@@ -45,7 +57,8 @@ describe("regras modulares", () => {
       }
     },
     { id: "kobe-frete", scope: "model", match: /kobe/i, shippingUsd: 20 },
-    { id: "sku-especial", scope: "sku", match: "CW2288-111", commission: { rate: 0.1 }, roundEnding: 90 }
+    // roundUpToEnding: null desliga o arredondamento ↑99 da regra global para este sku (usa x,90 em centavos)
+    { id: "sku-especial", scope: "sku", match: "CW2288-111", commission: { rate: 0.1 }, roundUpToEnding: null, roundEnding: 90 }
   ];
 
   it("comissão por faixa: tênis mais caro paga menos comissão", () => {
@@ -81,6 +94,16 @@ describe("helpers", () => {
     expect(commissionRateFor(c, 50)).toBe(0.5);
     expect(commissionRateFor(c, 100)).toBe(0.5);
     expect(commissionRateFor(c, 101)).toBe(0.1);
+  });
+
+  it("roundUpToEnding arredonda para cima até o próximo …99 (reais)", () => {
+    expect(roundUpToEnding(1714, 99)).toBe(1799);
+    expect(roundUpToEnding(1880, 99)).toBe(1899);
+    expect(roundUpToEnding(1899, 99)).toBe(1899);
+    expect(roundUpToEnding(1900, 99)).toBe(1999);
+    expect(roundUpToEnding(1949.52, 99)).toBe(1999);
+    expect(roundUpToEnding(50, 99)).toBe(99);
+    expect(roundUpToEnding(1332.567, null)).toBe(1332.57);
   });
 
   it("applyRoundEnding arredonda para cima até x,90", () => {

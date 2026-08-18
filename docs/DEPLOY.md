@@ -64,6 +64,7 @@ Arquivos: `deploy/api.Dockerfile`, `deploy/scraper.Dockerfile`, `deploy/api-entr
      | `INFINITEPAY_HANDLE` | `kulture-br` |
      | `MAIL_PROVIDER` / `MAILERSEND_API_TOKEN` / `MAIL_FROM` / `MAIL_FROM_NAME` | `mailersend` + token + remetente do domínio verificado |
      | `WHATSAPP_PROVIDER` | `log` (WhatsApp adiado) |
+     | `WHATSAPP_CONTACT_PHONE` | WhatsApp de **atendimento** mostrado no site ("não achou? chama a gente"): `5585992578888` (DDI+DDD+número, só dígitos). Vazio = usa o número do rodapé |
      | `TRUST_PROXY=true`, `NODE_ENV=production`, `HOST=0.0.0.0` | já vêm do Dockerfile |
 
      O Railway injeta `PORT` próprio — a api lê `process.env.PORT`, então funciona.

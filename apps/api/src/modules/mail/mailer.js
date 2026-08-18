@@ -52,6 +52,11 @@ export function createMailer(env, log) {
 }
 
 const brl = (v) => Number(v).toLocaleString("pt-BR", { style: "currency", currency: "BRL" });
+/** "BR 41 (US 8.5)" — sem o US quando o item é de pronta entrega sem numeração US (chave = BR). */
+const sizeLabel = (i) => {
+  const br = i.brLabel ?? i.brSize ?? "?";
+  return i.nikeSize && String(i.nikeSize) !== String(br) ? `BR ${br} (US ${i.nikeSize})` : `BR ${br}`;
+};
 
 const escapeHtml = (s) => String(s).replace(/&/g, "&amp;").replace(/</g, "&lt;");
 const asHtml = (text) =>
@@ -87,7 +92,7 @@ export function buildOrderShippedEmail(order, { siteUrl } = {}) {
     order.trackingUrl ? `Acompanhe: ${order.trackingUrl}` : null,
     "",
     "Itens:",
-    (order.items || []).map((i) => `• ${i.name} — tam. BR ${i.brLabel ?? i.brSize ?? "?"} (US ${i.nikeSize}) × ${i.quantity}`).join("\n"),
+    (order.items || []).map((i) => `• ${i.name} — tam. ${sizeLabel(i)} × ${i.quantity}`).join("\n"),
     "",
     siteUrl ? `Veja seus pedidos em: ${siteUrl}/conta` : null,
     "",
@@ -131,7 +136,7 @@ export function buildOrderCancelledEmail(order, { siteUrl, refunded = false } = 
 /** E-mail de confirmação de pagamento para o cliente. */
 export function buildOrderPaidEmail(order, { siteUrl } = {}) {
   const items = (order.items || [])
-    .map((i) => `• ${i.name} — tam. BR ${i.brLabel ?? i.brSize ?? "?"} (US ${i.nikeSize}) × ${i.quantity} — ${brl(i.unitPriceBrl)}`)
+    .map((i) => `• ${i.name} — tam. ${sizeLabel(i)} × ${i.quantity} — ${brl(i.unitPriceBrl)}`)
     .join("\n");
   const method = order.paymentMethod === "pix" ? "Pix" : order.paymentMethod === "credit_card" ? "Cartão" : order.paymentMethod || "-";
   const text = [

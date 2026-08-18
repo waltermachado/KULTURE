@@ -90,7 +90,24 @@ export function SizePicker({ item, onClose, onAdd }) {
                   <span className="card-brand">{item.brand || "Nike"}</span>
                   <h4>{product.name}</h4>
                   {product.subtitle && <span className="sp-sub">{product.subtitle}</span>}
-                  {item.price != null && <span className="price">{Number(item.price).toLocaleString("pt-BR", { style: "currency", currency: "BRL" })}</span>}
+                  {item.price != null && (
+                    <span className="price">
+                      {Number(item.price).toLocaleString("pt-BR", { style: "currency", currency: "BRL" })}
+                      {(item.pix ?? product.price?.pix) && <span className="pix-tag">no Pix</span>}
+                    </span>
+                  )}
+                  {(item.installmentsLabel || product.price?.installments?.label) && (
+                    <span className="sp-sub" style={{ textTransform: "none", letterSpacing: 0 }}>ou {item.installmentsLabel || product.price.installments.label}</span>
+                  )}
+                  {product.source === "stock" && (
+                    <span className="sp-launch sp-stock">
+                      <b>Pronta entrega</b>
+                      {product.stock?.total === 1 ? " — último par! Está no Brasil e sai assim que o pagamento cair." : " — está no Brasil e sai assim que o pagamento cair, sem espera de importação."}
+                    </span>
+                  )}
+                  {product.source === "stock" && product.description && (
+                    <p className="sp-desc">{product.description}</p>
+                  )}
                   {product.launch?.comingSoon && (
                     <span className="sp-launch">
                       <b>Pré-venda</b>
@@ -103,7 +120,7 @@ export function SizePicker({ item, onClose, onAdd }) {
               </div>
               <div className="sp-header">
                 <span>Escolha o tamanho</span>
-                <span>Numeração BR (US abaixo)</span>
+                <span>{product.source === "stock" ? "Numeração BR · estoque por tamanho" : "Numeração BR (US abaixo)"}</span>
               </div>
               
               <div className="size-grid">
@@ -119,8 +136,11 @@ export function SizePicker({ item, onClose, onAdd }) {
                       aria-label={`Tamanho ${s.brLabel || s.nikeSize}${s.approximate ? ' (Aproximado)' : ''}`}
                     >
                       {s.brLabel ? s.brLabel : s.nikeSize}
-                      <span className="us">US {s.nikeSize}</span>
+                      {product.source === "stock"
+                        ? <span className="us">{s.usSize ? `US ${s.usSize}` : s.qty === 1 ? "último" : `${s.qty} un.`}</span>
+                        : <span className="us">US {s.nikeSize}</span>}
                       {s.approximate && <span className="approx">Aprox.</span>}
+                      {product.source === "stock" && s.usSize && s.qty === 1 && <span className="approx">Último</span>}
                     </button>
                   ))
                 )}

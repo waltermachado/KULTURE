@@ -28,6 +28,10 @@ import { createMailer } from "./modules/mail/mailer.js";
 import { createOrderService } from "./modules/orders/service.js";
 import { orderRoutes } from "./modules/orders/routes.js";
 import { startAbandonedCheckoutJob } from "./modules/jobs/abandoned-checkout.js";
+import { createStockService } from "./modules/stock/service.js";
+import { stockRoutes } from "./modules/stock/routes.js";
+import { stockAdminRoutes } from "./modules/stock/admin-routes.js";
+import { configRoutes } from "./modules/config/routes.js";
 
 const require = createRequire(import.meta.url);
 const pkg = require("../package.json");
@@ -75,18 +79,21 @@ export async function buildApp(overrides = {}) {
     overrides.images ??
     createImageMirror({ publicBase: env.MEDIA_BASE, ...(env.STORAGE_DIR ? { storageDir: env.STORAGE_DIR } : {}), log: app.log });
   const rules = overrides.pricingRules ?? DEFAULT_PRICING_RULES; // Fase 1: tabela PricingRule
-  const catalog = createCatalogService({ scraper, cache, sizesCache, images, rules, top8Terms: env.TOP8_TERMS, testProduct: env.TEST_PRODUCT_ENABLED, log: app.log });
+  // pronta entrega (estoque próprio no banco) — só existe com Postgres
+  const stock = prisma ? createStockService({ prisma, log: app.log }) : null;
+  const catalog = createCatalogService({ scraper, cache, sizesCache, images, rules, top8Terms: env.TOP8_TERMS, testProduct: env.TEST_PRODUCT_ENABLED, stock, log: app.log });
 
   app.decorate("prisma", prisma);
   app.decorate("cache", cache);
   app.decorate("scraper", scraper);
   app.decorate("images", images);
   app.decorate("catalog", catalog);
+  app.decorate("stock", stock);
 
   const gateway = overrides.gateway ?? createPaymentGateway(env, app.log);
   const notifier = overrides.notifier ?? createNotifier(env, app.log, prisma);
   const mailer = overrides.mailer ?? createMailer(env, app.log);
-  const orders = overrides.orders ?? createOrderService(env, prisma, catalog, gateway, notifier, app.log, mailer);
+  const orders = overrides.orders ?? createOrderService(env, prisma, catalog, gateway, notifier, app.log, mailer, stock);
   app.decorate("mailer", mailer);
   app.decorate("orders", orders);
 
@@ -141,11 +148,14 @@ export async function buildApp(overrides = {}) {
 
   // ---- módulos ----
   await app.register(healthRoutes);
+  await app.register(configRoutes);
   await app.register(catalogRoutes);
   if (prisma) {
     await app.register(authRoutes);
     await app.register(orderRoutes);
     await app.register(adminRoutes);
+    await app.register(stockRoutes);
+    await app.register(stockAdminRoutes);
   }
 
   // ---- ciclo de vida ----
@@ -170,7 +180,7 @@ export async function buildApp(overrides = {}) {
   }
 
   if (prisma && (overrides.startJobs ?? true)) {
-    const stopAbandonedJob = startAbandonedCheckoutJob(prisma, notifier, app.log);
+    const stopAbandonedJob = startAbandonedCheckoutJob(prisma, notifier, app.log, stock);
     app.addHook("onClose", async () => {
       stopAbandonedJob();
     });

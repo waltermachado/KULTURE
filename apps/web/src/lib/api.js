@@ -28,7 +28,11 @@ export const api = {
   search: (q) => get(`/api/search?q=${encodeURIComponent(q)}`),
   product: (term) => get(`/api/product/${encodeURIComponent(term)}`),
   rate: () => get("/api/rate"),
-  health: () => get("/health")
+  health: () => get("/health"),
+  /** pronta entrega: produtos em estoque no Brasil (cadastrados no backoffice; sem Nike) */
+  stock: () => get("/api/stock"),
+  /** configuração pública: { whatsapp: { phone, url } | null, installments, stock } */
+  config: () => get("/api/config")
 };
 
 /** Fallback quando a API está fora — a home não fica vazia. */

@@ -3,6 +3,7 @@ import { brl } from "../lib/format.js";
 
 export default function CartDrawer({ open, onClose, cart, onCheckout }) {
   const { list, total, changeQty } = cart;
+  const installmentsLabel = (list || []).map((l) => l.item?.installmentsLabel).find(Boolean) || null;
   return (
     <aside className={`drawer${open ? " open" : ""}`} aria-hidden={!open} aria-label="Carrinho">
       <div className="drawer-header">
@@ -21,7 +22,7 @@ export default function CartDrawer({ open, onClose, cart, onCheckout }) {
                 <ProductMedia src={item.img} alt={item.name} color={item.color} />
               </div>
               <div className="cart-item-info">
-                <b>{item.name}{item.launch?.comingSoon ? <em className="tag-pre">Pré-venda</em> : null}</b>
+                <b>{item.name}{item.launch?.comingSoon ? <em className="tag-pre">Pré-venda</em> : null}{item.stock ? <em className="tag-pre tag-stock">Pronta entrega</em> : null}</b>
                 <span>TAM BR {sizeInfo?.brLabel || sizeInfo?.nikeSize}{sizeInfo?.approximate ? ' (aprox.)' : ''} · QTD {qty}</span>
                 <span className="line-price">{brl(item.price * qty)}</span>
               </div>
@@ -44,9 +45,10 @@ export default function CartDrawer({ open, onClose, cart, onCheckout }) {
           <span style={{ color: 'var(--k-green)' }}>Grátis</span>
         </div>
         <div className="total-row">
-          <span>Total</span>
+          <span>Total no Pix</span>
           <b>{brl(total)}</b>
         </div>
+        {installmentsLabel && <div className="total-row" style={{ color: '#888', fontSize: '0.8rem', marginTop: -6, marginBottom: 12, textTransform: 'none', letterSpacing: 0 }}><span>ou {installmentsLabel}</span></div>}
         <button className="btn-pay" onClick={onCheckout} disabled={list.length === 0}>
           <span>Finalizar compra</span><small>Pix ou cartão · frete grátis</small>
         </button>
