@@ -3,7 +3,9 @@
  *
  *   GET   /api/admin/me                          quem sou (confirma acesso)
  *   GET   /api/admin/dashboard?days=30           KPIs financeiros + série diária + top produtos
- *   GET   /api/admin/orders?status&q&page        lista paginada
+ *   GET   /api/admin/orders?status&q&channel&page lista paginada (channel=site|external|whatsapp,…)
+ *   POST  /api/admin/orders                      registra VENDA EXTERNA (fora do site) já paga — ver admin.createManualOrder
+ *   GET   /api/admin/catalog/:term               produto Nike com breakdown/tamanhos (pré-preenche a venda externa)
  *   GET   /api/admin/orders/:number              detalhe completo (itens, eventos, notificações, economics)
  *   PATCH /api/admin/orders/:number              status / rastreio / notas (gera eventos + e-mails)
  *   POST  /api/admin/orders/:number/recheck      reconsulta payment_check
@@ -16,7 +18,9 @@
  */
 import { requireAdmin } from "../../lib/guards.js";
 import { AppError } from "../../lib/errors.js";
-import { createAdminService, ORDER_STATUS_LABELS, ORDER_TRANSITIONS } from "./service.js";
+import {
+  createAdminService, ORDER_STATUS_LABELS, ORDER_TRANSITIONS, SALE_CHANNELS, MANUAL_CHANNELS, MANUAL_PAYMENT_METHODS, MANUAL_INITIAL_STATUSES, PAYMENT_METHOD_LABELS
+} from "./service.js";
 
 const STATUS_ENUM = Object.keys(ORDER_TRANSITIONS);
 
@@ -36,6 +40,7 @@ export async function adminRoutes(app) {
     mailer: app.mailer,
     orders: app.orders,
     stock: app.stock,
+    catalog: app.catalog,
     log: app.log
   });
   app.decorate("admin", admin);
@@ -49,6 +54,11 @@ export async function adminRoutes(app) {
     user: request.admin,
     statusLabels: ORDER_STATUS_LABELS,
     transitions: ORDER_TRANSITIONS,
+    channelLabels: SALE_CHANNELS,
+    manualChannels: MANUAL_CHANNELS,
+    manualPaymentMethods: MANUAL_PAYMENT_METHODS,
+    manualInitialStatuses: MANUAL_INITIAL_STATUSES,
+    paymentMethodLabels: PAYMENT_METHOD_LABELS,
     mailProvider: app.mailer?.provider ?? "log",
     paymentProvider: app.env.PAYMENT_PROVIDER
   }));
@@ -65,12 +75,83 @@ export async function adminRoutes(app) {
       querystring: {
         type: "object",
         properties: {
-          status: { type: "string" }, q: { type: "string" }, from: { type: "string" }, to: { type: "string" },
+          status: { type: "string" }, q: { type: "string" }, from: { type: "string" }, to: { type: "string" }, channel: { type: "string" },
           page: { type: "integer", minimum: 1 }, pageSize: { type: "integer", minimum: 1, maximum: 100 }, sort: { type: "string" }
         }
       }
     }
   }, async (request) => admin.listOrders(request.query));
+
+  // venda externa (WhatsApp, Instagram, presencial…) → pedido já pago, visível para o cliente e no financeiro
+  app.post("/api/admin/orders", {
+    schema: {
+      tags,
+      body: {
+        type: "object",
+        required: ["customer", "items"],
+        properties: {
+          customer: {
+            type: "object",
+            required: ["name", "email"],
+            properties: { name: { type: "string" }, email: { type: "string" }, phone: { type: ["string", "null"] }, cpf: { type: ["string", "null"] } }
+          },
+          address: { anyOf: [ADDRESS_SCHEMA, { type: "null" }] },
+          items: {
+            type: "array", minItems: 1, maxItems: 20,
+            items: {
+              type: "object",
+              properties: {
+                kind: { type: "string", enum: ["stock", "import", "manual"] },
+                code: { type: "string" }, styleColor: { type: "string" }, name: { type: "string" }, colorDescription: { type: ["string", "null"] }, image: { type: ["string", "null"] },
+                // tamanho/quantidade/valores aceitam número ou texto ("2.199,00") — o serviço normaliza e valida
+                brLabel: {}, br: {}, nikeSize: {}, usSize: {},
+                sizeGender: { type: ["string", "null"], enum: ["M", "W", "K", null] },
+                quantity: {},
+                unitPriceBrl: {}, unitPriceUsd: {}, unitCostBrl: {},
+                deductStock: { type: "boolean" },
+                customization: { type: ["object", "null"] }
+              }
+            }
+          },
+          discountBrl: {},
+          payment: {
+            type: "object",
+            properties: {
+              method: { type: "string", enum: MANUAL_PAYMENT_METHODS },
+              paidAmountBrl: {},
+              installments: {},
+              paidAt: { type: ["string", "null"] },
+              reference: { type: ["string", "null"] },
+              receiptUrl: { type: ["string", "null"] }
+            }
+          },
+          channel: { type: "string", enum: MANUAL_CHANNELS },
+          status: { type: "string", enum: MANUAL_INITIAL_STATUSES },
+          shipping: {
+            type: "object",
+            properties: {
+              carrier: { type: ["string", "null"] }, trackingCode: { type: ["string", "null"] }, trackingUrl: { type: ["string", "null"] },
+              shippedAt: { type: ["string", "null"] }, deliveredAt: { type: ["string", "null"] }
+            }
+          },
+          note: { type: ["string", "null"] },
+          internalNotes: { type: ["string", "null"] },
+          notifyCustomer: { type: "boolean" }
+        }
+      }
+    }
+  }, async (request, reply) => {
+    const order = await admin.createManualOrder(request.body || {}, request.admin);
+    reply.code(201);
+    return order;
+  });
+
+  // produto Nike COM breakdown e todos os tamanhos (inclusive esgotados) — só para o painel pré-preencher a venda externa
+  app.get("/api/admin/catalog/:term", { schema: { tags, params: { type: "object", properties: { term: { type: "string", minLength: 1 } } } } }, async (request) => {
+    const result = await app.catalog.getProductSizes(request.params.term);
+    if (!result?.product) throw AppError.notFound("Produto não encontrado");
+    return result;
+  });
 
   app.get("/api/admin/orders/:number", { schema: { tags } }, async (request) => admin.getOrder(request.params.number));
 
@@ -100,7 +181,7 @@ export async function adminRoutes(app) {
   }, async (request) => admin.recheckPayment(request.params.number, request.body || {}));
 
   app.post("/api/admin/orders/:number/resend-email", {
-    schema: { tags, body: { type: "object", properties: { kind: { type: "string", enum: ["paid", "shipped", "delivered"] } } } }
+    schema: { tags, body: { type: "object", properties: { kind: { type: "string", enum: ["paid", "registered", "shipped", "delivered"] } } } }
   }, async (request) => admin.resendOrderEmail(request.params.number, request.body?.kind || "paid"));
 
   // ─── clientes ──────────────────────────────────────────────────────────

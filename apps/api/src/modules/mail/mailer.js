@@ -173,3 +173,55 @@ export function buildOrderPaidEmail(order, { siteUrl } = {}) {
     .replace(/</g, "&lt;")}</pre>`;
   return { subject: `Pedido ${order.number} confirmado — Kulture`, text, html };
 }
+
+/** Rótulo da forma de pagamento (inclui as formas de venda fora do site). */
+export const PAYMENT_METHOD_LABELS = {
+  pix: "Pix",
+  credit_card: "Cartão de crédito",
+  debit_card: "Cartão de débito",
+  cash: "Dinheiro",
+  transfer: "Transferência",
+  other: "Outro"
+};
+
+/**
+ * Venda registrada pelo backoffice (feita fora do site — WhatsApp, Instagram, presencial…): avisa o cliente
+ * que o pedido existe no site e como acompanhar (conta com o mesmo e-mail ou "rastrear pedido" pelo número).
+ */
+export function buildOrderRegisteredEmail(order, { siteUrl } = {}) {
+  const items = (order.items || [])
+    .map((i) => `• ${i.name} — tam. ${sizeLabel(i)} × ${i.quantity} — ${brl(i.unitPriceBrl)}${customLine(i)}`)
+    .join("\n");
+  const method = PAYMENT_METHOD_LABELS[order.paymentMethod] || order.paymentMethod || "-";
+  const inst = order.installments > 1 ? ` em ${order.installments}x` : "";
+  const status = order.status;
+  const stage =
+    status === "delivered" ? "Consta como entregue. 🎉"
+    : status === "shipped" ? `Já foi enviado${order.trackingCode ? ` — ${order.carrier ? `${order.carrier} ` : ""}${order.trackingCode}` : ""}.`
+    : status === "sourcing" ? "Estamos comprando seu par na loja oficial nos EUA."
+    : "Pagamento confirmado — vamos te avisar a cada etapa.";
+  const text = lines([
+    `Olá, ${order.customerName}!`,
+    "",
+    `Registramos sua compra com a Kulture como o pedido ${order.number}. ✅`,
+    "",
+    "Itens:",
+    items,
+    "",
+    "Frete: Grátis",
+    `Total: ${brl(order.totalBrl)}`,
+    `Pagamento: ${method}${inst}`,
+    order.receiptUrl ? `Comprovante: ${order.receiptUrl}` : null,
+    "",
+    `Situação: ${stage}`,
+    order.trackingUrl ? `Rastreio: ${order.trackingUrl}` : null,
+    "",
+    siteUrl ? `Acompanhe pelo site: ${siteUrl}/conta (entre ou crie sua conta com este e-mail — o pedido aparece em "Meus pedidos")` : null,
+    siteUrl ? `Ou rastreie pelo número do pedido em ${siteUrl} (Conta → Rastrear pedido).` : null,
+    "",
+    "Qualquer dúvida, responda este e-mail ou fale com a gente no WhatsApp.",
+    "",
+    "— Equipe Kulture"
+  ]);
+  return { subject: `Pedido ${order.number} registrado — Kulture`, text, html: asHtml(text) };
+}

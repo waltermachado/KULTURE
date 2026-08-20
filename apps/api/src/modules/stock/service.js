@@ -17,9 +17,16 @@ import { z } from "zod";
 import { AppError } from "../../lib/errors.js";
 import { installmentsInfo } from "../catalog/normalize.js";
 
-export const STOCK_CODE_RE = /^PE-[A-Z0-9]{4,12}$/i;
+export const STOCK_CODE_RE = /^(PE|HY)-[A-Z0-9]{4,12}$/i; // PE = pronta entrega · HY = hypados
 export const isStockCode = (v) => STOCK_CODE_RE.test(String(v ?? "").trim());
 export const STOCK_MEDIA_BASE = "/media/estoque";
+
+/** Seções de estoque próprio da loja. Mesmo fluxo (reserva, fotos, checkout); muda a vitrine e o selo. */
+export const STOCK_SECTIONS = {
+  stock: { label: "Pronta entrega", codePrefix: "PE", path: "/pronta-entrega", badge: "PRONTA ENTREGA" },
+  hypados: { label: "Hypados", codePrefix: "HY", path: "/hypados", badge: "HYPADOS" }
+};
+const sectionOf = (v) => (STOCK_SECTIONS[v] ? v : "stock");
 
 /** Categorias = as 3 abas da loja. Chave interna igual à do catálogo Nike (inferCategory), rótulo em PT para o site. */
 export const STOCK_CATEGORIES = { basketball: "Basquete", lifestyle: "Casual", running: "Corrida" };
@@ -32,11 +39,11 @@ const MAX_IMAGES = 12;
 
 // ---- helpers ----
 const CODE_ALPHABET = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789"; // sem 0/O/1/I
-function randomCode(len = 6) {
+function randomCode(prefix = "PE", len = 6) {
   const bytes = randomBytes(len);
   let out = "";
   for (let i = 0; i < len; i++) out += CODE_ALPHABET[bytes[i] % CODE_ALPHABET.length];
-  return `PE-${out}`;
+  return `${prefix}-${out}`;
 }
 
 export function slugify(s) {
@@ -62,6 +69,7 @@ const sizeSchema = z.object({
 });
 
 export const productInputSchema = z.object({
+  section: z.preprocess(emptyToNull, z.enum(Object.keys(STOCK_SECTIONS)).optional()),
   name: z.string().trim().min(2).max(120),
   subtitle: optText(120),
   category: z.preprocess(emptyToNull, z.enum(Object.keys(STOCK_CATEGORIES)).nullable().optional()),
@@ -115,6 +123,7 @@ export function createStockService({ prisma, log = null }) {
 
   // ---- formato público (mesmo contrato do toProduct do catálogo, + sizes) ----
   function toPublic(row) {
+    const section = sectionOf(row.section);
     const gender = row.gender || "M";
     const sizes = (row.sizes || []).map((s) => {
       const brNum = Number(String(s.br).replace(",", "."));
@@ -156,7 +165,7 @@ export function createStockService({ prisma, log = null }) {
       price: {
         brl: price,
         fullBrl: full != null && full > price ? full : null,
-        breakdown: { source: "stock", subtotalBrl: row.costBrl != null ? round2(row.costBrl) : undefined },
+        breakdown: { source: "stock", section, subtotalBrl: row.costBrl != null ? round2(row.costBrl) : undefined },
         rulesApplied: { stock: true },
         exchange: null,
         pix: true,
@@ -168,6 +177,8 @@ export function createStockService({ prisma, log = null }) {
       nikeUrl: null,
       badge: row.badge || null,
       source: "stock",
+      section,
+      sectionLabel: STOCK_SECTIONS[section].label,
       readyToShip: true,
       gender,
       genderLabel: STOCK_GENDERS[gender] || null,
@@ -185,6 +196,8 @@ export function createStockService({ prisma, log = null }) {
       id: row.id,
       code: row.code,
       slug: row.slug,
+      section: sectionOf(row.section),
+      sectionLabel: STOCK_SECTIONS[sectionOf(row.section)].label,
       name: row.name,
       subtitle: row.subtitle,
       category: row.category,
@@ -210,29 +223,33 @@ export function createStockService({ prisma, log = null }) {
   }
 
   // ---- público ----
-  async function listPublic() {
+  async function listPublic({ section = "stock" } = {}) {
     const rows = await prisma.stockProduct.findMany({
-      where: { active: true },
+      where: { active: true, section: sectionOf(section) },
       orderBy: [{ sortOrder: "asc" }, { createdAt: "desc" }],
       include: withSizes
     });
     return rows.map(toPublic);
   }
 
-  /** Produto pelo code (PE-…), com todos os tamanhos (inclusive esgotados). null se não existir/inativo. */
-  async function getProductByCode(code) {
+  /**
+   * Produto pelo code (PE-…), com todos os tamanhos (inclusive esgotados). null se não existir/inativo.
+   * `includeInactive` (só backoffice — venda externa de um par já despublicado) devolve também os inativos.
+   */
+  async function getProductByCode(code, { includeInactive = false } = {}) {
     if (!isStockCode(code)) return null;
     const row = await prisma.stockProduct.findFirst({
-      where: { code: String(code).trim().toUpperCase(), active: true },
+      where: { code: String(code).trim().toUpperCase(), ...(includeInactive ? {} : { active: true }) },
       include: withSizes
     });
     return row ? toPublic(row) : null;
   }
 
   // ---- admin ----
-  async function list({ q = "", includeInactive = true } = {}) {
+  async function list({ q = "", includeInactive = true, section = null } = {}) {
     const where = {};
     if (!includeInactive) where.active = true;
+    if (section) where.section = sectionOf(section);
     if (q) where.OR = [{ name: { contains: q, mode: "insensitive" } }, { code: { contains: q, mode: "insensitive" } }, { styleColor: { contains: q, mode: "insensitive" } }, { colorDescription: { contains: q, mode: "insensitive" } }];
     const rows = await prisma.stockProduct.findMany({ where, orderBy: [{ sortOrder: "asc" }, { createdAt: "desc" }], include: withSizes });
     return rows.map(toAdmin);
@@ -278,9 +295,10 @@ export function createStockService({ prisma, log = null }) {
     return `${slugify(base)}-${Date.now().toString(36)}`;
   }
 
-  async function uniqueCode() {
+  async function uniqueCode(section = "stock") {
+    const prefix = STOCK_SECTIONS[sectionOf(section)].codePrefix;
     for (let i = 0; i < 20; i++) {
-      const code = randomCode();
+      const code = randomCode(prefix);
       const hit = await prisma.stockProduct.findUnique({ where: { code }, select: { id: true } });
       if (!hit) return code;
     }
@@ -289,7 +307,8 @@ export function createStockService({ prisma, log = null }) {
 
   async function create(body) {
     const d = parseInput(body);
-    const code = await uniqueCode();
+    d.section = sectionOf(d.section);
+    const code = await uniqueCode(d.section);
     const slug = await uniqueSlug(d.name);
     const { sizes = [], images = [], ...fields } = d;
     const row = await prisma.stockProduct.create({
@@ -454,6 +473,7 @@ export function createStockService({ prisma, log = null }) {
 
   return {
     isStockCode,
+    STOCK_SECTIONS,
     listPublic,
     getProductByCode,
     list,

@@ -1,6 +1,7 @@
 const ITEMS = {
   import: ["100% original", "Importado direto dos EUA", "Frete grátis para todo o Brasil", "Numeração BR", "Pix ou cartão via InfinitePay", "Compra protegida", "★"],
-  stock: ["100% original", "Em estoque no Brasil", "Envio imediato", "Frete grátis para todo o Brasil", "Numeração BR", "Pix ou cartão via InfinitePay", "★"]
+  stock: ["100% original", "Em estoque no Brasil", "Envio imediato", "Frete grátis para todo o Brasil", "Numeração BR", "Pix ou cartão via InfinitePay", "★"],
+  hypados: ["HYPADOS", "Os drops mais quentes", "100% original", "Em estoque no Brasil", "Envio imediato", "Frete grátis", "Numeração BR", "★"]
 };
 
 export default function Marquee({ variant = "import" }) {

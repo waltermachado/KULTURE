@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { ErrorBox, Loading, StatusPill, STATUS_LABELS, brl, fmtDate, fmtDateTime, fmtPhone } from "./ui.jsx";
+import { ErrorBox, Loading, StatusPill, ChannelPill, STATUS_LABELS, brl, fmtDate, fmtDateTime, fmtPhone } from "./ui.jsx";
 
 /**
  * Fila de entregas: tudo que foi pago e ainda não chegou ao cliente.
@@ -94,7 +94,7 @@ export default function Deliveries({ auth, notify }) {
                     </td>
                     <td>{o.customerName}<span className="sub">{fmtPhone(o.customerPhone)}</span></td>
                     <td>{o.city ? `${o.city}/${o.state}` : "—"}</td>
-                    <td><StatusPill status={o.status} /></td>
+                    <td><StatusPill status={o.status} />{o.external ? <> <ChannelPill channel={o.channel} short /></> : null}</td>
                     <td>
                       {tab === "paid,sourcing" ? (
                         <div style={{ display: "flex", gap: 6 }}>

@@ -1,24 +1,28 @@
-# Kulture BR — Contexto de handoff (sessões de 16/08 e 17/08/2026)
+# Kulture BR — Contexto de handoff (sessões de 16 a 20/08/2026)
 
 > Documento para retomar o trabalho em qualquer ferramenta (Claude Code, Antigravity, TRAE) sem depender do
 > histórico da conversa. **Sem segredos** — tokens/senhas ficam só nos `.env` (fora do git) e no painel do Railway.
-> Substitui o handoff de 15/08.
+> Consolida os handoffs de 15/08 e 16/08 com tudo o que foi feito em 17–20/08.
 
 ---
 
 ## 1. Produto e regras fixas do dono
 
-**Kulture BR** — loja de tênis Nike US importados. Cliente busca o modelo, escolhe o tamanho em **numeração BR**,
-coloca na sacola, paga via **InfinitePay** (link de pagamento) e recebe confirmação. Checkout como convidado ou logado.
+**Kulture BR** — loja de tênis Nike US. Duas seções: **Importados** (`/`, busca ao vivo na Nike US, sob encomenda) e
+**Pronta entrega** (`/pronta-entrega`, estoque próprio no Brasil, cadastrado no backoffice). Cliente busca/escolhe o modelo,
+escolhe o tamanho em **numeração BR**, coloca na sacola, paga via **InfinitePay** (link de pagamento) e recebe confirmação.
+Checkout como convidado ou logado.
 
 Regras que não voltam a ser discutidas:
 - **Preço em BRL fechado, frete embutido** — o cliente nunca vê frete como custo (se aparecer, "Grátis").
-- **Breakdown de preço** (câmbio, frete, comissão, regras) **nunca sai na API pública** — só `price.brl`, `price.fullBrl`,
+- **Breakdown de preço** (câmbio, frete, comissão, custo, regras) **nunca sai na API pública** — só `price.brl`, `price.fullBrl`,
   `price.exchange.usdToBrl`, `price.pix`, `price.installments.label`.
-- **Bling (NF-e) e WhatsApp: adiados.** WhatsApp fica em `WHATSAPP_PROVIDER=log`.
+- **Bling (NF-e) e WhatsApp de notificação: adiados.** `WHATSAPP_PROVIDER=log`. (O WhatsApp de **atendimento** — botão
+  "não achou? chama a gente" — está no ar; ver §5.)
 - E-mail transacional: **MailerSend via API HTTP**. Gateway: **InfinitePay** (`PAYMENT_PROVIDER=infinitepay`).
+- Claude Code **não commita nem faz push**; o dono libera cada push (Antigravity). O dono **testa a UI ele mesmo**.
 
-### Precificação (decidida em 16/08 — implementada, aguardando push; ver §3)
+### Precificação dos importados (decidida em 16/08 — no ar desde `702da55`)
 
 ```
 Preço Pix = arredondar↑ até …99 ( [ (USD × 1,07 + 65) × dólar TURISMO ] × 1,30 )
@@ -29,10 +33,14 @@ Preço Pix = arredondar↑ até …99 ( [ (USD × 1,07 + 65) × dólar TURISMO ]
 - Site mostra o preço grande com selo **"no Pix"** e, pequeno, **"ou em até Nx no cartão"** (`MAX_INSTALLMENTS`, padrão 12).
   ⚠️ O dono escreveu "12x" e "até 5 vezes" — **confirmar qual**; se 5, `MAX_INSTALLMENTS=5` no Railway.
 - Parcelas/juros reais são **configuração da conta InfinitePay** (a API do link não tem campo). O admin mostra
-  "juros repassados ao cliente: +R$ Y" quando `paid_amount > amount` (só aparece em pagamento no cartão parcelado).
-- Regras vivem em `packages/shared/src/pricing/default-rules.js` (`productSurchargeRate`, `shippingUsd`, `commission`,
-  `roundUpToEnding`); modulares por escopo global/brand/category/model/sku.
-- Produto virtual `test123test` (R$ 1,00) fica fora da fórmula.
+  "juros repassados ao cliente: +R$ Y" quando `paid_amount > amount` (só em cartão parcelado).
+- Regras em `packages/shared/src/pricing/default-rules.js` (`productSurchargeRate`, `shippingUsd`, `commission`,
+  `roundUpToEnding`, `extraFixedBrl`); modulares por escopo global/brand/category/model/sku.
+- **LeBron XXIII (23): +R$ 300 no preço final** (decisão 19/08) — regra `lebron-23-acrescimo` (escopo model,
+  regex `lebron xxiii|23`), campo novo `extraFixedBrl`: soma depois da comissão (os 30% NÃO incidem sobre ele) e antes
+  do ↑99 (como 300 é múltiplo de 100, continua terminando em 99 — ex.: 1799 → 2099). Não pega LeBron XX/XXI/Witness/NXXT.
+  Vale só para importados; na pronta entrega o preço segue sendo o digitado no cadastro.
+- **Pronta entrega NÃO usa a fórmula**: o preço é o digitado no cadastro. Produto virtual `test123test` (R$ 1,00) também fica fora.
 
 ---
 
@@ -45,43 +53,62 @@ Preço Pix = arredondar↑ até …99 ( [ (USD × 1,07 + 65) × dólar TURISMO ]
 apps/web               React 19 + Vite, CSS próprio (src/styles/kulture.css + admin.css)     dev :5173
 apps/api               Fastify 5 + Prisma 6/Postgres; em prod serve o front (apps/web/dist)   :3000
 services/nike-scraper  Express — único que fala com a Nike US (endpoints não-oficiais)        :3001 (privado)
-packages/shared        pricing/ (motor de preço) + sizes/ (US→BR por lookup)
+packages/shared        pricing/ (motor de preço) + sizes/ (US↔BR, modelagem, tabela padrão)
 deploy/                Dockerfiles (api, scraper), api-entrypoint.sh (prisma migrate deploy), railway.*.json
 docs/                  DEPLOY.md (Railway; §6b InfinitePay), CONTEXTO.md (este), PLANO.md
 ```
 
 - **Fluxo:** Claude Code implementa/audita e **não commita**. O dono cola um prompt no **Antigravity**, que confere
-  `git status --short` (sem `.env`/storage/dist), faz `git add -A`, commit com a mensagem dada, `git push origin main`
-  e devolve o hash. O dono **testa a UI ele mesmo** — validar por curl, testes automatizados e build; não fazer
-  fluxos longos no navegador embutido. Não usar o Chrome do dono.
+  `git status --short` (sem `.env`/storage/dist; se aparecer algo inesperado, PARAR), faz `git add -A`, commit com a mensagem
+  dada, `git push origin main` e devolve o hash. Validação por curl, testes automatizados e build; nada de fluxos longos no
+  navegador embutido. Não usar o Chrome do dono. Quando o dono pede para "segurar", nenhum comando de push é entregue.
+- Módulos da api (`apps/api/src/modules`): `catalog` (busca/preço/imagens/tamanhos), `stock` (pronta entrega), `orders`
+  (checkout/pagamento), `admin` (backoffice), `auth`, `mail`, `config` (`/api/config`), `health`, `jobs` (checkout abandonado),
+  `notifications`, `payments`.
 
 ---
 
-## 3. Estado do git
+## 3. Estado do git (20/08, fim da sessão)
 
-- Último commit no GitHub: **`702da55`** (18/08) — precificação nova (turismo, 7%, ↑99, "no Pix" + "em até 12x"), redirect no
-  domínio do cliente, busca no mobile + hero foto→nome, fix TDZ CartDrawer, **pronta entrega** completa (BO `/admin/estoque`,
-  página `/pronta-entrega`, seletor Importados × Pronta entrega com **transição avião EUA ⇄ BR** — opção C aprovada, reserva de
-  estoque por tamanho no checkout), CTA WhatsApp na busca (`/api/config` + `WHATSAPP_CONTACT_PHONE`). Ver §5b.
-- **Pendente de commit (18/08) — dono pediu para SEGURAR o push:**
-  1. Seletor de **categoria** no cadastro de pronta entrega — `Basquete / Casual / Corrida` (coluna `stock_products.category`
-     = basketball|lifestyle|running, migração `20260818121618_stock_category`; obrigatória no form; o rótulo vira o subtítulo do
-     card/hero; `categoryLabel` na API admin/pública).
-  2. **Tamanhos por modelagem** (Masculino / Feminino / Infantil) — ver §5c. Migração `20260818123937_size_genders`
-     (`stock_products.gender` M|W|U|K default M; `order_items.size_label`).
-  3. **Nike By You** (customizado) — ver §5d. Migração `20260818124307_by_you_customization` (`order_items.customization` Json).
-  4. **Filtros respeitam a seção**: na pronta entrega, Basquete/Casual/Corrida (abas do topo, blocos, rodapé) filtram o
-     estoque por categoria (`/pronta-entrega?cat=basketball|lifestyle|running`) e a página não muda; chips "Todos · Basquete ·
-     Casual · Corrida" (com contagem) acima da lista, também no mobile. Nos importados continuam buscando na Nike.
-     "Início" na pronta entrega = limpa o filtro (fica na seção). Centralizado em `App.jsx#pickCategory` + `CATEGORIES` em
-     `lib/format.js`; a aba ativa do topo segue a URL.
-  Testes: shared 22/22, api (stock 9 + byyou 2 + demais) — ver resultado da suíte no chat; build ok. Mensagem sugerida:
+- **No GitHub: `c228704`** (18/08) — categoria na pronta entrega, tamanhos por modelagem, Nike By You, filtros por seção,
+  fix do cache do `findOne` (bloco que estava "segurado" em 18/08 já subiu). Antes dele: `702da55` (precificação nova,
+  pronta entrega, transição avião, CTA WhatsApp).
+- **Pendente de push (19–20/08)** — cinco blocos:
+  1. **Venda externa** (§5.7): venda feita fora do site registrada no painel como pedido pago.
+     Arquivos: `apps/api/prisma/schema.prisma` (+ migração `20260819212330_order_channel`), `apps/api/src/modules/admin/{service,routes}.js`,
+     `orders/service.js` (`newOrderNumber`), `stock/service.js` (`getProductByCode(code,{includeInactive})`), `mail/mailer.js`
+     (`buildOrderRegisteredEmail`, `PAYMENT_METHOD_LABELS`), `apps/api/test/manual-order.test.js` (novo), `apps/web/src/admin/ManualOrder.jsx`
+     (novo), `AdminApp/Orders/OrderDetail/Dashboard/Deliveries/CustomerDetail/ui.jsx`, `styles/admin.css`.
+  2. **LeBron 23 +R$300** (§1): `packages/shared/src/pricing/{default-rules,rules,calculate}.js` (campo `extraFixedBrl` +
+     regra `lebron-23-acrescimo`), `packages/shared/test/pricing.test.js` (+2 testes), `apps/api/src/modules/catalog/service.js`
+     (cache NS v5 → v6 para o preço novo valer na hora).
+  3. **HYPADOS + Vitrine** (§5.8, 20/08): terceira seção da loja (`/hypados`, estoque próprio como a pronta
+     entrega — coluna `stock_products.section`, código HY-…), aba no ModeBar com logo de bola de basquete amarela
+     no fundo preto e transição de BOLA QUICANDO entre qualquer aba e o Hypados (avião continua só EUA ⇄ BR);
+     backoffice `/admin/hypados` (mesmas telas da pronta entrega, parametrizadas) e `/admin/vitrine` — o tênis do
+     HERO agora é configurável por seção (Importados/Pronta entrega/Hypados) × categoria (Início/Basquete/Casual/
+     Corrida), guardado na nova tabela `settings` (key "featured"). Migração `20260820035255_stock_section_settings`.
+     Testes: `apps/api/test/hypados.test.js` (5).
+  4. **Conta no checkout** (20/08): convidado pode criar a conta DENTRO do carrinho — caixa "Criar minha conta
+     com esses dados" (marcada por padrão) com senha + confirmação em `pages/Checkout.jsx`; registra via
+     `POST /api/auth/register` ANTES do pedido e o checkout segue autenticado (pedido nasce vinculado, sem depender
+     do vínculo por e-mail). E-mail já cadastrado → aviso inline com botão "Entrar" (abre o modal de login) ou
+     desmarcar e comprar como convidado (comportamento antigo intacto). Zero mudança no backend — só compõe
+     register + checkout com Bearer. Logado não vê a caixa.
+  5. **Fix: feminino acima de W 12 repetia o número no seletor** (§5.4): a tabela oficial feminina vai só até W 12 e
+     `WOMENS_APPROX` estava vazia → `brSize: null` e o chip mostrava "12.5 · US W 12.5" (parecia BR; no checkout viraria
+     "BR ?"). Reproduzido no Air Jordan 1 Mid SE feminino (IO0760-001, até W 15.5). `packages/shared/src/sizes/index.js`:
+     `WOMENS_APPROX` preenchida (W 4–4.5 e W 12.5–16 → BR 32,5–33 e 43,5–48, `approximate: true`, sequência contínua sem
+     repetir BR); `apps/web/src/components/SizePicker.jsx`: chip sem BR na tabela mostra o US uma vez só (defesa para
+     lacunas futuras); `packages/shared/test/sizes.test.js` (+3 testes).
 
-  `feat(stock): categoria (Basquete/Casual/Corrida) no cadastro; feat(sizes): tamanhos separados por modelagem — Masculino/Feminino/Infantil no seletor (abas), rótulo "BR 38 (US M 7)" no carrinho/pedido/e-mail, modelagem no cadastro da pronta entrega com US pela tabela oficial; feat(byyou): Nike By You — tabela padrão de tamanhos + personalização (texto ≤ 8 e nº 2 dígitos por pé) no seletor, checkout, pedido e e-mail; fix(catalog): findOne não cola "não achei" no cache; fix(web): filtros Basquete/Casual/Corrida ficam na pronta entrega (?cat=) em vez de voltar aos importados`
+  Mensagem de commit sugerida (um commit só):
 
-- Transição do avião: detalhes em `ModeBar.jsx` (voo + rastro + bloco amarelo, ~0,7s) e `App.jsx` (`switchMode`: página sai
-  para um lado e entra pelo outro, sobe ao topo; wrapper `.page-view`). `prefers-reduced-motion` → troca seca; clique novo
-  cancela o anterior (token); numa aba oculta a troca acontece por timeout (o navegador não dispara o "finish" da animação).
+  `feat(admin): venda externa — POST /api/admin/orders registra venda feita fora do site (WhatsApp/Instagram/presencial/outro) como pedido já pago (paymentProvider=manual, orders.channel), itens de pronta entrega (baixa estoque, opcional), Nike (GET /api/admin/catalog/:term pré-preenche nome/foto/preço/custo/tamanhos) ou livres, desconto, forma de pagamento (pix/cartão/débito/dinheiro/transferência/outro), status inicial pago/comprando/enviado/entregue com rastreio, e-mail "pedido registrado" ao cliente; tela /admin/pedidos/nova; filtro de canal e selo "externa" em Pedidos/Entregas/Clientes; dashboard com receita por canal (site × fora do site); feat(pricing): LeBron XXIII/23 +R$300 no preço final — campo extraFixedBrl (fixo, fora da comissão, antes do ↑99) + regra model lebron-23-acrescimo; cache do catálogo v6; fix(sizes): feminino acima de W 12 (e abaixo de W 5) ganha BR aproximado — WOMENS_APPROX preenchida (43,5–48 sem repetir), chip do seletor não repete mais o número quando faltar BR na tabela; feat(checkout): convidado cria conta no próprio carrinho (checkbox marcado por padrão + senha; registra antes do pedido e finaliza autenticado; e-mail já usado → entrar ou seguir sem conta); feat(hypados): terceira seção da loja /hypados (estoque próprio, stock_products.section, código HY-, aba com bola de basquete amarela Kulture e transição de bola quicando; avião fica só EUA⇄BR), backoffice /admin/hypados; feat(vitrine): tênis do hero configurável por seção × categoria (/admin/vitrine, tabela settings, GET /api/featured com fallback automático)`
+
+- Testes no fim da sessão: **api 62/62** (9 arquivos; manual-order 7, hypados 5), **shared 27/27**, `npm run build -w apps/web` ok.
+  As migrações `order_channel` e `stock_section_settings` já estão aplicadas no banco de dev (Supabase); em produção rodam
+  sozinhas no boot (`migrate deploy`).
 
 ---
 
@@ -94,17 +121,15 @@ Internet ──► kulture-api (público)  serve apps/web/dist + /api + /media (
                  └► Postgres (plugin)               DATABASE_URL
 ```
 
-- **Site: `https://lojakulture.com.br`** (custom domain OK). `www.lojakulture.com.br` não resolve (falta CNAME +
-  custom domain no Railway). O domínio `kulture-api-production.up.railway.app` também responde; o `-9eea` dá 502 (apagar).
-- `curl …/health` → `paymentProvider` (mock|infinitepay), `mailProvider`, `storageWritable`; `…/health/deps` → scraper
-  `ok/url/cause` (tabela de diagnóstico em `docs/DEPLOY.md` §3).
-- Em 16/08: `paymentProvider: infinitepay`, `mailProvider: mailersend`, `storageWritable: false`, scraper ok.
-- **Pagamento real de R$ 1 funcionou** (Pix, via `test123test`). O redirect voltou no domínio Railway porque
-  `PUBLIC_WEB_URL` apontava para lá → corrigido no código (usa o domínio que o cliente estava usando, com allowlist)
-  **e** o dono deve trocar as variáveis (abaixo).
-- Câmbio: AwesomeAPI devolve 429 no IP compartilhado do Railway → scraper cai para Frankfurter/open.er-api (só
-  comercial) e o turismo vira comercial + 0,25 nesses momentos.
-- Rede privada: scraper escuta em `[::]:3001` (log mostra "rede privada: http://…railway.internal:3001").
+- **Site: `https://lojakulture.com.br`** (custom domain OK). `www.lojakulture.com.br` não resolve (falta CNAME + custom domain
+  no Railway). `kulture-api-production.up.railway.app` também responde; o `-9eea` dá 502 (apagar).
+- `curl …/health` → `paymentProvider`, `mailProvider`, `storageWritable`; `…/health/deps` → scraper `ok/url/cause`
+  (tabela de diagnóstico em `docs/DEPLOY.md` §3). Em 16/08: infinitepay + mailersend, `storageWritable: false`, scraper ok.
+- **Pagamento real de R$ 1 funcionou** (Pix, via `test123test`). O redirect voltava no domínio Railway porque `PUBLIC_WEB_URL`
+  apontava para lá → corrigido no código (usa o domínio que o cliente estava usando, com allowlist `PUBLIC_WEB_HOSTS`) **e** o
+  dono deve trocar as variáveis abaixo.
+- Câmbio: AwesomeAPI devolve 429 no IP compartilhado do Railway → scraper cai para Frankfurter/open.er-api (só comercial) e o
+  turismo vira comercial + 0,25 nesses momentos.
 
 ### Variáveis (`kulture-api`) — mudar e clicar **Deploy**
 
@@ -113,11 +138,11 @@ Internet ──► kulture-api (público)  serve apps/web/dist + /api + /media (
 | Links de e-mail/reset/redirect/webhook no domínio certo | `PUBLIC_WEB_URL=https://lojakulture.com.br` e `PUBLIC_API_URL=https://lojakulture.com.br` |
 | Imagens gravadas no volume (hoje vêm da Nike) | `RAILWAY_RUN_UID=0` |
 | Frase de parcelamento | `MAX_INSTALLMENTS=12` (ou 5) |
-| WhatsApp de atendimento no site ("não achou? chama a gente") | `WHATSAPP_CONTACT_PHONE=5585992578888` (DDI+DDD+número; sem ela usa o do rodapé) |
+| WhatsApp de atendimento no site ("não achou? chama a gente") | `WHATSAPP_CONTACT_PHONE=5585992578888` (DDI+DDD+número; sem ela o site usa o do rodapé) |
 | Desligar o produto de teste após validar | `TEST_PRODUCT_ENABLED=false` |
 | Admins do backoffice | `ADMIN_EMAILS=email1,email2` |
 | Limpeza | remover `RAILWAY_PRIVATE_DOMAIN` criada à mão no serviço da api |
-| **Segurança** | rotacionar `JWT_SECRET` (`openssl rand -base64 48`, desloga todo mundo) e o token MailerSend — ambos apareceram no chat |
+| **Segurança** | rotacionar `JWT_SECRET` (`openssl rand -base64 48`, desloga todo mundo) e o token MailerSend — ambos apareceram no chat em 16/08 |
 
 Demais variáveis: `DATABASE_URL=${{Postgres.DATABASE_URL}}`, `SCRAPER_URL=http://kulture-scraper.railway.internal:3001`,
 `INFINITEPAY_HANDLE=<InfiniteTag sem $>`, `MAIL_PROVIDER=mailersend`, `MAILERSEND_API_TOKEN`, `MAIL_FROM`, `MAIL_FROM_NAME`,
@@ -128,138 +153,225 @@ Demais variáveis: `DATABASE_URL=${{Postgres.DATABASE_URL}}`, `SCRAPER_URL=http:
 
 ---
 
-## 5. O que foi construído em 16/08 (tudo no ar, exceto o pendente do §3)
+## 5. O que existe hoje (por área)
+
+### 5.1 Base construída em 16/08 (no ar)
 
 **Backoffice `/admin`** (exige `role=admin`; `ADMIN_EMAILS` promove no login/cadastro, ou `npm run admin:make -w apps/api -- email`):
-dashboard financeiro (receita, ticket médio, conversão, custo/margem estimados pelo breakdown dos itens, série diária,
-top produtos, pagamentos por método), pedidos (filtros, detalhe com itens/eventos/notificações, transições de status
-com rastreio + e-mail ao cliente, notas internas, reconsultar `payment_check`, reenviar e-mail, baixa manual),
-entregas (fila com ações inline), clientes (lista com gasto e último acesso; detalhe com edição de cadastro/role,
-pedidos incl. convidado por e-mail, link de redefinição de senha, revogar sessões, **acessos** com IP/navegador).
+dashboard financeiro (receita, ticket médio, conversão, custo/margem estimados pelo breakdown dos itens, série diária, top
+produtos, pagamentos por método), pedidos (filtros, detalhe com itens/eventos/notificações, transições de status com rastreio +
+e-mail ao cliente, notas internas, reconsultar `payment_check`, reenviar e-mail, baixa manual), entregas (fila), clientes
+(gasto, último acesso, edição de cadastro/role, pedidos incl. convidado por e-mail, link de redefinição de senha, revogar sessões,
+acessos com IP/navegador), **pronta entrega** (§5.2).
 
-**Conta do cliente:** `/conta` (editar cadastro, trocar senha, meus pedidos com rastreio), "esqueci minha senha" real
-(token uso único 60 min → `/redefinir-senha`), botão mostrar/ocultar senha em todos os campos, rastrear pedido no modal,
-tabela `login_events` + `users.last_login_at`, pedido de convidado vinculado à conta pelo e-mail (sem alterar perfil).
+**Conta do cliente:** `/conta` (cadastro, senha, meus pedidos com rastreio); no checkout, convidado pode criar a
+conta na hora (20/08 — caixa com senha, marcada por padrão; ver §3 bloco 4); "esqueci minha senha" real (token 60 min →
+`/redefinir-senha`), mostrar/ocultar senha, rastrear pedido, `login_events` + `users.last_login_at`, pedido de convidado vinculado
+à conta pelo e-mail. `GET /api/orders/:number` mascarado para convidado (sem CPF/e-mail/telefone/endereço).
 
-**Segurança:** `GET /api/orders/:number` mascarado para convidado (sem CPF/e-mail/telefone/endereço); dono/admin veem tudo.
+**Catálogo (importados):** busca da Nike segue o redirect; **só FOOTWEAR**; fotos **recortadas** (`w_1000,f_webp,q_auto/<id>`,
+espelho `v2-*.webp`); **galeria** no seletor (até 8 ângulos); **pré-venda/lançamento** (`product.launch`; Kobe 10 lança
+23/08/2026 14:00 UTC — selo PRÉ-VENDA no card/hero, data no seletor, tag na sacola); caches nunca guardam resultado vazio;
+chaves versionadas (`search/top8/sizes:v6`, `rate:USD-BRL:v2`, `product:v6:<termo>` — v6 = LeBron 23 +R$300).
 
-**Catálogo:** busca da Nike segue o redirect (`analyzer.action.redirectUrl` — "kobe" voltava vazio); **só FOOTWEAR**
-(roupas/meias fora; pede 50 à Nike); fotos **recortadas** (URL da CDN reescrita para `w_1000,f_webp,q_auto/<id>` —
-remove a camada de fundo; espelho `v2-*.webp` em paralelo); **galeria** no seletor de tamanho (até 8 ângulos, setas,
-miniaturas, teclado); **pré-venda/lançamento** (`product.launch {isLaunch, comingSoon, date, label, bestSeller, justIn}` a
-partir de `badgeAttribute`/`featuredAttributes`/`launchView.startEntryDate` — Kobe 10 lança 23/08/2026 14:00 UTC; selo
-PRÉ-VENDA no card/hero, data no seletor, tag na sacola/checkout — fluxo de compra igual); caches nunca guardam resultado
-vazio; chaves versionadas (`search/top8/sizes:v5`, `rate:USD-BRL:v2`).
+**Robustez:** `SCRAPER_URL` tolerante e nunca fatal; storage não gravável degrada (imagens da Nike) em vez de derrubar a busca;
+câmbio multi-fonte + último conhecido + backoff em 429.
 
-**Robustez:** `SCRAPER_URL` tolerante (aspas/espaços/prefixo) e nunca fatal; storage não gravável degrada (imagens da Nike)
-em vez de derrubar a busca; câmbio multi-fonte (AwesomeAPI → Frankfurter → open.er-api) + último conhecido + backoff em 429;
-scraper loga o bind real.
+**InfinitePay conforme doc oficial:** `paid` só com `paid===true`, conferência de valor (`payment_amount_mismatch` não marca pago),
+webhook `{success:true,message:null}` / 400 para retentativa, `redirect_url` por path (`/pedido/confirmacao/:number`), `settle()`
+único para redirect/webhook/reconsulta/baixa manual.
 
-**InfinitePay conforme doc oficial:** `paid` só com `paid===true` (`success` = consulta ok), conferência de valor
-(`payment_amount_mismatch` não marca pago), webhook responde `{success:true,message:null}` / 400 para retentativa,
-`redirect_url` por path (`/pedido/confirmacao/:number`; front aceita `:number`, `?order=`, `?order_nsu=`), `settle()`
-único para redirect/webhook/reconsulta, `redirect_url` no domínio que o cliente usou (allowlist `PUBLIC_WEB_HOSTS`).
+**Produto virtual `test123test`:** R$ 1,00, só aparece buscando exatamente o nome; `TEST_PRODUCT_ENABLED=false` desliga.
+Também: favicon, `/health` com providers, `/api/rate` devolve `tourism`.
 
-**Produto virtual `test123test`:** R$ 1,00, foto = logo, "teste gateway", só aparece buscando exatamente o nome, um
-tamanho; `TEST_PRODUCT_ENABLED=false` desliga.
+**Mobile (17/08):** barra de busca visível no celular (2ª linha do topo, largura total, `font-size:16px` para não dar zoom no iOS);
+hero empilhado mostra **foto antes do nome**; logado em ≤640px o botão "Admin" some do topo (o admin chega por `/conta`).
 
-Também: favicon (K da marca), `/health` com providers, `/api/rate` devolve `tourism`.
+### 5.2 Pronta entrega — estoque próprio no Brasil (17–18/08)
 
----
+**Página `/pronta-entrega`** (`pages/Stock.jsx`): mesmos componentes da home (Hero variante "stock", Marquee, grid, blocos de
+categoria); lê `GET /api/stock` uma vez; sem Nike. Card com selo **PRONTA ENTREGA** (ou selo livre, ex. "ÚLTIMO PAR"), rodapé
+"em estoque no Brasil · envio imediato · frete grátis"; esgotado fica visível sem botão.
 
-## 5b. Pronta entrega + WhatsApp (17/08, noite — pendente de push)
+**Seletor de seção** (`components/ModeBar.jsx`): barra **EUA · Importados | BR · Pronta entrega** logo abaixo do topo, nas duas
+vitrines, desktop e mobile, com a **transição do avião** (opção C aprovada em 17/08): o aviãozinho decola da bandeira ativa,
+cruza a barra com rastro tracejado e pousa na outra (~0,7s), o bloco amarelo desliza junto; em paralelo `App.jsx#switchMode` faz
+a página sair para um lado e a nova entrar pelo outro (EUA→BR desliza para a esquerda; BR→EUA para a direita), sobe ao topo.
+`prefers-reduced-motion` → troca seca; clique novo cancela o anterior (token); numa aba oculta a troca acontece por timeout
+(o navegador não dispara o "finish" da animação). No mobile é o mesmo voo, mais curto e com avião menor.
 
-**Duas seções na loja:** `/` = **Importados** (busca ao vivo na Nike US, como sempre) e `/pronta-entrega` = **Pronta entrega**
-(estoque próprio no Brasil, sem Nike). Uma barra `ModeBar` (EUA · Importados | BR · Pronta entrega) fica logo abaixo do topo nas
-duas páginas (desktop e mobile), com a transição do avião (opção C — ver §3).
+**Backoffice `/admin/estoque`** (`admin/Stock.jsx` lista · `admin/StockForm.jsx` cadastro/edição): nome, marca, **categoria**
+(seletor Basquete / Casual / Corrida — obrigatória; coluna `category` = basketball|lifestyle|running; o rótulo vira o subtítulo
+do card/hero), **modelagem** (Masculino / Feminino / Unissex / Infantil GS — coluna `gender` M|W|U|K), colorway, SKU Nike
+(informativo), descrição (aparece no seletor de tamanho), selo do card, ordem, **preço Pix**, preço "de" riscado, **custo**
+(só BO — alimenta custo/margem do dashboard via `breakdown.subtotalBrl`), ativo, **tamanhos BR + US da caixa + quantidade**
+(chips de BR e US preenchidos pela tabela oficial Nike BR da modelagem escolhida; unissex: digita o US masc., o fem. sai +1,5),
+**fotos** por upload (redimensiona no navegador p/ 1400px WebP → `POST /api/admin/stock/:id/images` → gravada no banco
+`stock_images`, servida em `/media/estoque/:id` com cache imutável — não depende do volume) ou por URL; 1ª foto = capa.
+Criar primeiro, enviar fotos depois (precisa do id).
 
-**Backoffice `/admin/estoque`** (`Stock.jsx` lista · `StockForm.jsx` cadastro/edição): nome, marca, **categoria (seletor
-Basquete / Casual / Corrida — coluna `category` = basketball|lifestyle|running, obrigatória; o rótulo vira o subtítulo no card/hero)**, colorway,
-SKU Nike (informativo), descrição (aparece no seletor de tamanho), selo do card, ordem, **preço Pix**, preço "de" riscado, **custo**
-(só BO — alimenta custo/margem do dashboard via `breakdown.subtotalBrl`), ativo, **tamanhos BR com US opcional e quantidade**
-(atalhos 34–46), **fotos** por upload (redimensiona no navegador p/ 1400px WebP → `POST /api/admin/stock/:id/images` → gravada no
-banco `stock_images`, servida em `/media/estoque/:id` com cache imutável — não depende do volume) ou por URL; primeira foto = capa.
+**API:** `GET /api/stock` (público; sem custo/ids internos), `GET /api/product/PE-XXXXXX` (o catálogo intercepta o prefixo `PE-`
+em `getProductSizes` e responde do banco → seletor e checkout funcionam sem mudanças), `GET /api/config`
+(`{ whatsapp:{phone,url}|null, installments, stock, testProduct }`), admin `GET/POST /api/admin/stock`,
+`GET/PATCH/DELETE /api/admin/stock/:id`, `POST /api/admin/stock/:id/images` (`{ dataUrl }`, bodyLimit 8 MB, JPEG/PNG/WebP ≤ 4 MB,
+máx. 12 fotos). `code` PE-XXXXXX é o `styleColor` do item no carrinho/pedido; `nikeSize` = US da caixa (se informado) senão o BR.
 
-**API:** `GET /api/stock` (público, sem custo/ids internos), `GET /api/product/PE-XXXXXX` (o catálogo intercepta o prefixo `PE-` em
-`getProductSizes` → responde do banco: seletor de tamanho e checkout funcionam sem mudanças), `GET /api/config`
-(`{ whatsapp:{phone,url}|null, installments, stock }`), admin `GET/POST /api/admin/stock`, `GET/PATCH/DELETE /api/admin/stock/:id`,
-`POST /api/admin/stock/:id/images`. `code` PE-XXXXXX é o `styleColor` do item no carrinho/pedido; `nikeSize` = US da caixa
-(se informado) senão o BR — e-mails/telas mostram "(US x)" só quando difere do BR.
+**Estoque por tamanho (`stock_sizes`):** reservado na **criação do pedido** (decremento condicional `qty >= n` dentro da
+transação — dois clientes disputando o último par: só um pedido é criado), **devolvido** quando o pedido vira `cancelled`/`abandoned`
+(admin ou job de 30 min; `orders.stock_released_at` evita devolver 2×; evento `stock_released`) e **re-reservado** se um pedido
+abandonado acabar pago (`settle()`/baixa manual; sem estoque → evento `stock_oversold` + nota interna para conferir). Estorno
+(`refunded`) NÃO devolve sozinho — ajustar a qtd no painel. A frase "em até Nx" segue `MAX_INSTALLMENTS`.
 
-**Estoque por tamanho (tabela `stock_sizes`):** reservado na **criação do pedido** (decremento condicional `qty >= n` dentro da
-transação — dois clientes disputando o último par: só um pedido é criado, o outro recebe erro), **devolvido** quando o pedido vira
-`cancelled`/`abandoned` (admin ou job de 30 min; `orders.stock_released_at` evita devolver 2×; evento `stock_released`) e
-**re-reservado** se um pedido abandonado acabar pago (`settle()`/baixa manual; sem estoque → evento `stock_oversold` + nota interna
-para o dono conferir). Estorno (`refunded`) NÃO devolve sozinho — ajustar a qtd no painel. Preço da pronta entrega é o digitado
-(a fórmula de importação não se aplica); a frase "em até Nx" segue `MAX_INSTALLMENTS`.
+### 5.3 WhatsApp "não achou? chama a gente" (17/08)
 
-**WhatsApp "não achou?":** `WhatsappCta.jsx` — banner grande quando a busca dá vazio/erro e faixa compacta abaixo dos resultados
-(também na pronta entrega), com mensagem pré-preenchida (inclui o termo buscado). Número vem de `WHATSAPP_CONTACT_PHONE` na api
-(`/api/config`); se faltar, usa o do rodapé (`5585992578888`, `useSiteConfig.js`). Obs.: a busca da Nike é "fuzzy" — quase nunca
+`components/WhatsappCta.jsx` — banner grande quando a busca dá vazio/erro e faixa compacta abaixo dos resultados (também na
+pronta entrega), com mensagem pré-preenchida (inclui o termo buscado). Número vem de `WHATSAPP_CONTACT_PHONE` na api via
+`/api/config` (`hooks/useSiteConfig.js`); se faltar, usa o do rodapé (`5585992578888`). A busca da Nike é "fuzzy" — quase nunca
 volta vazia — por isso a faixa abaixo dos resultados é o ponto principal.
 
-Mobile: logado, o botão "Admin" some do topo em ≤640px (cabe logo + nome + Sair + Sacola); o admin chega pelo `/conta` → "ir para o backoffice".
+### 5.4 Tamanhos por modelagem — Masculino / Feminino / Infantil (18/08)
 
----
-
-## 5c. Tamanhos por modelagem (18/08 — pendente de push)
-
-Antes o seletor mostrava "38 · US 7" sem dizer se o US era masculino ou feminino (nos unissex da Nike o mesmo par é
-`M 7 / W 8.5`; num feminino "US 8" = W 8 = BR 37,5). Agora:
+Antes o seletor mostrava "38 · US 7" sem dizer de quem era o US (nos unissex da Nike o mesmo par é `M 7 / W 8.5`; num feminino
+"US 8" é W 8 = BR 37,5). O **BR não muda** com a modelagem — é a mesma numeração física; muda só o número US mostrado.
 - `packages/shared/src/sizes`: `detectScale`, `parseUsSizes(nikeSize, localizedSize, genders)` → `{ scale: M|W|K, us: { M, W, K } }`
-  (unissex sem W explícito: W = M + 1,5), `sizeGroupsOf(sizes)`, `sizeLabel(size, group)` → `"BR 38 (US M 7)"` / `"BR 36 (US 5Y)"`,
-  `standardSizes()` (tabela padrão para By You). O BR **não muda** com a modelagem — é a mesma numeração física.
-- Catálogo (`getProductSizes`): cada tamanho ganha `scale` + `us`; o produto ganha `sizeGroups` (ex.: `["M","W"]`). Kobe/LeBron
-  (unissex) → M+W; Sabrina GS → K.
-- Seletor (`SizePicker.jsx`): **abas Masculino / Feminino / Infantil** quando o produto tem mais de uma modelagem; uma só →
-  rótulo. Botão de tamanho mostra `US M 7` / `US W 8.5` / `US 5Y`; botão confirmar mostra o rótulo completo. O que vai para a
-  sacola: `sizeInfo.pickedGender` + `sizeInfo.sizeLabel`.
-- Checkout envia `sizeGender`; a api valida (só se o tamanho tem esse US) e grava `order_items.size_label`; e-mails, WhatsApp,
-  `/conta`, confirmação e admin usam `sizeLabel` (pedidos antigos caem no formato antigo).
-- Pronta entrega: campo **Modelagem** (Masculino / Feminino / Unissex / Infantil GS) no cadastro; o US da caixa é lido nessa
-  escala (unissex: digita o US masc., o fem. sai +1,5); os chips de BR e o preenchimento automático do US usam a tabela oficial
-  Nike BR da modelagem escolhida (`US_BY_BR_MEN/WOMEN/KIDS` em `StockForm.jsx`, mesmas do shared).
+  (unissex sem W explícito: W = M + 1,5), `sizeGroupsOf`, `sizeLabel(size, group)` → `"BR 38 (US M 7)"` / `"BR 36 (US 5Y)"`,
+  `standardSizes()` (tabela padrão, By You), tabelas oficiais Nike BR (M/W/K). Feminino fora da tabela oficial (W 4–4.5 e
+  W 12.5–16) usa `WOMENS_APPROX` (19/08): BR aproximado contínuo (43,5–48), com selo "Aprox." no seletor.
+- Catálogo: cada tamanho ganha `scale` + `us`; o produto ganha `sizeGroups` (Kobe/LeBron unissex → `["M","W"]`; Sabrina GS → `["K"]`).
+- Seletor (`components/SizePicker.jsx`): **abas** Masculino / Feminino / Infantil quando há mais de uma modelagem (uma só →
+  rótulo); botão mostra `US M 7` / `US W 8.5` / `US 5Y`; confirmar mostra o rótulo completo. Vai para a sacola
+  `sizeInfo.pickedGender` + `sizeInfo.sizeLabel`.
+- Checkout envia `sizeGender`; a api valida (só se o tamanho tem esse US) e grava `order_items.size_label`; sacola, checkout,
+  `/conta`, confirmação, e-mails, WhatsApp e admin usam o rótulo (pedidos antigos caem no formato antigo "BR 41 (US 8.5)").
+- Pronta entrega: modelagem no cadastro (§5.2); `usMapOf(gender, us)` no `stock/service.js` gera o mesmo formato.
 
-## 5d. Nike By You (18/08 — pendente de push)
+### 5.5 Nike By You — customizados (18/08)
 
-Produtos customizáveis (`productSubType: CUSTOMIZED`, URL `/u/custom-…`, "styleColor" = id numérico do design, ex. `1685956779`)
-não têm SKU/tamanhos na API da Nike (`/product/:id` → 404 SIZES_UNAVAILABLE). Tratamento:
-- `normalize.js`: `byYou: true` (`isByYou(raw)`); card com selo **BY YOU**.
+Produtos `productSubType: CUSTOMIZED` (URL `/u/custom-…`; "styleColor" = id numérico do design, ex. `1685956779`) não têm
+SKU/tamanhos na API da Nike (`/product/:id` → 404 SIZES_UNAVAILABLE). Tratamento:
+- `catalog/normalize.js`: `byYou: true` (`isByYou(raw)`); card com selo **BY YOU**. As fotos são o molde branco da Nike (a API
+  não devolve a arte de cada design).
 - `catalog.getProductSizes`: no 404, busca o produto pelo id do design (`findOne` — a busca da Nike acha por id) e devolve
   `sizes = standardSizes()` (tabela masculina completa + W = +1,5; `synthetic: true`, todos disponíveis), `sizeGroups: ["M","W"]`,
   `sizesSynthetic: true`, `customization: { textMax: 8, numberDigits: 2 }`. Preço = o da busca (mesma fórmula).
-- Seletor: aviso "modelo customizável — escolha o seu número", abas M/W, e o box **Nike By You · personalize**: pé esquerdo e
-  pé direito, cada um com texto (≤ 8 caracteres; letras, números, espaço e `. , ' & ! ? # -`) e número (2 dígitos). Opcional.
-- Checkout: `items[].customization = { textLeft, numberLeft, textRight, numberRight }` (validado na api; só em produto By You) →
-  `order_items.customization` (Json). A sacola separa linhas por personalização (chave inclui os campos). E-mail/WhatsApp/admin
-  mostram `By You · pé E “KULTURE” nº 08 · pé D “MAMBA” nº 24`; o admin mostra também o US para configurar na Nike.
-- Prazo/estoque: o texto avisa que é sob encomenda na Nike By You e que confirmamos tamanho e gravação antes de comprar.
-- Fix de tabela: `findOne` não deixa mais um "não achei" (null) colar no cache por 60 min (rebusca; só regrava se achar).
+- Seletor: aviso "modelo customizável — escolha o seu número", abas M/W, e o box **Nike By You · personalize**: pé esquerdo e pé
+  direito, cada um com **texto ≤ 8 caracteres** (letras, números, espaço e `. , ' & ! ? # -`; contador n/8) e **número de 2
+  dígitos**. Opcional. Texto avisa que é sob encomenda na Nike (prazo maior) e que confirmamos tamanho e gravação antes de comprar.
+- Checkout: `items[].customization = { textLeft, numberLeft, textRight, numberRight }` (validado na api; só em produto By You;
+  texto > 8 → 400) → `order_items.customization` (Json). A sacola separa linhas por personalização (chave inclui os campos).
+  E-mail/WhatsApp/admin mostram `By You · pé E “KULTURE” nº 08 · pé D “MAMBA” nº 24`; o admin mostra também o US para
+  configurar na Nike.
+- Sem prazo específico no texto (dono não definiu) e sem limite de quantidade.
+
+### 5.6 Filtros por categoria respeitam a seção (18/08)
+
+Basquete / Casual / Corrida (abas do topo, blocos de categoria, links do rodapé): **na pronta entrega filtram o estoque**
+(`/pronta-entrega?cat=basketball|lifestyle|running`) e a página não muda; **nos importados buscam na Nike** e ficam em `/`.
+"Início" na pronta entrega limpa o filtro (fica na seção). Chips "Todos · Basquete · Casual · Corrida" (com contagem) acima da
+lista, também no mobile; título/kicker seguem o filtro; categoria sem par mostra aviso + WhatsApp. Centralizado em
+`App.jsx#pickCategory`; `CATEGORIES` em `lib/format.js` (mesmas 3 chaves do cadastro); a aba ativa do topo segue a URL.
+A caixa de busca "Buscar modelo" continua indo para os importados (é busca na Nike) — possível melhoria: filtrar o estoque por
+nome quando estiver na pronta entrega.
+
+### 5.7 Venda externa — venda feita fora do site registrada no painel (19/08)
+
+Vendas fechadas no WhatsApp/Instagram/presencialmente entram como **pedido normal, já pago**, na mesma tabela `orders`:
+o cliente acompanha em `/conta` → "Meus pedidos" (vinculado pelo e-mail — se já tem conta, `userId`; se não, aparece quando
+criar a conta com o mesmo e-mail, porque `listMine` casa por `customerEmail`) e em "Rastrear pedido" pelo número; o admin vê
+em Pedidos / Entregas / Clientes; a receita entra no dashboard (separada por canal).
+
+- **Tela `/admin/pedidos/nova`** (`admin/ManualOrder.jsx`; botão "+ Venda externa" em Pedidos e no Dashboard): cliente (busca
+  cliente cadastrado → preenche; ou digita; **e-mail obrigatório**, CPF opcional; CEP via ViaCEP), itens (abas **Pronta entrega**
+  — produto + tamanho do estoque, preço/custo do cadastro, checkbox "baixar do estoque"; **Nike (importado)** — busca por SKU/nome
+  em `GET /api/admin/catalog/:term` (admin-only, devolve o produto COM breakdown e todos os tamanhos) e preenche nome/foto/preço
+  do site/custo estimado/tamanhos por modelagem; **Outro** — tudo à mão), qtd/preço/custo editáveis na linha, desconto, forma de
+  pagamento (Pix / cartão crédito c/ parcelas / débito / dinheiro / transferência / outro), valor recebido (padrão = total), data do
+  pagamento, referência (NSU/ID Pix) e link do comprovante, canal (WhatsApp / Instagram / Presencial / Outro), situação inicial
+  (Pago / Comprando nos EUA / Enviado / Entregue — com transportadora/rastreio), observação (histórico), notas internas, checkbox
+  "avisar o cliente por e-mail". Resumo com total/custo/margem. Ao registrar, abre o detalhe do pedido.
+- **API:** `POST /api/admin/orders` → `admin.createManualOrder(body, admin)` (201 + detalhe). Grava `paymentProvider="manual"`,
+  `channel` (nova coluna `orders.channel`, default `site`), `paidAt`, `paidAmountBrl` (entra na receita), `installments` (só cartão),
+  `transactionNsu`=referência, `receiptUrl`, `pricingSnapshot={manual,channel,discountBrl,registeredBy}`, `exchangeRate` só
+  informativo (0 se o câmbio falhar). Itens de estoque: `breakdown={source:"stock",manual:true,stockProductId,stockSizeId,
+  stockDeducted,subtotalBrl=custo}` e reserva via `stock.reserve()` na mesma transação (sem estoque → **409 STOCK_OUT** com
+  mensagem para ajustar a qtd ou desmarcar "baixar do estoque"); cancelar/estornar depois segue o fluxo normal (cancelado devolve
+  o par). Importado/livre: `breakdown={source:"import"|"manual",manual:true,subtotalBrl=custo}` — custo alimenta custo/margem do
+  dashboard como no checkout. Rótulo do tamanho pelo `sizeLabel` do shared (`BR 41 (US W 10.5)` etc.). Eventos: `created`
+  (`manual:true`, canal, admin), `payment_registered`, `stock_reserved`, `status_changed`/`tracking_updated` quando já entra
+  enviado/entregue, `note`, `email_registered`. Inativos da pronta entrega também podem ser vendidos
+  (`getProductByCode(code,{includeInactive:true})`).
+- **E-mail** `buildOrderRegisteredEmail` ("Pedido … registrado — Kulture"): itens, total, forma, situação, rastreio e como
+  acompanhar (`/conta` com o mesmo e-mail ou Rastrear pedido). "Reenviar e-mail" no detalhe usa esse modelo em venda externa
+  (`kind=registered`, ou `paid` quando `paymentProvider=manual`). "Reconsultar pagamento" → 400 em venda externa.
+- **Lista/detalhe/dashboard:** `GET /api/admin/orders?channel=site|external|whatsapp,…`; linhas com selo **externa · Canal**
+  (`ChannelPill`, `pill.external`); filtro "Canal: Todos · Site · Vendas externas"; detalhe mostra canal/quem registrou, desconto,
+  "Referência" no lugar de NSU, sem slug, câmbio oculto quando 0. Dashboard: `byChannel` (receita e nº por canal), tile "Pedidos
+  pagos" com "N pelo site · M externa(s) (R$)", `totals.externalRevenueBrl/externalOrders/siteRevenueBrl/siteOrders`,
+  `byPaymentMethod` com as formas novas (`paymentMethodLabels`). `/api/admin/me` expõe `channelLabels`, `manualChannels`,
+  `manualPaymentMethods`, `manualInitialStatuses`, `paymentMethodLabels`.
+- Testes: `apps/api/test/manual-order.test.js` (7) — validação, venda com estoque+importado+livre (baixa, e-mail, vínculo por
+  e-mail, cliente vê em /mine e no público), filtros/dashboard por canal, 409 STOCK_OUT e `deductStock:false`, venda antiga já
+  entregue + reenvio, catálogo admin.
+
+### 5.8 HYPADOS + Vitrine (hero configurável) — 20/08
+
+**HYPADOS** — terceira seção da loja, para os drops mais quentes. Funciona EXATAMENTE como a pronta entrega
+(estoque próprio no Brasil, reserva por tamanho, fotos no banco, checkout igual): é o mesmo módulo `stock` com a
+coluna `stock_products.section` (`stock` | `hypados`); códigos ganham prefixo **HY-** (o catálogo/checkout/venda
+externa interceptam `PE-|HY-` — `STOCK_CODE_RE`). `GET /api/stock?section=hypados` (público),
+`GET /api/admin/stock?section=` (painel), POST aceita `section`. `breakdown.section` no item do pedido → o admin
+mostra "HYPADOS" em vez de "PRONTA ENTREGA"; card usa selo padrão "HYPADOS"; SizePicker "Hypados · pronta entrega".
+
+- **Página `/hypados`**: mesma `pages/Stock.jsx` parametrizada (`section`), textos próprios ("HYPADOS", "os drops
+  mais quentes"), filtros por categoria (?cat=) iguais aos da pronta entrega.
+- **ModeBar** (3 abas): EUA · Importados | BR · Pronta entrega | 🏀 Hypados. Logo do Hypados = **bola de basquete
+  amarela Kulture em chip preto** (SVG inline, `mode-flag.ballchip`). Transição: **bola quicando** da aba ativa até
+  a de destino sempre que entra/sai do Hypados (3 quiques decrescentes, girando, squash no contato, ~850ms, WAAPI);
+  EUA ⇄ BR continua com o avião + rastro. Deslize da página segue a ordem das abas (leste/oeste);
+  `prefers-reduced-motion` → troca seca. No mobile o subtítulo das abas some (3 abas em ~375px).
+- **Backoffice `/admin/hypados`**: `admin/Stock.jsx` + `StockForm.jsx` parametrizados por `section`
+  (`SECTION_UI`) — mesma tela da pronta entrega com nome/links do Hypados; cadastro grava `section: "hypados"`.
+- **Vitrine (`/admin/vitrine`, `admin/Featured.jsx`)** — o tênis do HERO é configurável por seção × categoria
+  (12 slots: import|stock|hypados × Início/Basquete/Casual/Corrida). Importados: SKU Nike com busca/validação
+  (`GET /api/admin/catalog/:term`); Pronta entrega/Hypados: select de produto cadastrado NA MESMA seção (validado
+  no save). Config na tabela **`settings`** (key `featured`). `GET /api/featured?section=&cat=` resolve ao vivo
+  (categoria sem slot cai no "Início" da seção; produto sumido/desativado → `product: null` e o site usa o
+  automático = 1º da lista, comportamento antigo). Na home dos importados, as abas Basquete/Casual/Corrida (busca
+  "basketball shoes" etc.) mostram o destaque da categoria; busca livre continua sem hero de produto.
+- Testes: `apps/api/test/hypados.test.js` (5) — HY- no CRUD/checkout/reserva, separação das seções no público,
+  validações da vitrine e resolução com fallback.
 
 ---
 
 ## 6. Banco (Prisma / Postgres)
 
 Tabelas: `cache_entries, users, refresh_tokens, password_reset_tokens, login_events, orders (com carrier/tracking_*/shipped_at/
-delivered_at/cancelled_at/refunded_at/internal_notes/stock_released_at), order_items, order_events, notifications, idempotency_keys,
-stock_products, stock_sizes, stock_images`.
+delivered_at/cancelled_at/refunded_at/internal_notes/stock_released_at/channel), order_items (+ size_label, customization),
+order_events, notifications, idempotency_keys, stock_products (+ category, gender, section), stock_sizes, stock_images,
+settings (key→JSON; hoje "featured" = vitrine)`.
 Migrações: `init, auth, orders, user_profile, admin_backoffice, login_events, stock_products, stock_category, size_genders,
-by_you_customization` — aplicadas no boot da api (`migrate deploy`). `order_items` ganhou `size_label` e `customization`.
-Dev local: `apps/api/.env` aponta para Supabase (pooler us-east-2), migrado; seed de demonstração
-(`*@smoke.kulture.test`, admin `admin@smoke.kulture.test`, pedidos `KLT-2026-9*`).
+by_you_customization, order_channel, stock_section_settings` — aplicadas no boot da api (`migrate deploy`).
+Dev local: `apps/api/.env` aponta para Supabase (pooler us-east-2; `DIRECT_URL` para migrar), já migrado; seed de demonstração
+(`*@smoke.kulture.test`, admin `admin@smoke.kulture.test`, pedidos `KLT-2026-9*`). Os produtos de pronta entrega criados para
+teste nesta sessão foram removidos — o estoque de dev está vazio.
 
 ---
 
 ## 7. Pendências (ordem sugerida)
 
-1. Rodar o push pendente (§3) → ajustar variáveis (§4, + `WHATSAPP_CONTACT_PHONE`) → confirmar **12x vs 5x** → fazer um pagamento
-   **no cartão parcelado** e conferir "juros repassados" no `/admin`. Cadastrar os primeiros pares em `/admin/estoque`.
-2. `www.lojakulture.com.br` (CNAME no Cloudflare + custom domain no Railway) — se quiser.
-3. Rotacionar segredos; `TEST_PRODUCT_ENABLED=false` após validar o gateway.
-4. Tradução PT→EN na busca ("tênis" → "shoes") — não feita.
-5. Admin: regras de preço editáveis (tabela PricingRule) — hoje só em código.
-6. Bling (NF-e) → WhatsApp (Evolution API) — adiados.
-7. Testes de auth/admin batem no banco real (separar em CI).
+1. Liberar o push pendente (§3 — venda externa) → ajustar variáveis (§4, incl. `WHATSAPP_CONTACT_PHONE`) → confirmar **12x vs 5x**
+   → cadastrar os primeiros pares em `/admin/estoque` (categoria + modelagem) → fazer um pagamento **no cartão parcelado** e
+   conferir "juros repassados" no `/admin` → registrar uma **venda externa** de teste em `/admin/pedidos/nova` e conferir no
+   `/conta` do cliente e no dashboard.
+2. Se quiser: busca "Buscar modelo" filtrando o estoque quando estiver na pronta entrega; aviso "arte ilustrativa" nos cards By You;
+   prazo específico no texto do By You; gesto de arrastar (swipe) entre as seções no celular; na venda externa, editar itens
+   depois de registrada (hoje só status/rastreio/notas — para corrigir, cancelar e registrar de novo).
+3. `www.lojakulture.com.br` (CNAME no Cloudflare + custom domain no Railway) — se quiser.
+4. Rotacionar segredos; `TEST_PRODUCT_ENABLED=false` após validar o gateway.
+5. Tradução PT→EN na busca ("tênis" → "shoes") — não feita.
+6. Admin: regras de preço editáveis (tabela PricingRule) — hoje só em código.
+7. Bling (NF-e) → WhatsApp de notificação (Evolution API) — adiados.
+8. Testes de auth/admin/orders/stock/byyou batem no banco real (separar em CI).
 
 ---
 
@@ -267,11 +379,14 @@ Dev local: `apps/api/.env` aponta para Supabase (pooler us-east-2), migrado; see
 
 ```bash
 npm install && npm run dev            # web :5173, api :3000, scraper :3001
-npm test                              # api 39 + shared 17
+npm test                              # api 62 + shared 27 (api precisa do DATABASE_URL de dev)
 npm run build -w apps/web
 curl -s https://lojakulture.com.br/health
 curl -s https://lojakulture.com.br/health/deps
+curl -s https://lojakulture.com.br/api/config     # whatsapp/installments/stock
+curl -s https://lojakulture.com.br/api/stock      # pronta entrega (público); ?section=hypados = hypados
+curl -s "https://lojakulture.com.br/api/featured?section=import"   # vitrine (hero configurado; null = automático)
 ```
 
 Prompt-padrão do Antigravity: conferir `git status --short` (sem `.env`/storage/dist; se aparecer algo inesperado, PARAR),
-`git add -A`, commit com a mensagem dada, `git push origin main`, devolver o hash.
+`git add -A`, commit com a mensagem dada, `git push origin main`, devolver `git rev-parse --short HEAD`.

@@ -18,10 +18,20 @@ export const STATUS_LABELS = {
 
 export const STATUS_ORDER = ["pending_payment", "paid", "sourcing", "shipped", "delivered", "abandoned", "cancelled", "refunded"];
 
-export const METHOD_LABELS = { pix: "Pix", credit_card: "Cartão", outro: "Outro", unknown: "—" };
+export const METHOD_LABELS = { pix: "Pix", credit_card: "Cartão", debit_card: "Débito", cash: "Dinheiro", transfer: "Transferência", other: "Outro", outro: "Outro", unknown: "—" };
+
+/** Canal da venda (`orders.channel`): site = checkout; os demais = venda externa registrada no painel. */
+export const CHANNEL_LABELS = { site: "Site", whatsapp: "WhatsApp", instagram: "Instagram", presencial: "Presencial", outro: "Outro" };
+export const EXTERNAL_CHANNELS = ["whatsapp", "instagram", "presencial", "outro"];
 
 export function StatusPill({ status }) {
   return <span className={`pill ${status || ""}`}>{STATUS_LABELS[status] || status || "—"}</span>;
+}
+
+/** Selo "venda externa · WhatsApp" — só aparece quando o pedido não veio do checkout do site. */
+export function ChannelPill({ channel, short = false }) {
+  if (!channel || channel === "site") return null;
+  return <span className="pill external" title="Venda feita fora do site, registrada no painel">{short ? "" : "externa · "}{CHANNEL_LABELS[channel] || channel}</span>;
 }
 
 export function RolePill({ role }) {

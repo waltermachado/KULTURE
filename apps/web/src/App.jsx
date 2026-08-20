@@ -31,8 +31,8 @@ export default function App() {
   const navigate = useNavigate();
   const location = useLocation();
   const isAdminArea = location.pathname === "/admin" || location.pathname.startsWith("/admin/");
-  // seletor Importados × Pronta entrega só nas duas páginas de vitrine
-  const showModeBar = location.pathname === "/" || location.pathname.startsWith("/pronta-entrega");
+  // seletor Importados × Pronta entrega × Hypados só nas páginas de vitrine
+  const showModeBar = location.pathname === "/" || location.pathname.startsWith("/pronta-entrega") || location.pathname.startsWith("/hypados");
   const cart = useCart();
   const auth = useAuth();
   const [grid, setGrid] = useState({ status: "loading", products: [], title: TOP8_TITLE, sub: TOP8_SUB, query: "" });
@@ -165,8 +165,10 @@ export default function App() {
    */
   const pickCategory = useCallback((cat) => {
     const key = cat?.key ?? null;
-    if (location.pathname.startsWith("/pronta-entrega")) {
-      navigate({ pathname: "/pronta-entrega", search: key ? `?cat=${key}` : "" });
+    // nas seções de estoque próprio (pronta entrega e hypados) o filtro fica na própria página (?cat=…)
+    const stockBase = location.pathname.startsWith("/pronta-entrega") ? "/pronta-entrega" : location.pathname.startsWith("/hypados") ? "/hypados" : null;
+    if (stockBase) {
+      navigate({ pathname: stockBase, search: key ? `?cat=${key}` : "" });
       setTimeout(() => document.getElementById("drops")?.scrollIntoView({ behavior: "smooth", block: "start" }), 50);
       return;
     }
@@ -199,8 +201,9 @@ export default function App() {
       <div className="page-view" ref={pageRef}>
       <Routes>
         <Route path="/" element={<Home grid={grid} setSelectedProductForSize={setSelectedProductForSize} onCategory={pickCategory} />} />
-        <Route path="/pronta-entrega" element={<Stock setSelectedProductForSize={setSelectedProductForSize} onCategory={pickCategory} />} />
-        <Route path="/checkout" element={<Checkout cart={cart} auth={auth} notify={notify} />} />
+        <Route path="/pronta-entrega" element={<Stock section="stock" setSelectedProductForSize={setSelectedProductForSize} onCategory={pickCategory} />} />
+        <Route path="/hypados" element={<Stock section="hypados" setSelectedProductForSize={setSelectedProductForSize} onCategory={pickCategory} />} />
+        <Route path="/checkout" element={<Checkout cart={cart} auth={auth} notify={notify} onOpenLogin={() => openModal("login")} />} />
         <Route path="/pedido/confirmacao" element={<Confirmation auth={auth} />} />
         <Route path="/pedido/confirmacao/:number" element={<Confirmation auth={auth} />} />
         <Route path="/mock/infinitepay/:number" element={<MockInfinitePay />} />

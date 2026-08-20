@@ -62,7 +62,13 @@ async function fileToDataUrl(file, max = 1400) {
   return out;
 }
 
-export default function StockForm({ auth, notify }) {
+const SECTION_UI = {
+  stock: { base: "/admin/estoque", page: "/pronta-entrega", back: "Pronta entrega", h1new: <>Novo <em>produto</em></>, where: "Estoque próprio · aparece em /pronta-entrega" },
+  hypados: { base: "/admin/hypados", page: "/hypados", back: "Hypados", h1new: <>Novo <em>hypado</em></>, where: "Estoque próprio · aparece em /hypados" }
+};
+
+export default function StockForm({ auth, notify, section = "stock" }) {
+  const ui = SECTION_UI[section] || SECTION_UI.stock;
   const { id } = useParams();
   const isNew = !id || id === "novo";
   const navigate = useNavigate();
@@ -120,6 +126,7 @@ export default function StockForm({ auth, notify }) {
     if (Number.isNaN(full) || Number.isNaN(cost)) throw new Error("Preço 'de' ou custo inválido");
     const sizes = form.sizes.map((s) => ({ br: String(s.br).trim(), us: String(s.us || "").trim() || null, qty: Math.max(0, parseInt(s.qty, 10) || 0) })).filter((s) => s.br);
     return {
+      section,
       name: form.name.trim(), brand: form.brand.trim() || "Nike", category: form.category || null, gender: form.gender || "M", colorDescription: form.colorDescription, styleColor: form.styleColor,
       badge: form.badge, description: form.description, priceBrl: price, fullPriceBrl: full, costBrl: cost,
       active: Boolean(form.active), sortOrder: parseInt(form.sortOrder, 10) || 0, images: form.images, sizes
@@ -134,7 +141,7 @@ export default function StockForm({ auth, notify }) {
       if (isNew) {
         const d = await auth.request("/api/admin/stock", { method: "POST", body: JSON.stringify(payload) });
         notify?.("Produto criado — agora envie as fotos");
-        navigate(`/admin/estoque/${d.id}`, { replace: true });
+        navigate(`${ui.base}/${d.id}`, { replace: true });
         return;
       }
       const d = await auth.request(`/api/admin/stock/${id}`, { method: "PATCH", body: JSON.stringify(payload) });
@@ -186,14 +193,14 @@ export default function StockForm({ auth, notify }) {
     try {
       await auth.request(`/api/admin/stock/${id}`, { method: "DELETE" });
       notify?.("Produto removido");
-      navigate("/admin/estoque", { replace: true });
+      navigate(ui.base, { replace: true });
     } catch (err) {
       setMsg({ ok: false, text: err.message });
       setBusy(false);
     }
   }
 
-  if (!form) return <><header className="adm-head"><div><h1>Pronta <em>entrega</em></h1></div></header><ErrorBox error={error} />{!error && <Loading />}</>;
+  if (!form) return <><header className="adm-head"><div><h1>{ui.back}</h1></div></header><ErrorBox error={error} />{!error && <Loading />}</>;
 
   const totalQty = form.sizes.reduce((a, s) => a + (parseInt(s.qty, 10) || 0), 0);
   const price = parseMoney(form.priceBrl), cost = parseMoney(form.costBrl);
@@ -203,9 +210,9 @@ export default function StockForm({ auth, notify }) {
     <>
       <header className="adm-head">
         <div>
-          <div className="sub" style={{ marginTop: 0, marginBottom: 8 }}><Link to="/admin/estoque">← Pronta entrega</Link></div>
-          <h1>{isNew ? <>Novo <em>produto</em></> : <>{product?.name || "Produto"}</>}</h1>
-          <div className="sub">{isNew ? "Estoque próprio · aparece em /pronta-entrega" : `${product?.code} · ${totalQty} par(es) · ${form.active ? "ativo" : "inativo"}`}</div>
+          <div className="sub" style={{ marginTop: 0, marginBottom: 8 }}><Link to={ui.base}>← {ui.back}</Link></div>
+          <h1>{isNew ? ui.h1new : <>{product?.name || "Produto"}</>}</h1>
+          <div className="sub">{isNew ? ui.where : `${product?.code} · ${totalQty} par(es) · ${form.active ? "ativo" : "inativo"}`}</div>
         </div>
         <div className="actions">
           {!isNew && <button className="btn danger" type="button" onClick={remove} disabled={busy}>Remover</button>}
@@ -326,12 +333,12 @@ export default function StockForm({ auth, notify }) {
             <h3>Publicação</h3>
             <label style={{ display: "flex", alignItems: "center", gap: 10, cursor: "pointer", fontSize: 14 }}>
               <input type="checkbox" checked={form.active} onChange={f("active")} style={{ width: 18, height: 18 }} />
-              Ativo — aparece em /pronta-entrega
+              Ativo — aparece em {ui.page}
             </label>
             {!isNew && (
               <dl className="stk-meta">
                 <dt>Código</dt><dd className="mono">{product?.code}</dd>
-                <dt>Link</dt><dd><a href="/pronta-entrega" target="_blank" rel="noreferrer">/pronta-entrega</a></dd>
+                <dt>Link</dt><dd><a href={ui.page} target="_blank" rel="noreferrer">{ui.page}</a></dd>
                 <dt>Criado</dt><dd>{product?.createdAt ? new Date(product.createdAt).toLocaleString("pt-BR") : "—"}</dd>
                 <dt>Atualizado</dt><dd>{product?.updatedAt ? new Date(product.updatedAt).toLocaleString("pt-BR") : "—"}</dd>
               </dl>

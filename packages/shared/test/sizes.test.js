@@ -1,6 +1,37 @@
 import { expect, test, describe } from 'vitest';
 import { convertUsToBr, parseUsSizes, sizeGroupsOf, sizeLabel, standardSizes } from '../src/sizes/index.js';
 
+describe("feminino acima de W 12 (bug: tamanho repetido no seletor)", () => {
+  test("W 12.5–16 convertem para BR aproximado, sem repetir e sempre crescendo", () => {
+    // Air Jordan 1 Mid SE feminino vai até W 15.5 — antes, brSize saía null e o chip mostrava "12.5 · US W 12.5"
+    const seq = ["12", "12.5", "13", "13.5", "14", "14.5", "15", "15.5", "16"];
+    let prev = 0;
+    const seen = new Set();
+    for (const us of seq) {
+      const { brSize, approximate } = convertUsToBr(us, `W ${us}`, ["WOMEN"]);
+      expect(brSize, `W ${us}`).not.toBeNull();
+      expect(brSize, `W ${us}`).toBeGreaterThan(prev);
+      expect(seen.has(brSize), `W ${us} repetiu BR ${brSize}`).toBe(false);
+      seen.add(brSize);
+      prev = brSize;
+      expect(approximate, `W ${us}`).toBe(us !== "12"); // só o 12 é da tabela oficial
+    }
+  });
+
+  test("W 4 e W 4.5 (abaixo da tabela oficial) também ganham BR aproximado", () => {
+    expect(convertUsToBr("4", "W 4", ["WOMEN"])).toEqual({ brSize: 32.5, approximate: true });
+    expect(convertUsToBr("4.5", "W 4.5", ["WOMEN"])).toEqual({ brSize: 33, approximate: true });
+    expect(convertUsToBr("5", "W 5", ["WOMEN"])).toEqual({ brSize: 33.5, approximate: false });
+  });
+
+  test("rótulo completo para o tamanho grande feminino", () => {
+    const { scale, us } = parseUsSizes("13", "W 13 / M 11.5", ["WOMEN"]);
+    const { brSize } = convertUsToBr("13", "W 13 / M 11.5", ["WOMEN"]);
+    expect(sizeLabel({ brLabel: String(brSize), brSize, scale, us }, "W")).toBe("BR 44 (US W 13)");
+    expect(sizeLabel({ brLabel: String(brSize), brSize, scale, us }, "M")).toBe("BR 44 (US M 11.5)");
+  });
+});
+
 describe('convertUsToBr', () => {
   test('converte MENS exato (prefixo M)', () => {
     expect(convertUsToBr('10.5', 'M 10.5 / W 12')).toEqual({ brSize: 42.5, approximate: false });

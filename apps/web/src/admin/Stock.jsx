@@ -2,11 +2,18 @@ import { useEffect, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { ErrorBox, Loading, brl } from "./ui.jsx";
 
+/** Textos/base por seção — Pronta entrega (/admin/estoque) e Hypados (/admin/hypados) usam a MESMA tela. */
+export const SECTION_UI = {
+  stock: { base: "/admin/estoque", page: "/pronta-entrega", title: <>Pronta <em>entrega</em></>, name: "Pronta entrega" },
+  hypados: { base: "/admin/hypados", page: "/hypados", title: <>HYPA<em>DOS</em></>, name: "Hypados" }
+};
+
 /**
- * Pronta entrega — lista dos produtos em estoque próprio (ativos e inativos), com busca.
- * Cadastro/edição em /admin/estoque/novo e /admin/estoque/:id (StockForm.jsx).
+ * Estoque próprio — lista dos produtos da seção (ativos e inativos), com busca.
+ * `section`: stock (pronta entrega) | hypados. Cadastro/edição em {base}/novo e {base}/:id (StockForm.jsx).
  */
-export default function Stock({ auth }) {
+export default function Stock({ auth, section = "stock" }) {
+  const ui = SECTION_UI[section] || SECTION_UI.stock;
   const navigate = useNavigate();
   const [q, setQ] = useState("");
   const [input, setInput] = useState("");
@@ -17,14 +24,14 @@ export default function Stock({ auth }) {
   useEffect(() => {
     let alive = true;
     setLoading(true);
-    const qs = new URLSearchParams();
+    const qs = new URLSearchParams({ section });
     if (q) qs.set("q", q);
     auth.request(`/api/admin/stock?${qs}`)
       .then((d) => { if (alive) { setData(d); setError(null); } })
       .catch((e) => { if (alive) setError(e); })
       .finally(() => { if (alive) setLoading(false); });
     return () => { alive = false; };
-  }, [q]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [q, section]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const products = data?.products || [];
   const active = products.filter((p) => p.active).length;
@@ -34,12 +41,12 @@ export default function Stock({ auth }) {
     <>
       <header className="adm-head">
         <div>
-          <h1>Pronta <em>entrega</em></h1>
+          <h1>{ui.title}</h1>
           <div className="sub">{data ? `${products.length} produto(s) · ${active} ativo(s) · ${pairs} par(es) disponível(is)` : "—"}</div>
         </div>
         <div className="actions">
-          <a className="btn" href="/pronta-entrega" target="_blank" rel="noreferrer">Ver a página ↗</a>
-          <Link className="btn primary" to="/admin/estoque/novo">+ Novo produto</Link>
+          <a className="btn" href={ui.page} target="_blank" rel="noreferrer">Ver a página ↗</a>
+          <Link className="btn primary" to={`${ui.base}/novo`}>+ Novo produto</Link>
         </div>
       </header>
 
@@ -64,7 +71,7 @@ export default function Stock({ auth }) {
                 <tr><td colSpan={7} className="empty">{q ? "Nada encontrado." : "Nenhum produto cadastrado ainda — clique em “Novo produto”."}</td></tr>
               )}
               {products.map((p) => (
-                <tr key={p.id} className="link" onClick={() => navigate(`/admin/estoque/${p.id}`)}>
+                <tr key={p.id} className="link" onClick={() => navigate(`${ui.base}/${p.id}`)}>
                   <td>
                     <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
                       <div className="stk-thumb">{p.images?.[0] ? <img src={p.images[0]} alt="" /> : <span>—</span>}</div>
@@ -101,7 +108,7 @@ export default function Stock({ auth }) {
         )}
       </div>
       <p className="sub" style={{ marginTop: 14, fontSize: 12, color: "var(--muted)", lineHeight: 1.6 }}>
-        Produtos ativos aparecem em <b>/pronta-entrega</b> (esgotados continuam visíveis, sem botão de compra). O estoque por tamanho é
+        Produtos ativos aparecem em <b>{ui.page}</b> (esgotados continuam visíveis, sem botão de compra). O estoque por tamanho é
         reservado quando o pedido é criado e volta sozinho se o pedido for cancelado ou abandonado.
       </p>
     </>

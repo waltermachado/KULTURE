@@ -62,7 +62,9 @@ export function calculateFinalPrice({ product, exchangeRate, rules = DEFAULT_PRI
   const paymentFeeBrl = subtotalBrl * resolved.paymentFeeRate;
   const commissionBase = subtotalBrl + importDutyBrl + paymentFeeBrl;
   const commissionBrl = commissionBase * commissionRate;
-  const rawFinalBrl = commissionBase + commissionBrl;
+  // acréscimo fixo por regra (ex.: LeBron 23 +R$300) — fora da base da comissão, dentro do arredondamento
+  const extraFixedBrl = Number(resolved.extraFixedBrl) || 0;
+  const rawFinalBrl = commissionBase + commissionBrl + extraFixedBrl;
   const finalPriceBrl =
     resolved.roundUpToEnding != null ? roundUpToEnding(rawFinalBrl, resolved.roundUpToEnding) : applyRoundEnding(rawFinalBrl, resolved.roundEnding);
 
@@ -81,6 +83,7 @@ export function calculateFinalPrice({ product, exchangeRate, rules = DEFAULT_PRI
       importDutyBrl: roundCurrency(importDutyBrl),
       paymentFeeBrl: roundCurrency(paymentFeeBrl),
       commissionBrl: roundCurrency(commissionBrl),
+      extraFixedBrl: roundCurrency(extraFixedBrl),
       roundingAdjustmentBrl: roundCurrency(finalPriceBrl - rawFinalBrl),
       finalPriceBrl
     },
@@ -92,6 +95,7 @@ export function calculateFinalPrice({ product, exchangeRate, rules = DEFAULT_PRI
       shippingUsd: roundCurrency(shippingUsd),
       importDutyRate: resolved.importDutyRate,
       paymentFeeRate: resolved.paymentFeeRate,
+      extraFixedBrl: roundCurrency(extraFixedBrl),
       roundUpToEnding: resolved.roundUpToEnding,
       roundEnding: resolved.roundEnding
     }

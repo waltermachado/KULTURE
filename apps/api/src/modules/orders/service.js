@@ -48,6 +48,11 @@ export function customizationLabelOf(c) {
   return items.length ? `By You · ${items.join(" · ")}` : "By You · sem gravação";
 }
 
+/** Número de pedido "KLT-AAAA-NNNNNN" — o mesmo para checkout do site e venda registrada no painel. */
+export function newOrderNumber(now = new Date()) {
+  return `KLT-${now.getFullYear()}-${Math.floor(Math.random() * 1000000).toString().padStart(6, '0')}`;
+}
+
 const CUSTOM_TEXT_RE = /^[A-Za-z0-9 .,'&!?#\-]{0,8}$/;
 /** Valida/normaliza a personalização enviada pelo cliente (texto ≤ 8 chars por pé, número 0–99 por pé). */
 function normalizeCustomization(raw) {
@@ -259,7 +264,7 @@ export function createOrderService(env, prisma, catalog, gateway, notifier, log,
           }
         }
 
-        const orderNumber = `KLT-${new Date().getFullYear()}-${Math.floor(Math.random()*1000000).toString().padStart(6,'0')}`;
+        const orderNumber = newOrderNumber();
 
         const order = await prisma.$transaction(async (tx) => {
           // pronta entrega: reserva (qty >= n) na mesma transação — se dois clientes disputarem o último par,

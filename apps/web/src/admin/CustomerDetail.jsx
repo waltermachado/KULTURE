@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useState } from "react";
 import { Link, useNavigate, useParams } from "react-router-dom";
-import { ErrorBox, Loading, RolePill, StatusPill, brl, fmtDate, fmtDateTime, fmtPhone } from "./ui.jsx";
+import { ErrorBox, Loading, RolePill, StatusPill, ChannelPill, brl, fmtDate, fmtDateTime, fmtPhone } from "./ui.jsx";
 
 const EMPTY_ADDR = { cep: "", street: "", number: "", complement: "", neighborhood: "", city: "", state: "" };
 
@@ -192,7 +192,7 @@ export default function CustomerDetail({ auth, notify }) {
                 {allOrders.map((o) => (
                   <tr key={o.number} className="link" onClick={() => navigate(`/admin/pedidos/${o.number}`)}>
                     <td><span className="mono">{o.number}</span><span className="sub">{fmtDateTime(o.createdAt)}{o.guest ? " · convidado" : ""}</span></td>
-                    <td><StatusPill status={o.status} /></td>
+                    <td><StatusPill status={o.status} />{o.channel && o.channel !== "site" ? <> <ChannelPill channel={o.channel} short /></> : null}</td>
                     <td>{o.trackingCode ? <span className="mono">{o.trackingCode}</span> : "—"}</td>
                     <td className="num">{brl(o.totalBrl)}</td>
                   </tr>

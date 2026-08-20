@@ -133,7 +133,7 @@ export function SizePicker({ item, onClose, onAdd }) {
                   )}
                   {product.source === "stock" && (
                     <span className="sp-launch sp-stock">
-                      <b>Pronta entrega</b>
+                      <b>{product.section === "hypados" ? "Hypados · pronta entrega" : "Pronta entrega"}</b>
                       {product.stock?.total === 1 ? " — último par! Está no Brasil e sai assim que o pagamento cair." : " — está no Brasil e sai assim que o pagamento cair, sem espera de importação."}
                     </span>
                   )}
@@ -185,20 +185,23 @@ export function SizePicker({ item, onClose, onAdd }) {
                   visibleSizes.map((s, i) => {
                     const usNum = s.us && activeGroup ? s.us[activeGroup] : null;
                     const usLabel = usNum ? (activeGroup === 'K' ? `US ${usNum}` : `US ${activeGroup} ${usNum}`) : null;
+                    // sem BR na tabela (raro): o número grande vira o US — e o US não repete embaixo
+                    const main = s.brLabel || usLabel || `US ${s.nikeSize}`;
+                    const sub = s.brLabel ? usLabel : null;
                     return (
                       <button
                         key={`${s.nikeSize}-${i}`}
                         className={`size-btn ${selectedSize?.nikeSize === s.nikeSize ? 'selected' : ''}`}
                         disabled={!s.available}
                         onClick={() => setSelectedSize(s)}
-                        aria-label={`Tamanho BR ${s.brLabel || s.nikeSize}${usLabel ? `, ${usLabel}` : ''}${s.approximate ? ' (aproximado)' : ''}`}
+                        aria-label={`${s.brLabel ? `Tamanho BR ${s.brLabel}` : `Tamanho ${main}`}${sub ? `, ${sub}` : ''}${s.approximate ? ' (aproximado)' : ''}`}
                       >
-                        {s.brLabel ? s.brLabel : s.nikeSize}
+                        {main}
                         {product.source === "stock"
-                          ? <span className="us">{usLabel || (s.qty === 1 ? "último" : `${s.qty} un.`)}</span>
-                          : <span className="us">{usLabel || `US ${s.nikeSize}`}</span>}
+                          ? <span className="us">{sub || (s.qty === 1 ? "último" : `${s.qty} un.`)}</span>
+                          : sub ? <span className="us">{sub}</span> : s.brLabel ? <span className="us">{`US ${s.nikeSize}`}</span> : null}
                         {s.approximate && <span className="approx">Aprox.</span>}
-                        {product.source === "stock" && usLabel && s.qty === 1 && <span className="approx">Último</span>}
+                        {product.source === "stock" && sub && s.qty === 1 && <span className="approx">Último</span>}
                       </button>
                     );
                   })

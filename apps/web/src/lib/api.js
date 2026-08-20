@@ -29,8 +29,10 @@ export const api = {
   product: (term) => get(`/api/product/${encodeURIComponent(term)}`),
   rate: () => get("/api/rate"),
   health: () => get("/health"),
-  /** pronta entrega: produtos em estoque no Brasil (cadastrados no backoffice; sem Nike) */
-  stock: () => get("/api/stock"),
+  /** estoque próprio: pronta entrega (padrão) ou hypados (cadastrados no backoffice; sem Nike) */
+  stock: (section = "stock") => get(`/api/stock${section && section !== "stock" ? `?section=${section}` : ""}`),
+  /** tênis em destaque no hero (configurado no backoffice) por seção × categoria; product null = sem config */
+  featured: (section, cat) => get(`/api/featured?section=${encodeURIComponent(section)}${cat ? `&cat=${encodeURIComponent(cat)}` : ""}`),
   /** configuração pública: { whatsapp: { phone, url } | null, installments, stock } */
   config: () => get("/api/config")
 };

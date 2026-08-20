@@ -70,7 +70,7 @@ export function resolvePricingRules(product, rules) {
   const merged = { matchedRuleIds: [] };
   for (const rule of applicable) {
     merged.matchedRuleIds.push(rule.id ?? "(sem id)");
-    for (const key of ["commission", "productSurchargeRate", "shippingUsd", "importDutyRate", "paymentFeeRate", "roundUpToEnding", "roundEnding"]) {
+    for (const key of ["commission", "productSurchargeRate", "shippingUsd", "importDutyRate", "paymentFeeRate", "extraFixedBrl", "roundUpToEnding", "roundEnding"]) {
       if (rule[key] !== undefined) merged[key] = rule[key];
     }
   }
@@ -80,6 +80,7 @@ export function resolvePricingRules(product, rules) {
   merged.productSurchargeRate ??= 0;
   merged.importDutyRate ??= 0;
   merged.paymentFeeRate ??= 0;
+  merged.extraFixedBrl ??= 0;
   merged.roundUpToEnding ??= null;
   merged.roundEnding ??= null;
   return merged;

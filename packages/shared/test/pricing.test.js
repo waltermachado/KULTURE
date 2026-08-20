@@ -41,6 +41,35 @@ describe("calculateFinalPrice (regra padrão)", () => {
   });
 });
 
+describe("LeBron 23: +R$300 no preço final (regra padrão)", () => {
+  it("soma R$300 depois da comissão e mantém o final …99 (não mexe nos outros modelos)", () => {
+    const kobe = calculateFinalPrice({ product, exchangeRate: 5 });
+    const lebron = calculateFinalPrice({ product: { brand: "Nike", name: "Nike LeBron XXIII", styleColor: "HQ3417-100", priceUsd: 190 }, exchangeRate: 5 });
+    // mesma base do Kobe (US$190, câmbio 5 → 1799), só que +300
+    expect(lebron.costs.extraFixedBrl).toBe(300);
+    expect(lebron.costs.finalPriceBrl).toBe(kobe.costs.finalPriceBrl + 300); // 2099
+    expect(lebron.costs.commissionBrl).toBe(kobe.costs.commissionBrl); // comissão NÃO incide sobre o acréscimo
+    expect(lebron.costs.finalPriceBrl % 100).toBe(99);
+    expect(lebron.rulesApplied.matchedRuleIds).toContain("lebron-23-acrescimo");
+    // variações de nome que também precisam bater
+    for (const name of ["LeBron XXIII EP", "Nike LeBron 23 'Grinch'"]) {
+      expect(calculateFinalPrice({ product: { name, priceUsd: 190 }, exchangeRate: 5 }).costs.extraFixedBrl).toBe(300);
+    }
+    // e as que NÃO podem bater
+    for (const name of ["Nike LeBron XX", "Nike LeBron XXI", "LeBron Witness 9", "Nike LeBron NXXT Gen"]) {
+      const r = calculateFinalPrice({ product: { name, priceUsd: 150 }, exchangeRate: 5 });
+      expect(r.costs.extraFixedBrl, name).toBe(0);
+      expect(r.rulesApplied.matchedRuleIds, name).not.toContain("lebron-23-acrescimo");
+    }
+  });
+
+  it("breakdown público continua sem expor o acréscimo (só o painel vê)", () => {
+    // o campo fica em costs/rulesApplied — que a API pública já remove (stripInternal); aqui só garante que existe
+    const r = calculateFinalPrice({ product: { name: "Nike LeBron XXIII", priceUsd: 190 }, exchangeRate: 5 });
+    expect(r.rulesApplied.extraFixedBrl).toBe(300);
+  });
+});
+
 describe("regras modulares", () => {
   const rules = [
     ...DEFAULT_PRICING_RULES,

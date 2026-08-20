@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
-import { useNavigate } from "react-router-dom";
-import { BarChart, HBars, ErrorBox, Loading, StatusPill, STATUS_LABELS, STATUS_ORDER, METHOD_LABELS, brl, fmtDateTime } from "./ui.jsx";
+import { Link, useNavigate } from "react-router-dom";
+import { BarChart, HBars, ErrorBox, Loading, StatusPill, ChannelPill, STATUS_LABELS, STATUS_ORDER, METHOD_LABELS, brl, fmtDateTime } from "./ui.jsx";
 
 const RANGES = [7, 30, 90, 365];
 
@@ -29,12 +29,15 @@ export default function Dashboard({ auth }) {
       <header className="adm-head">
         <div>
           <h1>Dashboard <em>financeiro</em></h1>
-          <div className="sub">Receita = pedidos pagos (pago, comprando, enviado, entregue) · estornos fora</div>
+          <div className="sub">Receita = pedidos pagos (pago, comprando, enviado, entregue) · estornos fora · inclui vendas externas registradas no painel</div>
         </div>
-        <div className="actions adm-chips">
-          {RANGES.map((r) => (
-            <button key={r} className={days === r ? "on" : ""} onClick={() => setDays(r)}>{r === 365 ? "1 ano" : `${r} dias`}</button>
-          ))}
+        <div className="actions">
+          <div className="adm-chips">
+            {RANGES.map((r) => (
+              <button key={r} className={days === r ? "on" : ""} onClick={() => setDays(r)}>{r === 365 ? "1 ano" : `${r} dias`}</button>
+            ))}
+          </div>
+          <Link className="btn primary" to="/admin/pedidos/nova" title="Registrar uma venda feita fora do site">+ Venda externa</Link>
         </div>
       </header>
 
@@ -54,7 +57,7 @@ export default function Dashboard({ auth }) {
             <div className="tile">
               <span className="k">Pedidos pagos</span>
               <span className="v">{t.paidOrders}</span>
-              <span className="d">{t.createdOrders} criados · conversão {t.conversionPct == null ? "—" : `${t.conversionPct}%`}</span>
+              <span className="d">{t.externalOrders ? `${t.siteOrders} pelo site · ${t.externalOrders} externa(s) (${brl(t.externalRevenueBrl)}) · ` : `${t.createdOrders} criados · `}conversão {t.conversionPct == null ? "—" : `${t.conversionPct}%`}</span>
             </div>
             <div className="tile">
               <span className="k">Ticket médio</span>
@@ -109,7 +112,14 @@ export default function Dashboard({ auth }) {
               <section className="adm-card">
                 <h3>Forma de pagamento <small>receita no período</small></h3>
                 <HBars
-                  rows={Object.entries(data.byPaymentMethod).map(([k, v]) => ({ key: k, label: METHOD_LABELS[k] || k, value: v }))}
+                  rows={Object.entries(data.byPaymentMethod).map(([k, v]) => ({ key: k, label: METHOD_LABELS[k] || data.paymentMethodLabels?.[k] || k, value: v }))}
+                  format={brl}
+                />
+              </section>
+              <section className="adm-card">
+                <h3>Canal de venda <small>site × fora do site · {days} dias</small></h3>
+                <HBars
+                  rows={(data.byChannel || []).map((c) => ({ key: c.channel, label: `${c.label} (${c.orders})`, value: c.revenueBrl }))}
                   format={brl}
                 />
               </section>
@@ -134,7 +144,7 @@ export default function Dashboard({ auth }) {
                       <tr key={o.number} className="link" onClick={() => navigate(`/admin/pedidos/${o.number}`)}>
                         <td><span className="mono">{o.number}</span><span className="sub">{fmtDateTime(o.createdAt)}</span></td>
                         <td>{o.customerName}</td>
-                        <td><StatusPill status={o.status} /></td>
+                        <td><StatusPill status={o.status} />{o.channel && o.channel !== "site" ? <> <ChannelPill channel={o.channel} short /></> : null}</td>
                         <td className="num">{brl(o.totalBrl)}</td>
                       </tr>
                     ))}

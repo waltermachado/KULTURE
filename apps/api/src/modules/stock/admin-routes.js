@@ -19,9 +19,9 @@ export async function stockAdminRoutes(app) {
   const tags = ["admin"];
 
   app.get("/api/admin/stock", {
-    schema: { tags, querystring: { type: "object", properties: { q: { type: "string" }, all: { type: "string" } } } }
+    schema: { tags, querystring: { type: "object", properties: { q: { type: "string" }, all: { type: "string" }, section: { type: "string", enum: ["stock", "hypados"] } } } }
   }, async (request) => {
-    const products = await stock.list({ q: request.query.q || "", includeInactive: request.query.all !== "0" });
+    const products = await stock.list({ q: request.query.q || "", includeInactive: request.query.all !== "0", section: request.query.section || null });
     return { total: products.length, products };
   });
 

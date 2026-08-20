@@ -129,7 +129,10 @@ model Order {
   totalBrl            Decimal     @map("total_brl")
   exchangeRate        Decimal     @map("exchange_rate")
   pricingSnapshot     Json        @map("pricing_snapshot") // breakdown interno sumário
-  paymentProvider     String      @map("payment_provider") // infinitepay | mock
+  paymentProvider     String      @map("payment_provider") // infinitepay | mock | manual (venda registrada no painel)
+  /// Canal da venda: site (checkout) | whatsapp | instagram | presencial | outro — ≠ site = "venda externa"
+  /// registrada pelo backoffice (POST /api/admin/orders), já paga, sem link de pagamento.
+  channel             String      @default("site")
   paymentMethod       String?     @map("payment_method") // pix | credit_card
   infinitepaySlug     String?     @map("infinitepay_slug")
   transactionNsu      String?     @map("transaction_nsu")
@@ -163,6 +166,7 @@ model Order {
 
   @@index([status, createdAt])
   @@index([transactionNsu])
+  @@index([channel])
   @@map("orders")
 }
 
@@ -238,8 +242,11 @@ model IdempotencyKey {
 
 model StockProduct {
   id               String   @id @default(cuid())
-  code             String   @unique // PE-XXXXXX
+  code             String   @unique // PE-XXXXXX (pronta entrega) | HY-XXXXXX (hypados)
   slug             String   @unique
+  /// Seção da loja onde o produto aparece: stock (/pronta-entrega) | hypados (/hypados).
+  /// Mesmo fluxo nos dois casos (estoque próprio, reserva por tamanho, fotos no banco).
+  section          String   @default("stock")
   name             String
   subtitle         String? // texto livre (legado); o site usa o rótulo da categoria quando vazio
   category         String? // basketball | lifestyle | running — mesmas 3 abas da loja (Basquete / Casual / Corrida)
@@ -262,6 +269,7 @@ model StockProduct {
   blobs StockImage[]
 
   @@index([active, sortOrder])
+  @@index([section])
   @@map("stock_products")
 }
 
@@ -277,6 +285,16 @@ model StockSize {
 
   @@unique([productId, br])
   @@map("stock_sizes")
+}
+
+/// Configuração editável do site (chave → JSON). Hoje: "featured" — tênis do hero por seção × categoria
+/// (chaves "import|stock|hypados:default|basketball|lifestyle|running" → { type: "nike"|"stock", ref }).
+model Setting {
+  key       String   @id
+  value     Json
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  @@map("settings")
 }
 
 /// Foto enviada pelo backoffice (guardada no banco: não depende do volume ser gravável).

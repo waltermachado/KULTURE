@@ -1,11 +1,16 @@
 import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { api } from "../lib/api.js";
+import PasswordInput from "../components/PasswordInput.jsx";
 import { brl, sizeText, customText } from "../lib/format.js";
 
-export default function Checkout({ cart, auth, notify }) {
+export default function Checkout({ cart, auth, notify, onOpenLogin }) {
   const navigate = useNavigate();
   const [loading, setLoading] = useState(false);
+  // convidado pode criar a conta AQUI mesmo (opcional, marcado por padrão): registra com os dados do
+  // formulário + senha e o pedido já nasce vinculado; desmarcado, segue como convidado (comportamento antigo).
+  const [account, setAccount] = useState({ create: true, password: "", confirm: "" });
+  const [accountErr, setAccountErr] = useState(null); // "taken" = e-mail já tem conta | texto livre
   const fromUser = (u) => ({
     name: u?.name || "",
     email: u?.email || "",
@@ -59,8 +64,44 @@ export default function Checkout({ cart, auth, notify }) {
   const handleSubmit = async (e) => {
     e.preventDefault();
     if (lines.length === 0) return notify("Seu carrinho está vazio");
-    
-    setLoading(true);
+    setAccountErr(null);
+
+    const addressPayload = {
+      cep: form.cep.replace(/\D/g, ""),
+      street: form.street,
+      number: form.number,
+      complement: form.complement,
+      neighborhood: form.neighborhood,
+      city: form.city,
+      state: form.state
+    };
+
+    // convidado que marcou "criar conta": valida a senha e registra ANTES do pedido — o checkout
+    // segue autenticado e o pedido cai direto em "Meus pedidos"
+    let token = auth.user ? auth.getToken?.() : null;
+    if (!auth.user && account.create) {
+      if (account.password.length < 8) return setAccountErr("A senha precisa ter pelo menos 8 caracteres");
+      if (account.password !== account.confirm) return setAccountErr("As senhas não coincidem");
+      setLoading(true);
+      try {
+        await auth.register({
+          email: form.email,
+          password: account.password,
+          name: form.name,
+          cpf: form.cpf.replace(/\D/g, ""),
+          phone: form.phone,
+          address: addressPayload
+        });
+        token = auth.getToken?.();
+        notify("Conta criada! 🎉");
+      } catch (err) {
+        setLoading(false);
+        if (err.code === "EMAIL_TAKEN" || err.status === 409) return setAccountErr("taken");
+        return setAccountErr(err.message || "Não foi possível criar a conta");
+      }
+    } else {
+      setLoading(true);
+    }
     
     // Idempotency Key pra evitar duplicidade se o usuário clicar 2x
     const idempotencyKey = crypto.randomUUID();
@@ -75,27 +116,18 @@ export default function Checkout({ cart, auth, notify }) {
         ...(l.sizeInfo.customization ? { customization: l.sizeInfo.customization } : {})
       })),
       customer: { name: form.name, email: form.email, phone: form.phone, cpf: form.cpf.replace(/\D/g, "") },
-      address: {
-        cep: form.cep.replace(/\D/g, ""),
-        street: form.street,
-        number: form.number,
-        complement: form.complement,
-        neighborhood: form.neighborhood,
-        city: form.city,
-        state: form.state
-      }
+      address: addressPayload
     };
 
     try {
       // caminho relativo: em dev o Vite faz proxy de /api; em produção a api serve o front (mesma origem)
-      const token = auth.getToken?.();
       const res = await fetch("/api/checkout", {
         method: "POST",
         credentials: "include",
         headers: {
           "Content-Type": "application/json",
           "Idempotency-Key": idempotencyKey,
-          ...(auth.user && token ? { Authorization: `Bearer ${token}` } : {}) // envia token se logado
+          ...(token ? { Authorization: `Bearer ${token}` } : {}) // logado ou conta recém-criada acima
         },
         body: JSON.stringify(payload)
       });
@@ -136,6 +168,46 @@ export default function Checkout({ cart, auth, notify }) {
               <input name="phone" placeholder="WhatsApp (DDD + Número)" value={form.phone} onChange={handleChange} required />
             </div>
           </div>
+
+          {!auth.user && (
+            <div className="form-section co-account">
+              <label className="check" style={{ margin: 0 }}>
+                <input
+                  type="checkbox"
+                  checked={account.create}
+                  onChange={(e) => { setAccount((a) => ({ ...a, create: e.target.checked })); setAccountErr(null); }}
+                />
+                <span><b>Criar minha conta com esses dados</b> — acompanhe o pedido em "Meus pedidos", sem redigitar nada na próxima compra.</span>
+              </label>
+              {account.create && (
+                <div style={{ display: "flex", gap: 10 }}>
+                  <PasswordInput
+                    placeholder="Crie uma senha (mín. 8 caracteres)"
+                    value={account.password}
+                    onChange={(e) => { setAccount((a) => ({ ...a, password: e.target.value })); setAccountErr(null); }}
+                    autoComplete="new-password"
+                    required
+                  />
+                  <PasswordInput
+                    placeholder="Repita a senha"
+                    value={account.confirm}
+                    onChange={(e) => { setAccount((a) => ({ ...a, confirm: e.target.value })); setAccountErr(null); }}
+                    autoComplete="new-password"
+                    required
+                  />
+                </div>
+              )}
+              {accountErr === "taken" ? (
+                <p className="co-account-err">
+                  Este e-mail já tem conta na Kulture.{" "}
+                  <button type="button" onClick={() => onOpenLogin?.()}>Entrar com essa conta</button>{" "}
+                  — ou desmarque a opção acima para comprar sem entrar (o pedido é vinculado pelo e-mail do mesmo jeito).
+                </p>
+              ) : accountErr ? (
+                <p className="co-account-err">{accountErr}</p>
+              ) : null}
+            </div>
+          )}
 
           <div className="form-section">
             <h3 style={{ marginBottom: 12, fontSize: 18, color: "var(--k-yellow)" }}>Entrega</h3>

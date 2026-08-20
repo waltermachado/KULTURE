@@ -11,7 +11,7 @@ const RATE_KEY = "rate:USD-BRL:v2"; // v2 = traz `tourism` (dólar turismo)
 const MAX_IMAGES = 8; // galeria do produto: até 8 ângulos (o resto é marketing)
 // namespace das chaves de cache do catálogo: mudou o formato das imagens (v2 = recorte) → chaves novas,
 // senão cards/busca ficariam até 1h servindo os PNGs opacos antigos
-const NS = "v5"; // v3 só calçados · v4 launch · v5 nova precificação (turismo, 7%, ↑99)
+const NS = "v6"; // v3 só calçados · v4 launch · v5 nova precificação (turismo, 7%, ↑99) · v6 LeBron 23 +R$300
 
 /**
  * `stock` (opcional) = serviço de pronta entrega: códigos PE-XXXXXX são respondidos do banco em

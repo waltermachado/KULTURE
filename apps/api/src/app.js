@@ -27,6 +27,7 @@ import { createNotifier } from "./modules/notifications/notifier.js";
 import { createMailer } from "./modules/mail/mailer.js";
 import { createOrderService } from "./modules/orders/service.js";
 import { orderRoutes } from "./modules/orders/routes.js";
+import { featuredRoutes } from "./modules/featured/routes.js";
 import { startAbandonedCheckoutJob } from "./modules/jobs/abandoned-checkout.js";
 import { createStockService } from "./modules/stock/service.js";
 import { stockRoutes } from "./modules/stock/routes.js";
@@ -156,6 +157,7 @@ export async function buildApp(overrides = {}) {
     await app.register(adminRoutes);
     await app.register(stockRoutes);
     await app.register(stockAdminRoutes);
+    await app.register(featuredRoutes);
   }
 
   // ---- ciclo de vida ----

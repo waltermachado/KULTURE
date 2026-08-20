@@ -7,31 +7,67 @@ import Features from "../components/Features.jsx";
 import { api } from "../lib/api.js";
 import { toCard, CATEGORIES } from "../lib/format.js";
 
-const TITLE = (
-  <>
-    Pronta <em>entrega</em>
-  </>
-);
+/** Textos por seção de estoque próprio — o fluxo é o mesmo (estoque no Brasil, envio imediato). */
+const COPY = {
+  stock: {
+    title: <>Pronta <em>entrega</em></>,
+    catTitle: (label) => <>Pronta entrega <em>· {label}</em></>,
+    kicker: "No Brasil · envio imediato",
+    catKicker: (label) => `No Brasil · ${label}`,
+    subOk: (n, label) => `// ${n} modelo(s)${label ? ` de ${label.toLowerCase()}` : ""} em estoque no Brasil · envio imediato`,
+    subEmpty: (label) => (label ? `// nenhum ${label.toLowerCase()} em estoque agora` : "// estoque em renovação"),
+    loading: "Carregando o estoque…",
+    emptyCat: (label) => `Nenhum par de ${label.toLowerCase()} em estoque neste momento — veja "Todos" acima, ou chame no WhatsApp que a gente importa pra você.`,
+    empty: "Nenhum par em estoque neste momento — mas a gente importa pra você: veja os Importados ou chame no WhatsApp.",
+    error: "Não foi possível carregar o estoque agora. Tente de novo em instantes."
+  },
+  hypados: {
+    title: <>HYPA<em>DOS</em></>,
+    catTitle: (label) => <>Hypados <em>· {label}</em></>,
+    kicker: "Os drops mais quentes · no Brasil",
+    catKicker: (label) => `Hypados · ${label}`,
+    subOk: (n, label) => `// ${n} par(es) hypado(s)${label ? ` de ${label.toLowerCase()}` : ""} em estoque no Brasil · envio imediato`,
+    subEmpty: (label) => (label ? `// nenhum ${label.toLowerCase()} hypado agora` : "// novos drops chegando"),
+    loading: "Carregando os hypados…",
+    emptyCat: (label) => `Nenhum hypado de ${label.toLowerCase()} agora — veja "Todos" acima, ou chame no WhatsApp que a gente caça o seu grail.`,
+    empty: "Nenhum hypado em estoque neste momento — novos drops chegando. Chame no WhatsApp que a gente caça o seu grail.",
+    error: "Não foi possível carregar os hypados agora. Tente de novo em instantes."
+  }
+};
 
 /**
- * Pronta entrega — produtos em estoque no Brasil, cadastrados no backoffice (/admin/estoque).
- * Não consulta a Nike: GET /api/stock, uma vez por visita. Mesmos componentes visuais da home.
- * Filtro por categoria na URL (?cat=basketball|lifestyle|running): abas do topo, blocos, rodapé e os chips
- * acima da lista trocam o filtro SEM sair da página.
+ * Vitrine de estoque próprio — Pronta entrega (/pronta-entrega) ou Hypados (/hypados), conforme `section`.
+ * Produtos cadastrados no backoffice; não consulta a Nike: GET /api/stock(?section=hypados), uma vez por visita.
+ * Filtro por categoria na URL (?cat=basketball|lifestyle|running) — abas do topo, blocos, rodapé e chips trocam
+ * o filtro SEM sair da página. O tênis do hero pode ser fixado no backoffice (Vitrine) por seção × categoria;
+ * sem configuração, destaca o 1º da lista filtrada.
  */
-export default function Stock({ setSelectedProductForSize, onCategory }) {
+export default function Stock({ section = "stock", setSelectedProductForSize, onCategory }) {
+  const copy = COPY[section] || COPY.stock;
   const [params, setParams] = useSearchParams();
   const cat = CATEGORIES.some((c) => c.key === params.get("cat")) ? params.get("cat") : null;
   const [all, setAll] = useState({ status: "loading", products: [] });
+  const [pinned, setPinned] = useState(null); // destaque configurado no backoffice (Vitrine)
 
   useEffect(() => {
     let alive = true;
+    setAll({ status: "loading", products: [] });
     api
-      .stock()
+      .stock(section)
       .then((d) => { if (alive) setAll({ status: "ok", products: (d.products || []).map(toCard) }); })
       .catch(() => { if (alive) setAll({ status: "error", products: [] }); });
     return () => { alive = false; };
-  }, []);
+  }, [section]);
+
+  // hero configurável (backoffice → Vitrine): por seção × categoria; falha/sem config → fallback abaixo
+  useEffect(() => {
+    let alive = true;
+    api
+      .featured(section, cat)
+      .then((d) => { if (alive) setPinned(d.product ? toCard(d.product) : null); })
+      .catch(() => { if (alive) setPinned(null); });
+    return () => { alive = false; };
+  }, [section, cat]);
 
   const filtered = useMemo(() => (cat ? all.products.filter((p) => p.category === cat) : all.products), [all.products, cat]);
   const catLabel = CATEGORIES.find((c) => c.key === cat)?.label || null;
@@ -40,14 +76,14 @@ export default function Stock({ setSelectedProductForSize, onCategory }) {
   const grid = {
     status: all.status === "loading" ? "loading" : all.status === "error" ? "error" : filtered.length ? "ok" : "empty",
     products: filtered,
-    title: catLabel ? <>Pronta entrega <em>· {catLabel}</em></> : TITLE,
+    title: catLabel ? copy.catTitle(catLabel) : copy.title,
     sub: all.status === "loading"
-      ? "// carregando o estoque…"
+      ? `// ${copy.loading.toLowerCase()}`
       : all.status === "error"
-        ? "// erro ao carregar o estoque"
+        ? "// erro ao carregar"
         : filtered.length
-          ? `// ${filtered.length} modelo(s)${catLabel ? ` de ${catLabel.toLowerCase()}` : ""} em estoque no Brasil · envio imediato`
-          : catLabel ? `// nenhum ${catLabel.toLowerCase()} em estoque agora` : "// estoque em renovação",
+          ? copy.subOk(filtered.length, catLabel)
+          : copy.subEmpty(catLabel),
     query: ""
   };
 
@@ -57,8 +93,8 @@ export default function Stock({ setSelectedProductForSize, onCategory }) {
     setParams(next);
   };
 
-  // hero destaca o 1º da lista filtrada (ou o 1º do estoque todo)
-  const featured = all.status === "ok" ? (filtered[0] || all.products[0] || null) : null;
+  // hero: o configurado no backoffice para (seção, categoria); senão o 1º da lista filtrada (ou do estoque todo)
+  const featured = pinned || (all.status === "ok" ? (filtered[0] || all.products[0] || null) : null);
 
   const filters = all.status === "ok" && all.products.length > 0 ? (
     <div className="grid-filters" role="tablist" aria-label="Filtrar por categoria">
@@ -73,20 +109,16 @@ export default function Stock({ setSelectedProductForSize, onCategory }) {
 
   return (
     <>
-      <Hero featured={featured} onPick={setSelectedProductForSize} variant="stock" />
-      <Marquee variant="stock" />
+      <Hero featured={featured} onPick={setSelectedProductForSize} variant={section} />
+      <Marquee variant={section} />
       <ProductGrid
         state={grid}
         onAdd={setSelectedProductForSize}
-        kicker={catLabel ? `No Brasil · ${catLabel}` : "No Brasil · envio imediato"}
+        kicker={catLabel ? copy.catKicker(catLabel) : copy.kicker}
         filters={filters}
-        loadingMsg="Carregando o estoque…"
-        emptyMsg={
-          catLabel && all.products.length
-            ? `Nenhum par de ${catLabel.toLowerCase()} em estoque neste momento — veja "Todos" acima, ou chame no WhatsApp que a gente importa pra você.`
-            : "Nenhum par em estoque neste momento — mas a gente importa pra você: veja os Importados ou chame no WhatsApp."
-        }
-        errorMsg="Não foi possível carregar o estoque agora. Tente de novo em instantes."
+        loadingMsg={copy.loading}
+        emptyMsg={catLabel && all.products.length ? copy.emptyCat(catLabel) : copy.empty}
+        errorMsg={copy.error}
         context="stock"
       />
       <Features onCategory={onCategory} />

@@ -13,10 +13,17 @@ export async function stockRoutes(app) {
 
   app.get(
     "/api/stock",
-    { schema: { tags: ["catalog"], summary: "Pronta entrega — produtos em estoque no Brasil (sem consulta à Nike)" } },
-    async () => {
-      const products = (await stock.listPublic()).map(stripStockInternal);
-      return { total: products.length, products, source: "stock" };
+    {
+      schema: {
+        tags: ["catalog"],
+        summary: "Estoque próprio — pronta entrega (padrão) ou hypados (?section=hypados), sem consulta à Nike",
+        querystring: { type: "object", properties: { section: { type: "string", enum: ["stock", "hypados"] } } }
+      }
+    },
+    async (req) => {
+      const section = req.query.section || "stock";
+      const products = (await stock.listPublic({ section })).map(stripStockInternal);
+      return { total: products.length, products, source: "stock", section };
     }
   );
 

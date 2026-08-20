@@ -8,11 +8,13 @@ import { NavLink, Navigate, Route, Routes, useNavigate } from "react-router-dom"
 import Dashboard from "./Dashboard.jsx";
 import Orders from "./Orders.jsx";
 import OrderDetail from "./OrderDetail.jsx";
+import ManualOrder from "./ManualOrder.jsx";
 import Deliveries from "./Deliveries.jsx";
 import Customers from "./Customers.jsx";
 import CustomerDetail from "./CustomerDetail.jsx";
 import Stock from "./Stock.jsx";
 import StockForm from "./StockForm.jsx";
+import Featured from "./Featured.jsx";
 
 export default function AdminApp({ auth, onOpenLogin, notify }) {
   const navigate = useNavigate();
@@ -72,6 +74,8 @@ export default function AdminApp({ auth, onOpenLogin, notify }) {
           <NavLink to="/admin/entregas">Entregas {toShip ? <span className="n">{toShip}</span> : null}</NavLink>
           <NavLink to="/admin/clientes">Clientes</NavLink>
           <NavLink to="/admin/estoque">Pronta entrega</NavLink>
+          <NavLink to="/admin/hypados">Hypados</NavLink>
+          <NavLink to="/admin/vitrine">Vitrine</NavLink>
         </nav>
         <div className="adm-side-foot">
           <b title={auth.user.email}>{auth.user.name}</b>
@@ -87,13 +91,18 @@ export default function AdminApp({ auth, onOpenLogin, notify }) {
         <Routes>
           <Route index element={<Dashboard auth={auth} />} />
           <Route path="pedidos" element={<Orders auth={auth} />} />
+          <Route path="pedidos/nova" element={<ManualOrder auth={auth} notify={notify} />} />
           <Route path="pedidos/:number" element={<OrderDetail auth={auth} notify={notify} />} />
           <Route path="entregas" element={<Deliveries auth={auth} notify={notify} />} />
           <Route path="clientes" element={<Customers auth={auth} />} />
           <Route path="clientes/:id" element={<CustomerDetail auth={auth} notify={notify} />} />
-          <Route path="estoque" element={<Stock auth={auth} />} />
-          <Route path="estoque/novo" element={<StockForm auth={auth} notify={notify} />} />
-          <Route path="estoque/:id" element={<StockForm auth={auth} notify={notify} />} />
+          <Route path="estoque" element={<Stock auth={auth} section="stock" />} />
+          <Route path="estoque/novo" element={<StockForm auth={auth} notify={notify} section="stock" />} />
+          <Route path="estoque/:id" element={<StockForm auth={auth} notify={notify} section="stock" />} />
+          <Route path="hypados" element={<Stock auth={auth} section="hypados" />} />
+          <Route path="hypados/novo" element={<StockForm auth={auth} notify={notify} section="hypados" />} />
+          <Route path="hypados/:id" element={<StockForm auth={auth} notify={notify} section="hypados" />} />
+          <Route path="vitrine" element={<Featured auth={auth} notify={notify} />} />
           <Route path="*" element={<Navigate to="/admin" replace />} />
         </Routes>
       </main>

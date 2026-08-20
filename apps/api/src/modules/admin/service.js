@@ -3,10 +3,25 @@
  * Aqui o breakdown interno PODE aparecer — é o painel do dono, não a API pública.
  */
 import { AppError } from "../../lib/errors.js";
-import { buildOrderPaidEmail, buildOrderShippedEmail, buildOrderDeliveredEmail, buildOrderCancelledEmail } from "../mail/mailer.js";
+import { sizeLabel as buildSizeLabel } from "@kulture/shared/sizes";
+import { pricingRateOf } from "../catalog/normalize.js";
+import { newOrderNumber } from "../orders/service.js";
+import { isStockCode } from "../stock/service.js";
+import {
+  buildOrderPaidEmail, buildOrderShippedEmail, buildOrderDeliveredEmail, buildOrderCancelledEmail, buildOrderRegisteredEmail, PAYMENT_METHOD_LABELS
+} from "../mail/mailer.js";
 
 /** Pedidos que contam como receita (dinheiro entrou e não foi devolvido). */
 export const PAID_STATUSES = ["paid", "sourcing", "shipped", "delivered"];
+
+/** Canal da venda (`orders.channel`). `site` = checkout normal; os demais = venda externa registrada no painel. */
+export const SALE_CHANNELS = { site: "Site", whatsapp: "WhatsApp", instagram: "Instagram", presencial: "Presencial", outro: "Outro" };
+export const MANUAL_CHANNELS = ["whatsapp", "instagram", "presencial", "outro"];
+/** Formas de pagamento aceitas numa venda externa (o site só tem pix/credit_card, vindos do gateway). */
+export const MANUAL_PAYMENT_METHODS = Object.keys(PAYMENT_METHOD_LABELS);
+/** Em que etapa a venda externa já entra (é sempre "dinheiro recebido"; nunca pending_payment). */
+export const MANUAL_INITIAL_STATUSES = ["paid", "sourcing", "shipped", "delivered"];
+export { PAYMENT_METHOD_LABELS };
 
 /** Transições permitidas no painel. `pending_payment → paid` = baixa manual (comprovante fora do fluxo). */
 export const ORDER_TRANSITIONS = {
@@ -59,7 +74,7 @@ function orderRevenue(order) {
   return num(order.paidAmountBrl ?? order.totalBrl);
 }
 
-export function createAdminService({ prisma, env, mailer, gateway, orders, stock = null, log }) {
+export function createAdminService({ prisma, env, mailer, gateway, orders, stock = null, catalog = null, log }) {
   const siteUrl = env.PUBLIC_WEB_URL;
 
   async function sendMail(order, build, extra = {}) {
@@ -87,7 +102,7 @@ export function createAdminService({ prisma, env, mailer, gateway, orders, stock
           where: { status: { in: PAID_STATUSES }, paidAt: { gte: since } },
           select: {
             id: true, number: true, status: true, paidAt: true, createdAt: true, totalBrl: true, paidAmountBrl: true,
-            paymentMethod: true, customerName: true, userId: true,
+            paymentMethod: true, channel: true, customerName: true, userId: true,
             items: { select: { styleColor: true, name: true, image: true, quantity: true, unitPriceBrl: true, breakdown: true } }
           }
         }),
@@ -102,7 +117,7 @@ export function createAdminService({ prisma, env, mailer, gateway, orders, stock
         prisma.order.findMany({
           orderBy: { createdAt: "desc" },
           take: 8,
-          select: { number: true, status: true, customerName: true, totalBrl: true, createdAt: true, paidAt: true }
+          select: { number: true, status: true, customerName: true, totalBrl: true, createdAt: true, paidAt: true, channel: true }
         }),
         prisma.order.groupBy({ by: ["status"], _count: { _all: true } })
       ]);
@@ -111,6 +126,7 @@ export function createAdminService({ prisma, env, mailer, gateway, orders, stock
     const byDay = new Map();
     const productMap = new Map();
     const methodMap = new Map();
+    const channelMap = new Map(); // canal → { revenueBrl, orders } (site × vendas externas registradas no painel)
     for (const o of paidOrders) {
       const rev = orderRevenue(o);
       revenue += rev;
@@ -121,6 +137,11 @@ export function createAdminService({ prisma, env, mailer, gateway, orders, stock
       byDay.set(key, day);
       const m = o.paymentMethod || "outro";
       methodMap.set(m, (methodMap.get(m) || 0) + rev);
+      const ch = o.channel || "site";
+      const c = channelMap.get(ch) || { channel: ch, label: SALE_CHANNELS[ch] || ch, revenueBrl: 0, orders: 0 };
+      c.revenueBrl = round2(c.revenueBrl + rev);
+      c.orders += 1;
+      channelMap.set(ch, c);
       for (const it of o.items) {
         const eco = itemEconomics(it);
         cost += eco.costBrl;
@@ -142,6 +163,8 @@ export function createAdminService({ prisma, env, mailer, gateway, orders, stock
     const prevRevenue = prevPaid.reduce((s, o) => s + orderRevenue(o), 0);
     const createdInPeriod = statusCounts.reduce((s, r) => s + r._count._all, 0);
     const paidInPeriod = paidOrders.length;
+    const externalRevenue = [...channelMap.values()].filter((c) => c.channel !== "site").reduce((a, c) => a + c.revenueBrl, 0);
+    const externalOrders = [...channelMap.values()].filter((c) => c.channel !== "site").reduce((a, c) => a + c.orders, 0);
 
     return {
       period: { days: d, since: since.toISOString(), until: now.toISOString() },
@@ -160,12 +183,20 @@ export function createAdminService({ prisma, env, mailer, gateway, orders, stock
         marginCoverage: withBreakdown, // itens com breakdown salvo (base da estimativa)
         pendingPayment: pendingCount,
         customersTotal,
-        customersNew
+        customersNew,
+        // vendas fora do site registradas no painel (WhatsApp, Instagram, presencial…) — já dentro de revenueBrl
+        externalRevenueBrl: round2(externalRevenue),
+        externalOrders,
+        siteRevenueBrl: round2(revenue - externalRevenue),
+        siteOrders: paidInPeriod - externalOrders
       },
       series,
       byStatus: Object.fromEntries(byStatusAll.map((r) => [r.status, r._count._all])),
       byStatusPeriod: Object.fromEntries(statusCounts.map((r) => [r.status, r._count._all])),
       byPaymentMethod: Object.fromEntries([...methodMap.entries()].map(([k, v]) => [k, round2(v)])),
+      byChannel: [...channelMap.values()].sort((a, b) => b.revenueBrl - a.revenueBrl),
+      channelLabels: SALE_CHANNELS,
+      paymentMethodLabels: PAYMENT_METHOD_LABELS,
       topProducts: [...productMap.values()].sort((a, b) => b.quantity - a.quantity || b.revenueBrl - a.revenueBrl).slice(0, 8),
       recentOrders: recent,
       statusLabels: ORDER_STATUS_LABELS
@@ -174,12 +205,19 @@ export function createAdminService({ prisma, env, mailer, gateway, orders, stock
 
   // ─── Pedidos ──────────────────────────────────────────────────────────
 
-  function orderWhere({ status, q, from, to } = {}) {
+  function orderWhere({ status, q, from, to, channel } = {}) {
     const where = {};
     if (status) {
       const list = String(status).split(",").map((s) => s.trim()).filter(Boolean);
       if (list.length === 1) where.status = list[0];
       else if (list.length > 1) where.status = { in: list };
+    }
+    // channel=site (checkout) | external (qualquer venda registrada no painel) | whatsapp,instagram,… (lista)
+    if (channel) {
+      const list = String(channel).split(",").map((s) => s.trim()).filter(Boolean);
+      if (list.length === 1 && list[0] === "external") where.channel = { not: "site" };
+      else if (list.length === 1) where.channel = list[0];
+      else if (list.length > 1) where.channel = { in: list };
     }
     if (q) {
       const term = String(q).trim();
@@ -200,12 +238,12 @@ export function createAdminService({ prisma, env, mailer, gateway, orders, stock
     return where;
   }
 
-  async function listOrders({ status, q, from, to, page = 1, pageSize = 25, sort = "createdAt:desc" } = {}) {
+  async function listOrders({ status, q, from, to, channel, page = 1, pageSize = 25, sort = "createdAt:desc" } = {}) {
     const take = Math.min(Math.max(Number(pageSize) || 25, 1), 100);
     const p = Math.max(Number(page) || 1, 1);
     const [field, dir] = String(sort).split(":");
     const orderBy = { [["createdAt", "paidAt", "totalBrl", "status", "updatedAt"].includes(field) ? field : "createdAt"]: dir === "asc" ? "asc" : "desc" };
-    const where = orderWhere({ status, q, from, to });
+    const where = orderWhere({ status, q, from, to, channel });
     const [total, rows] = await Promise.all([
       prisma.order.count({ where }),
       prisma.order.findMany({
@@ -215,7 +253,7 @@ export function createAdminService({ prisma, env, mailer, gateway, orders, stock
         take,
         select: {
           id: true, number: true, status: true, customerName: true, customerEmail: true, customerPhone: true,
-          totalBrl: true, paidAmountBrl: true, paymentMethod: true, paymentProvider: true,
+          totalBrl: true, paidAmountBrl: true, paymentMethod: true, paymentProvider: true, channel: true,
           carrier: true, trackingCode: true, shippedAt: true, deliveredAt: true, paidAt: true, createdAt: true, updatedAt: true,
           address: true, userId: true,
           _count: { select: { items: true } }
@@ -231,6 +269,8 @@ export function createAdminService({ prisma, env, mailer, gateway, orders, stock
         ...o,
         itemsCount: o._count.items,
         _count: undefined,
+        channelLabel: SALE_CHANNELS[o.channel] || o.channel,
+        external: o.channel !== "site",
         city: o.address?.city ?? null,
         state: o.address?.state ?? null
       }))
@@ -259,6 +299,8 @@ export function createAdminService({ prisma, env, mailer, gateway, orders, stock
     );
     return {
       ...order,
+      channelLabel: SALE_CHANNELS[order.channel] || order.channel,
+      external: order.channel !== "site",
       economics,
       allowedTransitions: ORDER_TRANSITIONS[order.status] || [],
       notifications
@@ -360,6 +402,7 @@ export function createAdminService({ prisma, env, mailer, gateway, orders, stock
     const order = await prisma.order.findUnique({ where: { number } });
     if (!order) throw AppError.notFound("Pedido não encontrado");
     if (PAID_STATUSES.includes(order.status)) return { paid: true, alreadyPaid: true };
+    if (order.paymentProvider === "manual") throw AppError.badRequest("Venda externa: o pagamento foi registrado à mão, não há gateway para consultar");
     const nsu = transactionNsu || order.transactionNsu;
     const s = slug || order.infinitepaySlug;
     if (!nsu && env.PAYMENT_PROVIDER === "infinitepay") {
@@ -373,10 +416,251 @@ export function createAdminService({ prisma, env, mailer, gateway, orders, stock
   async function resendOrderEmail(number, kind = "paid") {
     const order = await prisma.order.findUnique({ where: { number }, include: { items: true } });
     if (!order) throw AppError.notFound("Pedido não encontrado");
-    const build = kind === "shipped" ? buildOrderShippedEmail : kind === "delivered" ? buildOrderDeliveredEmail : buildOrderPaidEmail;
+    // venda externa: o "e-mail de confirmação" é o de pedido registrado (não fala em gateway/link de pagamento)
+    const build =
+      kind === "shipped" ? buildOrderShippedEmail
+      : kind === "delivered" ? buildOrderDeliveredEmail
+      : kind === "registered" || order.paymentProvider === "manual" ? buildOrderRegisteredEmail
+      : buildOrderPaidEmail;
     const result = await sendMail(order, build);
     await prisma.orderEvent.create({ data: { orderId: order.id, type: `email_${kind}_resent`, payload: { ok: Boolean(result?.ok), error: result?.error ?? null } } });
     return { ok: Boolean(result?.ok), provider: mailer?.provider ?? null, error: result?.error ?? null };
+  }
+
+  // ─── Venda externa (registrada no painel) ─────────────────────────────
+
+  const digits = (v) => String(v ?? "").replace(/\D/g, "");
+  const money = (v) => {
+    if (v === "" || v == null) return null;
+    const n = typeof v === "number" ? v : Number(String(v).replace(/\./g, "").replace(",", "."));
+    return Number.isFinite(n) ? round2(n) : NaN;
+  };
+  const parseDate = (v) => {
+    if (!v) return null;
+    const d = new Date(v);
+    return Number.isNaN(d.getTime()) ? null : d;
+  };
+  const cleanAddress = (a) => {
+    if (!a || typeof a !== "object") return {};
+    const out = {};
+    for (const k of ["cep", "street", "number", "complement", "neighborhood", "city", "state"]) {
+      const v = a[k] == null ? "" : String(a[k]).trim();
+      if (v) out[k] = k === "cep" ? digits(v) : k === "state" ? v.toUpperCase().slice(0, 2) : v;
+    }
+    return out;
+  };
+  /** Nike By You digitado no painel: mesmas regras do checkout (texto ≤ 8, nº 2 dígitos), sem estourar por excesso. */
+  const cleanCustomization = (c) => {
+    if (!c || typeof c !== "object") return null;
+    const t = (v) => String(v ?? "").trim().slice(0, 8);
+    const n = (v) => digits(v).slice(0, 2);
+    const out = { textLeft: t(c.textLeft), numberLeft: n(c.numberLeft), textRight: t(c.textRight), numberRight: n(c.numberRight) };
+    return Object.values(out).some(Boolean) ? out : null;
+  };
+
+  /**
+   * Registra uma venda feita FORA do site (WhatsApp, Instagram, presencial…) como um pedido normal, já pago:
+   *  - mesma tabela/fluxo dos pedidos do checkout → aparece para o cliente em /conta (pelo e-mail; vincula à conta
+   *    se já existir) e em "Rastrear pedido", para o admin em Pedidos/Entregas e entra na receita do dashboard;
+   *  - `paymentProvider = manual`, `channel` ≠ site; nunca passa pelo gateway;
+   *  - itens: pronta entrega (code PE-… + tamanho → baixa o estoque, salvo `deductStock:false`), importado
+   *    (SKU Nike + nome/tamanho/preço — pré-preenchidos pelo painel via GET /api/admin/catalog/:term) ou livre;
+   *  - custo por item (opcional) alimenta custo/margem do dashboard (`breakdown.subtotalBrl`, como no checkout);
+   *  - pode já entrar como "Comprando nos EUA", "Enviado" ou "Entregue" (registro de vendas antigas), com rastreio;
+   *  - e-mail "pedido registrado" ao cliente (desligável com notifyCustomer=false).
+   */
+  async function createManualOrder(body = {}, admin) {
+    const actor = { adminId: admin?.id ?? null, adminEmail: admin?.email ?? null };
+    const customer = body.customer || {};
+    const name = String(customer.name || "").trim();
+    const email = String(customer.email || "").trim().toLowerCase();
+    if (name.length < 2) throw AppError.badRequest("Informe o nome do cliente");
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) throw AppError.badRequest("Informe um e-mail válido do cliente — é por ele que o pedido aparece na conta dele");
+    const phone = digits(customer.phone);
+    const cpf = digits(customer.cpf);
+    if (cpf && cpf.length !== 11) throw AppError.badRequest("CPF inválido (11 dígitos) — ou deixe em branco");
+    const address = cleanAddress(body.address);
+    const channel = MANUAL_CHANNELS.includes(body.channel) ? body.channel : "outro";
+    const status = MANUAL_INITIAL_STATUSES.includes(body.status) ? body.status : "paid";
+
+    const rawItems = Array.isArray(body.items) ? body.items : [];
+    if (!rawItems.length) throw AppError.badRequest("Adicione pelo menos um item à venda");
+    if (rawItems.length > 20) throw AppError.badRequest("Máximo de 20 itens por venda");
+
+    let subtotal = 0;
+    const itemsData = [];
+    const reservations = [];
+    for (const raw of rawItems) {
+      const qty = Math.max(1, Math.min(50, parseInt(raw.quantity, 10) || 1));
+      const code = String(raw.code || raw.styleColor || "").trim().toUpperCase();
+      const isStock = raw.kind === "stock" || (raw.kind !== "import" && raw.kind !== "manual" && isStockCode(code));
+      let data;
+      if (isStock) {
+        const product = stock ? await stock.getProductByCode(code, { includeInactive: true }) : null;
+        if (!product) throw AppError.badRequest(`Produto de pronta entrega ${code || "(sem código)"} não encontrado`);
+        const br = String(raw.brLabel ?? raw.br ?? "").replace(",", ".").trim();
+        const size = product.sizes.find((s) => s.brLabel === br) || (raw.nikeSize ? product.sizes.find((s) => s.nikeSize === String(raw.nikeSize)) : null);
+        if (!size) throw AppError.badRequest(`${product.name}: tamanho BR ${br || "?"} não está cadastrado nesse produto`);
+        const gender = ["M", "W", "K"].includes(raw.sizeGender) && size.us?.[raw.sizeGender] ? raw.sizeGender : null;
+        const unit = money(raw.unitPriceBrl);
+        if (Number.isNaN(unit) || (unit != null && unit < 0)) throw AppError.badRequest(`${product.name}: preço inválido`);
+        const cost = money(raw.unitCostBrl);
+        if (Number.isNaN(cost) || (cost != null && cost < 0)) throw AppError.badRequest(`${product.name}: custo inválido`);
+        const deduct = raw.deductStock !== false;
+        if (deduct) reservations.push({ stockSizeId: size.stockSizeId, qty, label: `${product.name} (BR ${size.brLabel})` });
+        const costBrl = cost ?? product.price?.breakdown?.subtotalBrl ?? null;
+        data = {
+          styleColor: product.code,
+          name: product.name,
+          colorDescription: product.colorDescription || null,
+          image: product.images?.[0] || null,
+          nikeSize: size.nikeSize,
+          brSize: size.brSize,
+          brLabel: size.brLabel,
+          sizeLabel: buildSizeLabel(size, gender),
+          customization: null,
+          unitPriceBrl: unit ?? product.price.brl,
+          unitPriceUsd: 0,
+          quantity: qty,
+          breakdown: { source: "stock", manual: true, stockProductId: product.stockProductId, stockSizeId: size.stockSizeId, stockDeducted: deduct, ...(costBrl != null ? { subtotalBrl: costBrl } : {}) }
+        };
+      } else {
+        const itemName = String(raw.name || "").trim();
+        if (itemName.length < 2) throw AppError.badRequest("Informe o nome do produto em cada item");
+        const br = String(raw.brLabel ?? raw.br ?? "").replace(",", ".").trim();
+        if (!br) throw AppError.badRequest(`${itemName}: informe o tamanho (numeração BR)`);
+        const us = raw.usSize != null && String(raw.usSize).trim() ? String(raw.usSize).trim() : null;
+        const gender = ["M", "W", "K"].includes(raw.sizeGender) ? raw.sizeGender : null;
+        const sizeLabel = us && gender ? buildSizeLabel({ brLabel: br, scale: gender, us: { [gender]: us } }, gender) : us ? `BR ${br} (US ${us})` : `BR ${br}`;
+        const unit = money(raw.unitPriceBrl);
+        if (unit == null || Number.isNaN(unit) || unit < 0) throw AppError.badRequest(`${itemName}: informe o preço unitário (R$)`);
+        const cost = money(raw.unitCostBrl);
+        if (Number.isNaN(cost) || (cost != null && cost < 0)) throw AppError.badRequest(`${itemName}: custo inválido`);
+        const usd = money(raw.unitPriceUsd);
+        const brNum = Number(br);
+        const styleColor = String(raw.styleColor || "").trim();
+        data = {
+          styleColor: styleColor || "MANUAL",
+          name: itemName,
+          colorDescription: raw.colorDescription ? String(raw.colorDescription).trim().slice(0, 160) : null,
+          image: raw.image && /^(https?:\/\/|\/)/.test(String(raw.image)) ? String(raw.image).slice(0, 2000) : null,
+          nikeSize: us || br,
+          brSize: Number.isFinite(brNum) ? brNum : null,
+          brLabel: br,
+          sizeLabel,
+          customization: cleanCustomization(raw.customization),
+          unitPriceBrl: unit,
+          unitPriceUsd: usd != null && !Number.isNaN(usd) ? usd : 0,
+          quantity: qty,
+          breakdown: { source: styleColor ? "import" : "manual", manual: true, ...(cost != null ? { subtotalBrl: cost } : {}) }
+        };
+      }
+      subtotal = round2(subtotal + data.unitPriceBrl * qty);
+      itemsData.push(data);
+    }
+
+    const discount = money(body.discountBrl) ?? 0;
+    if (Number.isNaN(discount) || discount < 0 || discount > subtotal) throw AppError.badRequest("Desconto inválido (não pode passar do subtotal)");
+    const total = round2(subtotal - discount);
+
+    const payment = body.payment || {};
+    const method = MANUAL_PAYMENT_METHODS.includes(payment.method) ? payment.method : "other";
+    const paidAmount = money(payment.paidAmountBrl);
+    if (Number.isNaN(paidAmount) || (paidAmount != null && paidAmount < 0)) throw AppError.badRequest("Valor recebido inválido");
+    const installments = method === "credit_card" ? Math.max(1, Math.min(24, parseInt(payment.installments, 10) || 1)) : null;
+    const now = new Date();
+    const paidAt = parseDate(payment.paidAt) || now;
+    if (paidAt.getTime() > now.getTime() + 86_400_000) throw AppError.badRequest("Data do pagamento no futuro");
+    const reference = payment.reference ? String(payment.reference).trim().slice(0, 120) || null : null;
+    const receiptUrl = payment.receiptUrl && /^https?:\/\//i.test(String(payment.receiptUrl)) ? String(payment.receiptUrl).trim().slice(0, 2000) : null;
+
+    const shipping = body.shipping || {};
+    const carrier = shipping.carrier ? String(shipping.carrier).trim().slice(0, 60) || null : null;
+    const trackingCode = shipping.trackingCode ? String(shipping.trackingCode).trim().slice(0, 80) || null : null;
+    const trackingUrl = shipping.trackingUrl && /^https?:\/\//i.test(String(shipping.trackingUrl)) ? String(shipping.trackingUrl).trim().slice(0, 2000) : null;
+    const shippedAt = ["shipped", "delivered"].includes(status) ? parseDate(shipping.shippedAt) || paidAt : null;
+    const deliveredAt = status === "delivered" ? parseDate(shipping.deliveredAt) || shippedAt : null;
+
+    // vincula à conta do cliente pelo e-mail (se existir); senão fica como convidado e aparece em /conta quando ele
+    // criar a conta com esse e-mail (listMine casa por customerEmail)
+    const user = await prisma.user.findUnique({ where: { email }, select: { id: true } });
+
+    // câmbio só informativo (a venda foi negociada em BRL)
+    let exchangeRate = 0;
+    if (catalog?.getRate) {
+      try { exchangeRate = pricingRateOf(await catalog.getRate()).usdToBrl || 0; } catch { exchangeRate = 0; }
+    }
+
+    const note = body.note ? String(body.note).trim().slice(0, 1000) || null : null;
+    const internalNotes = body.internalNotes ? String(body.internalNotes).trim().slice(0, 4000) || null : null;
+    const events = [
+      { type: "created", payload: { ...actor, manual: true, channel, userLink: user ? "email" : "guest" } },
+      { type: "payment_registered", payload: { ...actor, method, paidAmountBrl: paidAmount ?? total, installments, reference, receiptUrl, paidAt: paidAt.toISOString() } }
+    ];
+    if (status !== "paid") events.push({ type: "status_changed", payload: { ...actor, from: "paid", to: status, note: "venda externa registrada já nesta etapa" } });
+    if (carrier || trackingCode) events.push({ type: "tracking_updated", payload: { ...actor, carrier, trackingCode, trackingUrl } });
+    if (reservations.length) events.push({ type: "stock_reserved", payload: { items: reservations } });
+    if (note) events.push({ type: "note", payload: { ...actor, note } });
+
+    let order;
+    try {
+      order = await prisma.$transaction(async (tx) => {
+        if (reservations.length) await stock.reserve(tx, reservations);
+        return tx.order.create({
+          data: {
+            number: newOrderNumber(),
+            status,
+            userId: user?.id ?? null,
+            customerName: name,
+            customerEmail: email,
+            customerPhone: phone || "",
+            customerCpf: cpf || "",
+            address,
+            subtotalBrl: subtotal,
+            shippingBrl: 0,
+            totalBrl: total,
+            exchangeRate,
+            pricingSnapshot: { manual: true, channel, discountBrl: discount, registeredBy: actor },
+            paymentProvider: "manual",
+            channel,
+            paymentMethod: method,
+            transactionNsu: reference,
+            receiptUrl,
+            paidAmountBrl: paidAmount ?? total,
+            installments,
+            paidAt,
+            carrier,
+            trackingCode,
+            trackingUrl,
+            shippedAt,
+            deliveredAt,
+            internalNotes,
+            items: { create: itemsData },
+            events: { create: events }
+          },
+          include: { items: true }
+        });
+      });
+    } catch (err) {
+      if (err?.details?.code === "STOCK_OUT") {
+        const r = reservations.find((x) => x.stockSizeId === err.details.stockSizeId);
+        throw AppError.conflict(
+          `Sem estoque suficiente para ${r?.label || "um dos tamanhos"}. Ajuste a quantidade em Pronta entrega ou desmarque "baixar do estoque" nesse item.`,
+          { code: "STOCK_OUT", stockSizeId: err.details.stockSizeId }
+        );
+      }
+      throw err;
+    }
+
+    if (body.notifyCustomer !== false) {
+      const result = await sendMail(order, buildOrderRegisteredEmail);
+      await prisma.orderEvent.create({
+        data: { orderId: order.id, type: "email_registered", payload: { ok: Boolean(result?.ok), provider: mailer?.provider ?? null, error: result?.error ?? null } }
+      }).catch(() => {});
+    }
+
+    log?.info({ order: order.number, ...actor, channel, status, items: itemsData.length, totalBrl: total }, "admin: venda externa registrada");
+    return getOrder(order.number);
   }
 
   // ─── Clientes ─────────────────────────────────────────────────────────
@@ -448,14 +732,14 @@ export function createAdminService({ prisma, env, mailer, gateway, orders, stock
         where: { userId: id },
         orderBy: { createdAt: "desc" },
         take: 100,
-        select: { number: true, status: true, totalBrl: true, paidAt: true, createdAt: true, trackingCode: true, carrier: true, _count: { select: { items: true } } }
+        select: { number: true, status: true, channel: true, totalBrl: true, paidAt: true, createdAt: true, trackingCode: true, carrier: true, _count: { select: { items: true } } }
       }),
-      // pedidos feitos como convidado com o mesmo e-mail (antes de criar conta, por exemplo)
+      // pedidos feitos como convidado com o mesmo e-mail (antes de criar conta, por exemplo) — inclui vendas externas
       prisma.order.findMany({
         where: { userId: null, customerEmail: user.email },
         orderBy: { createdAt: "desc" },
         take: 50,
-        select: { number: true, status: true, totalBrl: true, paidAt: true, createdAt: true, trackingCode: true, carrier: true, _count: { select: { items: true } } }
+        select: { number: true, status: true, channel: true, totalBrl: true, paidAt: true, createdAt: true, trackingCode: true, carrier: true, _count: { select: { items: true } } }
       }),
       prisma.passwordResetToken.findMany({ where: { userId: id }, orderBy: { createdAt: "desc" }, take: 5, select: { requestedBy: true, expiresAt: true, usedAt: true, createdAt: true } }),
       prisma.refreshToken.count({ where: { userId: id, revoked: false, expiresAt: { gt: new Date() } } }),
@@ -525,6 +809,7 @@ export function createAdminService({ prisma, env, mailer, gateway, orders, stock
     dashboard,
     listOrders,
     getOrder,
+    createManualOrder,
     updateOrder,
     recheckPayment,
     resendOrderEmail,

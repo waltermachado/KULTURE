@@ -19,7 +19,14 @@ const WOMENS_TABLE = {
   '5': 33.5, '5.5': 34, '6': 35, '6.5': 35.5, '7': 36, '7.5': 37, '8': 37.5,
   '8.5': 38, '9': 39, '9.5': 39.5, '10': 40, '10.5': 41, '11': 41.5, '11.5': 42, '12': 43
 };
-const WOMENS_APPROX = {}; // Sem aproximações oficiais listadas
+// Fora da tabela oficial (que vai de W 5 a W 12): aproximações derivadas do equivalente masculino
+// (mesmo par: W = M + 1,5 — é o que a própria Nike mostra em "W 12.5 / M 11") mantendo o degrau de +0,5
+// que a tabela feminina oficial tem sobre a masculina no topo (W 12 → 43, enquanto M 10.5 → 42,5).
+// Sequência contínua, sem repetir BR: 43 → 43,5 → 44 → 44,5 → 45,5 → 46,5 → 47 → 47,5 → 48.
+const WOMENS_APPROX = {
+  '4': 32.5, '4.5': 33,
+  '12.5': 43.5, '13': 44, '13.5': 44.5, '14': 45.5, '14.5': 46.5, '15': 47, '15.5': 47.5, '16': 48
+};
 
 const KIDS_TABLE = {
   '2C': 16, '3C': 17.5, '4C': 18.5, '5C': 20, '6C': 21, '7C': 22.5, '8C': 24,

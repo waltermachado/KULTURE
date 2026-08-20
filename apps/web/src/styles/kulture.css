@@ -355,6 +355,14 @@ footer a:hover,footer .foot-link:hover{color:var(--yellow)}
 .checkout-page h2{font-size:clamp(40px,5vw,62px);font-weight:800;letter-spacing:-.045em;line-height:.9;text-transform:uppercase}
 .checkout-page h3{font-size:11px;letter-spacing:.22em;text-transform:uppercase;color:var(--yellow);font-weight:800}
 .checkout-page .form-section{display:flex;flex-direction:column;gap:12px}
+/* criar conta no checkout (convidado) */
+.co-account{border:1px solid var(--hair-2);border-left:3px solid var(--yellow);background:var(--ink-2);padding:16px}
+.co-account .check span{line-height:1.5}
+.co-account .check b{color:var(--paper)}
+.co-account .pw-wrap{flex:1}
+.co-account-err{font-size:12px;color:var(--red);line-height:1.6;margin:0}
+.co-account-err button{background:none;border:0;padding:0;color:var(--yellow);font-family:inherit;font-size:12px;font-weight:800;cursor:pointer;text-decoration:underline}
+@media(max-width:640px){.co-account>div{flex-direction:column}}
 .checkout-page input{width:100%;background:var(--ink-3);border:1px solid var(--hair-3);color:var(--paper);padding:15px 16px;font-family:inherit;font-size:15px}
 .checkout-page input:focus{outline:none;border-color:var(--yellow)}
 .checkout-page input:disabled,.checkout-page input[readonly]{color:var(--muted)}
@@ -367,10 +375,11 @@ footer a:hover,footer .foot-link:hover{color:var(--yellow)}
 
 /* ============ SEÇÕES: IMPORTADOS × PRONTA ENTREGA (mode bar) ============ */
 /* barra logo abaixo do topo, nas duas vitrines; .mode-track é a "pista" onde a transição do avião vai rodar */
-.mode-bar{position:relative;display:grid;grid-template-columns:1fr 1fr;border-bottom:1px solid var(--hair-2);background:var(--ink-2);overflow:hidden}
+.mode-bar{position:relative;display:grid;grid-template-columns:repeat(3,1fr);border-bottom:1px solid var(--hair-2);background:var(--ink-2);overflow:hidden}
 /* bloco amarelo que desliza junto com o avião (EUA = esquerda, BR = direita) */
-.mode-hl{position:absolute;top:0;bottom:0;left:0;width:50%;background:var(--yellow);transform:translateX(0);transition:transform .5s cubic-bezier(.4,0,.2,1);z-index:0;pointer-events:none}
+.mode-hl{position:absolute;top:0;bottom:0;left:0;width:33.3334%;background:var(--yellow);transform:translateX(0);transition:transform .5s cubic-bezier(.4,0,.2,1);z-index:0;pointer-events:none}
 .mode-bar.mode-stock .mode-hl{transform:translateX(100%)}
+.mode-bar.mode-hypados .mode-hl{transform:translateX(200%)}
 .mode-link{position:relative;z-index:1;display:flex;align-items:center;gap:14px;padding:14px 28px;min-height:64px;color:var(--muted-2);text-decoration:none;border-right:1px solid var(--hair-2);transition:color .25s;background:transparent}
 .mode-link:last-child{border-right:0}
 .mode-link:hover{color:var(--paper)}
@@ -383,15 +392,24 @@ footer a:hover,footer .foot-link:hover{color:var(--yellow)}
 /* avião + rastro (posicionados por JS em relação à barra) */
 /* avião preto com contorno amarelo: visível tanto sobre o bloco amarelo quanto sobre o fundo escuro */
 .mode-plane{position:absolute;z-index:3;top:0;left:0;width:26px;height:26px;margin:-13px 0 0 -13px;color:var(--ink);opacity:0;pointer-events:none;filter:drop-shadow(0 4px 6px rgba(0,0,0,.6));overflow:visible}
+/* bola de basquete Kulture (amarela, gomos pretos) que quica entre as abas indo/vindo do HYPADOS */
+.mode-ball{position:absolute;z-index:3;top:0;left:0;width:24px;height:24px;margin:-12px 0 0 -12px;opacity:0;pointer-events:none;filter:drop-shadow(0 4px 6px rgba(0,0,0,.55));overflow:visible}
+/* chip da aba HYPADOS: bola amarela no fundo preto (fica preto também quando a aba está ativa sobre o amarelo) */
+.mode-flag.ballchip{background:var(--ink);border-color:var(--hair-3)}
+.mode-flag.ballchip .chip-ball{width:18px;height:18px;display:block}
+.mode-link.on .mode-flag.ballchip{background:var(--ink);border-color:var(--ink)}
+.mode-link:hover .mode-flag.ballchip{border-color:currentColor}
 .mode-plane path{stroke:var(--yellow);stroke-width:1.4;stroke-linejoin:round;paint-order:stroke fill}
 /* rastro tracejado em "difference": branco sobre o escuro, escuro sobre o amarelo */
 .mode-trail{position:absolute;z-index:2;height:0;border-top:2px dashed #fff;mix-blend-mode:difference;opacity:0;transform:scaleX(0);pointer-events:none}
 .page-view{position:relative;will-change:auto}
 @media(max-width:640px){
-  .mode-link{padding:10px 14px;min-height:56px;gap:10px}
-  .mode-flag{min-width:36px;height:22px;font-size:10px}
+  .mode-link{padding:10px 10px;min-height:56px;gap:8px}
+  .mode-flag{min-width:32px;height:22px;font-size:10px;padding:0 5px}
+  .mode-flag.ballchip .chip-ball{width:15px;height:15px}
   .mode-text b{font-size:11px;letter-spacing:.14em}
-  .mode-text small{font-size:10px}
+  .mode-text small{display:none} /* 3 abas em ~375px: o subtítulo não cabe */
+  .mode-ball{width:20px;height:20px;margin:-10px 0 0 -10px}
   .mode-plane{width:22px;height:22px;margin:-11px 0 0 -11px}
 }
 @media(prefers-reduced-motion:reduce){.mode-hl{transition:none}}
