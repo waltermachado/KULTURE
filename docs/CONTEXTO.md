@@ -367,10 +367,10 @@ entrega fala isso). Rastreio: `isInternationalOrder` também é true para `break
 hypado mostra as etapas internacionais; e-mail "pedido comprado" vira "garimpado nos EUA" quando há hypado; e-mail de
 pagamento de pedido só-pronta-entrega diz "já está separado no nosso estoque" em vez de "vamos comprar nos EUA".
 A mecânica não mudou: hypados seguem sendo `stock_products` (seção HY-) com reserva por tamanho no checkout.
-Prazo padrão dos hypados: **"30-35 dias para entrega"** (`format.js#HYPADOS_DELIVERY_LABEL`) — embaixo do selo no card e
-na página do tênis, na frase do seletor, no hero e no OG. Sacola/checkout: item hypado leva o selo **Hypados** (amarelo),
-não mais "Pronta entrega" (`isHypadosItem`; carrinho antigo desempata pelo código HY-). O selo vermelho por produto
-("ENCOMENDA 15-20 DIAS" no Kobe 5) é o campo livre do cadastro — o dono ajusta/apaga em /admin/hypados.
+Sem prazo padrão em texto nos hypados (decisão do dono: só a etiqueta) — o prazo, quando quiser, vai no selo livre do
+cadastro (ex.: "ENCOMENDA 30-35 DIAS"). Sacola/checkout: item hypado leva o selo **Hypados** ROXO, não mais
+"Pronta entrega" (`isHypadosItem`; carrinho antigo desempata pelo código HY-). Cor dos Hypados: **roxo `--purple`
+#B58CFF** em todos os selos/chips (hero, card, página, seletor, sacola, checkout); pronta entrega segue verde.
 Também: **WhatsApp flutuante** (`components/WhatsappFab.jsx`) — botão verde fixo no canto inferior direito em todas as
 páginas da loja (menos /admin), com pulso sutil; desktop mostra "Fale com a gente", mobile só a bolinha; z-index 80
 (sacola/modal cobrem quando abertos). Número via `useSiteConfig` (WHATSAPP_CONTACT_PHONE → fallback do rodapé).

@@ -40,7 +40,7 @@ export async function productPageHtml(app, request, indexHtml) {
     const availability = soldOut
       ? " · esgotado"
       : product.section === "hypados"
-        ? " · garimpado nos EUA · 30-35 dias para entrega · frete grátis"
+        ? " · garimpado nos EUA · importamos pra você · frete grátis"
         : " · em estoque no Brasil · envio imediato · frete grátis";
     const description = [
       `${product.sectionLabel || "Pronta entrega"}${availability}`,

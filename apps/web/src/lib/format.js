@@ -70,9 +70,6 @@ export function sizeText(size) {
 /** Nike By You: prazo de entrega prometido ao cliente (card e seletor). Sob encomenda na Nike → maior que o de linha. */
 export const BY_YOU_DELIVERY_DAYS = 35;
 
-/** Hypados: garimpados nos EUA sob encomenda — prazo padrão mostrado no card, na página e no seletor. */
-export const HYPADOS_DELIVERY_LABEL = "30-35 dias para entrega";
-
 /** É item de hypados? (carrinho antigo pode não ter `section` — o código HY- desempata) */
 export const isHypadosItem = (it) => it?.section === "hypados" || String(it?.styleColor || "").toUpperCase().startsWith("HY-");
 

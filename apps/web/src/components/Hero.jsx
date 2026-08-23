@@ -32,7 +32,7 @@ export default function Hero({ featured, onPick, variant = "import" }) {
         : isStock
         ? "Pares originais em estoque aqui no Brasil, prontos para sair. Sem espera de importação, numeração BR e frete grátis."
         : "Os drops mais quentes de basquete, corrida e casual, importados dos EUA com preço final fechado, numeração BR e frete grátis.");
-  const priceSmall = `${p?.installmentsLabel ? `ou ${p.installmentsLabel} · ` : ""}${isHypados ? "30-35 dias para entrega" : isStock ? "envio imediato" : "numeração BR"}`;
+  const priceSmall = `${p?.installmentsLabel ? `ou ${p.installmentsLabel} · ` : ""}${isHypados ? "importado pra você" : isStock ? "envio imediato" : "numeração BR"}`;
 
   return (
     <section className={`hero${isStock ? " hero-stock" : ""}${isHypados ? " hero-hypados" : ""}`} id="top">
