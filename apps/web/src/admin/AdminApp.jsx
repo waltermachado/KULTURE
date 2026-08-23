@@ -18,6 +18,7 @@ import Featured from "./Featured.jsx";
 import Marketing from "./Marketing.jsx";
 import Pricing from "./Pricing.jsx";
 import Coupons from "./Coupons.jsx";
+import Bling from "./Bling.jsx";
 
 export default function AdminApp({ auth, onOpenLogin, notify }) {
   const navigate = useNavigate();
@@ -82,6 +83,7 @@ export default function AdminApp({ auth, onOpenLogin, notify }) {
           <NavLink to="/admin/marketing">Marketing</NavLink>
           <NavLink to="/admin/precos">Preços</NavLink>
           <NavLink to="/admin/cupons">Cupons</NavLink>
+          <NavLink to="/admin/bling">Bling</NavLink>
         </nav>
         <div className="adm-side-foot">
           <b title={auth.user.email}>{auth.user.name}</b>
@@ -112,6 +114,7 @@ export default function AdminApp({ auth, onOpenLogin, notify }) {
           <Route path="marketing" element={<Marketing auth={auth} notify={notify} />} />
           <Route path="precos" element={<Pricing auth={auth} notify={notify} />} />
           <Route path="cupons" element={<Coupons auth={auth} notify={notify} />} />
+          <Route path="bling" element={<Bling auth={auth} notify={notify} />} />
           <Route path="*" element={<Navigate to="/admin" replace />} />
         </Routes>
       </main>

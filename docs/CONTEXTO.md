@@ -393,10 +393,15 @@ Tabela `order_invoices` (1 por pedido; PDF/XML no banco; `source` manual|bling; 
   remover. Rotas em `modules/invoices/routes.js` (`/api/admin/orders/:number/invoice[.pdf|.xml|/send]`).
 - Cliente: "Meus pedidos" mostra "Nota fiscal nº X · Baixar PDF" (`GET /api/orders/:number/invoice.pdf`, dono do pedido
   por id ou e-mail, ou admin; convidado não vê). Mailer ganhou `attachments` (SMTP e API da MailerSend).
-- **Bling (automático)**: gancho `invoices.issueAutomatically(order)` + env `BLING_CLIENT_ID/SECRET` (vazios = manual).
-  Falta: app no Bling (OAuth2 authorization code + refresh), cadastro do contato/produto, `POST /nfe` + `/nfe/{id}/enviar`,
-  consulta de status (autorizada/rejeitada), download do DANFE/XML, disparo após `paid` (settle) e tela de erros.
-  Teste do manual: `invoices.test.js`.
+- **Bling — conexão OAuth PRONTA (23/08, noite)**: `modules/bling` + tela `/admin/bling`. "Conectar ao Bling" abre a
+  autorização (state assinado HMAC, 15 min); o Bling volta em `GET /api/bling/callback` (o app no Bling PRECISA ter o
+  link de redirecionamento `https://lojakulture.com.br/api/bling/callback`); tokens em `settings` "bling" com renovação
+  automática (refresh rotaciona); `bling.apiFetch(path)` para as chamadas; status mostra a empresa
+  (`/empresas/me/dados-basicos`) e erros crus. Env: `BLING_CLIENT_ID/SECRET` (Railway), `BLING_AUTH_BASE/API_BASE`
+  (defaults www.bling.com.br/api.bling.com.br `/Api/v3`). Teste `bling.test.js` (fetch falso injetável).
+  **Falta para emitir**: checklist fiscal na tela (certificado A1, série/homologação, natureza de operação/CFOP,
+  NCM/origem com o contador, gatilho pago × enviado) e então `POST /nfe` → `/nfe/{id}/enviar` → DANFE/XML no card
+  Nota fiscal + e-mail. Gancho: `invoices.issueAutomatically(order)`. Teste do manual: `invoices.test.js`.
 
 ### 5.6 Filtros por categoria respeitam a seção (18/08)
 

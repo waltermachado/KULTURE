@@ -12,6 +12,8 @@ import { createPricingService } from "./modules/pricing/service.js";
 import { pricingRoutes } from "./modules/pricing/routes.js";
 import { createCouponService } from "./modules/coupons/service.js";
 import { couponRoutes } from "./modules/coupons/routes.js";
+import { createBlingService } from "./modules/bling/service.js";
+import { blingRoutes } from "./modules/bling/routes.js";
 
 import { loadEnv } from "./config/env.js";
 import { errorHandler } from "./lib/errors.js";
@@ -114,6 +116,8 @@ export async function buildApp(overrides = {}) {
   app.decorate("marketing", prisma ? createMarketingService({ prisma, env, mailer, log: app.log }) : null);
   // nota fiscal do pedido (manual hoje; gancho para o Bling)
   app.decorate("invoices", prisma ? createInvoiceService({ prisma, env, mailer, log: app.log }) : null);
+  // conexão OAuth com o Bling (emissão de NF-e usa isto)
+  app.decorate("bling", prisma ? createBlingService({ prisma, env, log: app.log }) : null);
   app.decorate("orders", orders);
 
   // ---- plugins ----
@@ -180,6 +184,7 @@ export async function buildApp(overrides = {}) {
     await app.register(invoiceRoutes);
     await app.register(pricingRoutes);
     await app.register(couponRoutes);
+    await app.register(blingRoutes);
   }
 
   if (publicWebUrlMisconfigured(env)) {

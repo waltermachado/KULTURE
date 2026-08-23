@@ -121,9 +121,12 @@ const schema = z.object({
   MAIL_FROM: z.string().default("no-reply@localhost"), // precisa ser do domínio verificado na MailerSend (em trial: @test-….mlsender.net)
   MAIL_FROM_NAME: z.string().default("Kulture"),
   MAIL_REPLY_TO: z.string().default(""), // opcional: e-mail de resposta (ex. atendimento)
-  // Bling (emissão automática de NF-e) — gancho; vazio = nota manual no painel
+  // Bling (emissão automática de NF-e) — vazio = nota manual no painel. OAuth: o app no Bling precisa ter o
+  // "link de redirecionamento" IGUAL a `${PUBLIC_WEB_URL}/api/bling/callback`.
   BLING_CLIENT_ID: z.string().default(""),
   BLING_CLIENT_SECRET: z.string().default(""),
+  BLING_AUTH_BASE: z.string().url().default("https://www.bling.com.br/Api/v3"),
+  BLING_API_BASE: z.string().url().default("https://api.bling.com.br/Api/v3"),
 
   WHATSAPP_PROVIDER: z.enum(["log", "evolution"]).default("log"),
   WHATSAPP_TO: z.string().default(""), // Opcional no mock
