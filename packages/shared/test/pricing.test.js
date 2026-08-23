@@ -5,7 +5,9 @@ import {
   calculateFinalPrice,
   commissionRateFor,
   resolvePricingRules,
-  DEFAULT_PRICING_RULES
+  DEFAULT_PRICING_RULES,
+  GLOBAL_PRICING_RULE,
+  SEED_PRICE_ADJUSTMENTS
 } from "../src/pricing/index.js";
 
 const product = { brand: "Nike", name: "Nike Kobe 6 Protro", styleColor: "CW2288-111", priceUsd: 190 };
@@ -140,5 +142,38 @@ describe("helpers", () => {
     expect(applyRoundEnding(1332.95, 90)).toBe(1333.9);
     expect(applyRoundEnding(1332.9, 90)).toBe(1332.9);
     expect(applyRoundEnding(1332.567, null)).toBe(1332.57);
+  });
+});
+
+describe("acréscimos editáveis: fixo e percentual somam entre regras; global separada da semente", () => {
+  it("extraRate (+10%) e extraFixedBrl (+300) de regras diferentes somam; comissão não incide sobre eles", () => {
+    const rules = [
+      GLOBAL_PRICING_RULE,
+      { id: "lebron", scope: "model", match: "lebron", extraFixedBrl: 300 },
+      { id: "basquete", scope: "category", match: "basketball", extraRate: 0.1 },
+      { id: "jordan-fixo", scope: "brand", match: "Jordan", extraFixedBrl: 50 }
+    ];
+    const base = calculateFinalPrice({ product: { brand: "Nike", category: "running", name: "Pegasus", priceUsd: 100 }, exchangeRate: 5, rules });
+    const both = calculateFinalPrice({ product: { brand: "Nike", category: "basketball", name: "Nike LeBron 23", priceUsd: 100 }, exchangeRate: 5, rules });
+    expect(base.costs.extraFixedBrl).toBe(0);
+    expect(base.costs.extraRateBrl).toBe(0);
+    expect(both.rulesApplied.matchedRuleIds).toEqual(["default", "basquete", "lebron"]);
+    expect(both.costs.extraFixedBrl).toBe(300);
+    expect(both.rulesApplied.extraRate).toBe(0.1);
+    const withCommission = both.costs.subtotalBrl + both.costs.commissionBrl;
+    expect(both.costs.extraRateBrl).toBe(Math.round(withCommission * 0.1 * 100) / 100);
+    expect(both.costs.commissionBrl).toBe(base.costs.commissionBrl); // mesma comissão: acréscimos ficam fora da base
+    expect(both.costs.finalPriceBrl % 100).toBe(99);
+    expect(both.costs.finalPriceBrl).toBeGreaterThan(base.costs.finalPriceBrl + 300);
+    // duas regras com extraFixedBrl somam (LeBron +300 · Jordan +50)
+    const jordanLebron = calculateFinalPrice({ product: { brand: "Jordan", category: "lifestyle", name: "Jordan x LeBron", priceUsd: 100 }, exchangeRate: 5, rules });
+    expect(jordanLebron.costs.extraFixedBrl).toBe(350);
+  });
+
+  it("semente do painel: LeBron 23 em SEED_PRICE_ADJUSTMENTS, fora da regra global", () => {
+    expect(GLOBAL_PRICING_RULE.scope).toBe("global");
+    expect(GLOBAL_PRICING_RULE.extraFixedBrl).toBeUndefined();
+    expect(SEED_PRICE_ADJUSTMENTS[0]).toMatchObject({ id: "lebron-23-acrescimo", scope: "model", extraFixedBrl: 300, active: true });
+    expect(SEED_PRICE_ADJUSTMENTS[0].terms).toEqual(["LeBron XXIII", "LeBron 23"]);
   });
 });

@@ -10,8 +10,11 @@ import { convertUsToBr, parseUsSizes, sizeGroupsOf, standardSizes } from "@kultu
 const RATE_KEY = "rate:USD-BRL:v2"; // v2 = traz `tourism` (dólar turismo)
 const MAX_IMAGES = 8; // galeria do produto: até 8 ângulos (o resto é marketing)
 // namespace das chaves de cache do catálogo: mudou o formato das imagens (v2 = recorte) → chaves novas,
-// senão cards/busca ficariam até 1h servindo os PNGs opacos antigos
-const NS = "v6"; // v3 só calçados · v4 launch · v5 nova precificação (turismo, 7%, ↑99) · v6 LeBron 23 +R$300
+// senão cards/busca ficariam até 1h servindo os PNGs opacos antigos.
+// v3 só calçados · v4 launch · v5 nova precificação (turismo, 7%, ↑99) · v6 LeBron 23 +R$300 ·
+// v7 acréscimos editáveis no painel: o namespace ganha a VERSÃO das regras (salvou → chaves novas → preço recalculado) ·
+// v8 escala feminina derivada da masculina (BR único por par físico)
+const BASE_NS = "v8";
 
 /**
  * `stock` (opcional) = serviço de pronta entrega: códigos PE-XXXXXX são respondidos do banco em
@@ -20,6 +23,10 @@ const NS = "v6"; // v3 só calçados · v4 launch · v5 nova precificação (tur
  */
 export function createCatalogService({ scraper, cache, sizesCache, images, rules, top8Terms = [], testProduct = false, stock = null, log = null }) {
   const validRate = (r) => r && typeof r === "object" && Number.isFinite(Number(r.ask)) && Number(r.ask) > 0;
+  // `rules` = lista fixa (testes/fallback) ou o serviço de preços ({ runtime() → { rules, version } }) com os
+  // acréscimos editáveis em /admin/precos
+  const rulesProvider = typeof rules?.runtime === "function" ? rules : { runtime: async () => ({ rules, version: "static" }) };
+  const ns = async () => `${BASE_NS}-${(await rulesProvider.runtime()).version}`;
 
   async function getRate() {
     // câmbio fica no mesmo cache SWR (fresco 1h; stale se o scraper cair)
@@ -38,7 +45,8 @@ export function createCatalogService({ scraper, cache, sizesCache, images, rules
     const sources = Array.isArray(raw.images) && raw.images.length ? raw.images : raw.image ? [raw.image] : [];
     const imageSource = cutoutUrls(sources).slice(0, MAX_IMAGES);
     const mirrored = await images.ensureImages(raw.styleColor || raw.id, imageSource);
-    return toProduct(raw, { rate, rules, images: mirrored, imageSource });
+    const { rules: current } = await rulesProvider.runtime();
+    return toProduct(raw, { rate, rules: current, images: mirrored, imageSource });
   }
 
   async function search(query) {
@@ -48,7 +56,7 @@ export function createCatalogService({ scraper, cache, sizesCache, images, rules
       const rate = await getRate().catch(() => null);
       return { term, cached: false, stale: false, total: 1, products: [buildTestProduct(rate)] };
     }
-    const key = `search:${NS}:${term}`;
+    const key = `search:${await ns()}:${term}`;
     const fetchSearch = async () => {
       const [{ products, total }, rate] = await Promise.all([scraper.search(query), getRate()]);
       const enriched = await Promise.all(products.map((p) => enrich(p, rate)));
@@ -69,7 +77,7 @@ export function createCatalogService({ scraper, cache, sizesCache, images, rules
 
   async function findOne(termOrStyleColor) {
     const term = normalizeQuery(termOrStyleColor);
-    const key = `product:${NS}:${term}`;
+    const key = `product:${await ns()}:${term}`;
     const fetchOne = async () => {
       const [raw, rate] = await Promise.all([scraper.findOne(String(termOrStyleColor).replace(/-/g, " ")), getRate()]);
       return raw ? await enrich(raw, rate) : null;
@@ -111,12 +119,13 @@ export function createCatalogService({ scraper, cache, sizesCache, images, rules
   }
 
   async function top8() {
-    const { value, cached, stale } = await cache.getOrFetch(`top8:${NS}`, buildTop8);
+    const key = `top8:${await ns()}`;
+    const { value, cached, stale } = await cache.getOrFetch(key, buildTop8);
     if (Array.isArray(value) && value.length) return { cached, stale, total: value.length, products: value };
     // top8 vazio em cache (scraper/Nike estavam fora quando foi montado): tenta de novo agora,
     // e só grava se vier algo — um vazio nunca deve "colar" por 60 min.
     const fresh = await buildTop8();
-    if (fresh.length) await cache.set(`top8:${NS}`, fresh);
+    if (fresh.length) await cache.set(key, fresh);
     return { cached: false, stale: false, total: fresh.length, products: fresh };
   }
 
@@ -127,7 +136,7 @@ export function createCatalogService({ scraper, cache, sizesCache, images, rules
         log?.warn("top8: pré-aquecimento voltou vazio — não gravado no cache");
         return;
       }
-      await cache.set(`top8:${NS}`, products);
+      await cache.set(`top8:${await ns()}`, products);
       log?.info({ count: products.length }, "top8 pré-aquecido");
     } catch (err) {
       log?.warn({ err: err.message }, "top8: falha ao pré-aquecer");
@@ -144,7 +153,7 @@ export function createCatalogService({ scraper, cache, sizesCache, images, rules
       const product = await stock.getProductByCode(styleColor);
       return { cached: false, stale: false, product };
     }
-    const { value, cached, stale } = await sizesCache.getOrFetch(`sizes:${NS}:${styleColor}`, async () => {
+    const { value, cached, stale } = await sizesCache.getOrFetch(`sizes:${await ns()}:${styleColor}`, async () => {
       let raw;
       try {
         raw = await scraper.getProductDetail(styleColor);

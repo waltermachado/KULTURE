@@ -30,6 +30,8 @@ export function toCard(p, i) {
     // estoque próprio tem página própria (link compartilhável): o card navega para ela em vez de abrir o modal
     href: isStock ? (p.path || (p.slug ? `${p.section === "hypados" ? "/hypados" : "/pronta-entrega"}/${p.slug}` : null)) : null,
     stockQty: isStock ? (p.stock?.total ?? null) : null,
+    // pronta entrega: tamanhos BR com par disponível (filtro "Tamanho" da vitrine)
+    sizesAvailable: isStock && Array.isArray(p.sizes) ? p.sizes.filter((s) => s.available).map((s) => String(s.brLabel)) : [],
     description: p.description ?? null,
     byYou: Boolean(p.byYou),
     category: p.category ?? null, // basketball | lifestyle | running (filtro da pronta entrega)

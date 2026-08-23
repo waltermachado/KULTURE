@@ -6,6 +6,7 @@ import { useCallback, useEffect, useMemo, useState } from "react";
  * Persistido em localStorage para sobreviver a reload.
  */
 const KEY = "kulture:cart:v2";
+const COUPON_KEY = "kulture:coupon:v1";
 
 function load() {
   try {
@@ -18,6 +19,7 @@ function load() {
 
 export function useCart() {
   const [items, setItems] = useState(load); // key -> { item, qty, sizeInfo }
+  const [coupon, setCouponState] = useState(() => { try { return localStorage.getItem(COUPON_KEY) || null; } catch { return null; } }); // código do cupom aplicado (validação é sempre no servidor)
 
   useEffect(() => {
     try {
@@ -50,11 +52,16 @@ export function useCart() {
     });
   }, []);
 
-  const clear = useCallback(() => setItems({}), []);
+  const setCoupon = useCallback((code) => {
+    const c = code ? String(code).trim().toUpperCase() : null;
+    setCouponState(c);
+    try { c ? localStorage.setItem(COUPON_KEY, c) : localStorage.removeItem(COUPON_KEY); } catch { /* ok */ }
+  }, []);
+  const clear = useCallback(() => { setItems({}); setCouponState(null); try { localStorage.removeItem(COUPON_KEY); } catch { /* ok */ } }, []);
 
   const list = useMemo(() => Object.values(items), [items]);
   const count = useMemo(() => list.reduce((s, it) => s + it.qty, 0), [list]);
   const total = useMemo(() => list.reduce((s, it) => s + (it.item.price || 0) * it.qty, 0), [list]);
 
-  return { list, count, total, add, changeQty, clear };
+  return { list, count, total, add, changeQty, clear, coupon, setCoupon };
 }

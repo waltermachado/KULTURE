@@ -53,7 +53,7 @@ Arquivos: `deploy/api.Dockerfile`, `deploy/scraper.Dockerfile`, `deploy/api-entr
      | `DIRECT_URL` | *(vazio — o entrypoint usa DATABASE_URL)* |
      | `JWT_SECRET` | o novo, ≥ 32 chars |
      | `SCRAPER_URL` | `http://kulture-scraper.railway.internal:3001` |
-     | `PUBLIC_WEB_URL` / `PUBLIC_API_URL` | `https://<domínio gerado>` (o mesmo valor nas duas — mesma origem) |
+     | `PUBLIC_WEB_URL` / `PUBLIC_API_URL` | **`https://lojakulture.com.br`** nas duas (mesma origem). Se ficar no domínio gerado do Railway, o código troca sozinho pelo domínio próprio nos links (`/health` mostra `publicWebUrlMisconfigured: true`), mas corrija |
      | `MEDIA_BASE` | `/media/produtos` |
      | `CORS_ORIGINS` | *(vazio)* |
      | `TOP8_TERMS`, `TOP8_WARM=true`, `CACHE_FRESH_MIN=60`, `CACHE_STALE_MIN=1440`, `SIZES_CACHE_MIN=10` | como no `.env.example` |
@@ -156,6 +156,20 @@ Passos:
    MAIL_FROM_NAME=Kulture
    MAIL_REPLY_TO=contato@lojakulture.com.br  # opcional
    ```
+
+   Alternativa pela **API HTTP** (token "Email: full access" do painel, sem SMTP):
+
+   ```
+   MAIL_PROVIDER=mailersend
+   MAILERSEND_API_TOKEN=<token mlsn.…>
+   MAIL_FROM=contato@lojakulture.com.br
+   MAIL_FROM_NAME=Kulture BR
+   ```
+
+   Se o envio "não acontece": em **/admin/marketing** o card E-mail mostra o provedor e o erro do login/token; a tabela de
+   campanhas mostra "X falha(s) — ver quem" com a recusa do provedor por e-mail; o botão "E-mail de teste para mim" devolve o
+   id da mensagem — aí confira **Activity** no painel da MailerSend (entregue / rejeitado / conta pendente de aprovação).
+   Com `MAIL_PROVIDER=log` nada sai e o disparo fica bloqueado.
 
 4. Deploy e confira em **/admin/marketing → “Testar conexão”** (faz o login SMTP de verdade) e
    **“E-mail de teste para mim”**. `curl …/health` mostra `mailProvider: "smtp"`.

@@ -1,3 +1,4 @@
+import OrderTimeline from "../components/OrderTimeline.jsx";
 import { useEffect, useState } from "react";
 import PasswordInput from "../components/PasswordInput.jsx";
 import { useNavigate } from "react-router-dom";
@@ -67,6 +68,17 @@ export default function Account({ auth, onOpenLogin, notify }) {
     } catch { /* preenche na mão */ }
   }
 
+  /** Download autenticado da nota (PDF): busca com o token e abre o arquivo. */
+  async function openInvoice(number) {
+    try {
+      const res = await fetch(`/api/orders/${encodeURIComponent(number)}/invoice.pdf`, { headers: { Authorization: `Bearer ${auth.getToken?.() || ""}` }, credentials: "include" });
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      window.open(URL.createObjectURL(await res.blob()), "_blank", "noopener");
+    } catch (err) {
+      notify?.(`Não deu para baixar a nota (${err.message})`);
+    }
+  }
+
   async function saveProfile(e) {
     e.preventDefault();
     setSaving(true);
@@ -129,6 +141,13 @@ export default function Account({ auth, onOpenLogin, notify }) {
                     <div className="items">
                       {o.items.map((it, i) => <div key={i}>{it.quantity}× {it.name} — {sizeText(it)}{it.customization ? <span style={{ color: "var(--muted)" }}> · By You{customText(it.customization) ? `: ${customText(it.customization)}` : ""}</span> : null}</div>)}
                     </div>
+                    {o.status !== "pending_payment" && <OrderTimeline order={o} compact />}
+                    {o.invoice?.hasPdf && (
+                      <div className="track">
+                        <span>Nota fiscal{o.invoice.number ? ` nº ${o.invoice.number}` : ""}</span>
+                        <a href={`/api/orders/${encodeURIComponent(o.number)}/invoice.pdf`} onClick={(e) => { e.preventDefault(); openInvoice(o.number); }}>Baixar PDF ↓</a>
+                      </div>
+                    )}
                     {(o.trackingCode || o.status === "shipped" || o.status === "delivered") && (
                       <div className="track">
                         <span>{o.carrier || "Transportadora"}: <b>{o.trackingCode || "código em breve"}</b></span>

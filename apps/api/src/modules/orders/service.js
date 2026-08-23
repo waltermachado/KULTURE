@@ -3,30 +3,10 @@ import { pricingRateOf } from '../catalog/normalize.js';
 import { sizeLabel as buildSizeLabel, sizeLabelBr } from "@kulture/shared/sizes";
 
 import { buildOrderPaidEmail } from "../mail/mailer.js";
+import { canonicalWebUrl, resolveWebUrl } from "../../lib/site-url.js";
+import { PAID_STATUSES, isInternationalOrder } from "./status.js";
 
-/**
- * Só aceita como URL de retorno origens conhecidas: PUBLIC_WEB_URL/PUBLIC_API_URL, domínio do Railway,
- * hosts extras (PUBLIC_WEB_HOSTS) e localhost em dev. Qualquer outra → PUBLIC_WEB_URL.
- */
-export function resolveWebUrl(env, webOrigin) {
-  if (!webOrigin) return env.PUBLIC_WEB_URL;
-  try {
-    const u = new URL(webOrigin);
-    const allowed = new Set(
-      [env.PUBLIC_WEB_URL, env.PUBLIC_API_URL]
-        .map((x) => { try { return new URL(x).hostname; } catch { return null; } })
-        .concat(process.env.RAILWAY_PUBLIC_DOMAIN || null, ...(env.PUBLIC_WEB_HOSTS || []))
-        .filter(Boolean)
-        .map((h) => String(h).toLowerCase())
-    );
-    const host = u.hostname.toLowerCase();
-    const isLocal = env.NODE_ENV !== 'production' && (host === 'localhost' || host === '127.0.0.1');
-    if (allowed.has(host) || isLocal) return `${u.protocol}//${u.host}`;
-  } catch {
-    /* origem inválida → canônica */
-  }
-  return env.PUBLIC_WEB_URL;
-}
+export { resolveWebUrl };
 
 /**
  * Rótulo INTERNO do tamanho (backoffice / aviso ao dono): o salvo no checkout ("BR 38 (US M 7)") ou, em pedidos
@@ -83,12 +63,13 @@ function normalizeCustomization(raw) {
 }
 
 /** `stock` (opcional) = serviço de pronta entrega: reserva por tamanho na criação do pedido. */
-export function createOrderService(env, prisma, catalog, gateway, notifier, log, mailer = null, stock = null) {
+/** `coupons` (opcional) = serviço de cupons: desconto no checkout e contagem de uso quando o pedido é pago. */
+export function createOrderService(env, prisma, catalog, gateway, notifier, log, mailer = null, stock = null, coupons = null) {
   /** E-mail de confirmação ao cliente (não bloqueia; falha só loga). */
   async function emailPaid(order) {
     if (!mailer || !order?.customerEmail) return;
     try {
-      const { subject, text, html } = buildOrderPaidEmail(order, { siteUrl: env.PUBLIC_WEB_URL });
+      const { subject, text, html } = buildOrderPaidEmail(order, { siteUrl: canonicalWebUrl(env) });
       await mailer.send({ to: order.customerEmail, toName: order.customerName, subject, text, html });
     } catch (err) {
       log?.warn({ err: err.message, order: order.number }, "mail: falha ao enviar confirmação");
@@ -192,6 +173,8 @@ export function createOrderService(env, prisma, catalog, gateway, notifier, log,
       },
       include: { items: true }
     });
+    // cupom: conta o uso só agora (pedido pago); checkout abandonado não consome
+    if (coupons && updatedOrder.couponCode) await coupons.consume(updatedOrder).catch(() => {});
     // pronta entrega: pedido abandonado (estoque devolvido) que acabou pago → reserva de novo
     if (stock && order.stockReleasedAt) {
       await stock.ensureReservedForPaid(updatedOrder).catch((err) => log?.error({ err: err.message, order: order.number }, 'stock: falha ao re-reservar'));
@@ -202,7 +185,7 @@ export function createOrderService(env, prisma, catalog, gateway, notifier, log,
   }
 
   return {
-    async checkout({ items, customer, address }, idempotencyKey, userId = null, { webOrigin = null } = {}) {
+    async checkout({ items, customer, address, coupon = null }, idempotencyKey, userId = null, { webOrigin = null } = {}) {
       if (idempotencyKey) {
         const existing = await prisma.idempotencyKey.findUnique({ where: { key: idempotencyKey } });
         if (existing) {
@@ -267,7 +250,9 @@ export function createOrderService(env, prisma, catalog, gateway, notifier, log,
         }
 
         const shippingBrl = 0;
-        const totalBrl = subtotalBrl + shippingBrl;
+        // cupom: o servidor revalida e calcula o desconto (o front só mostra)
+        const { couponCode, discountBrl } = coupons ? await coupons.applyForCheckout(coupon, subtotalBrl) : { couponCode: null, discountBrl: 0 };
+        const totalBrl = Math.round((subtotalBrl + shippingBrl - discountBrl) * 100) / 100;
 
         // Convidado com e-mail já cadastrado: vincula a venda à conta (só o vínculo — o perfil do
         // usuário NÃO é alterado com dados digitados por quem não está autenticado).
@@ -297,6 +282,8 @@ export function createOrderService(env, prisma, catalog, gateway, notifier, log,
               address: address || {},
               subtotalBrl,
               shippingBrl,
+              couponCode,
+              discountBrl,
               totalBrl,
               exchangeRate: pricingRateOf(rate).usdToBrl, // dólar turismo usado na precificação
               pricingSnapshot: {}, 
@@ -371,7 +358,7 @@ export function createOrderService(env, prisma, catalog, gateway, notifier, log,
         include: { items: true }
       });
       if (!order) throw AppError.notFound('Pedido não encontrado');
-      if (['paid', 'sourcing', 'shipped', 'delivered'].includes(order.status)) return { paid: true };
+      if (PAID_STATUSES.includes(order.status)) return { paid: true };
       if (!transactionNsu && !slug && !order.transactionNsu && !order.infinitepaySlug) return { paid: false, reason: 'sem transação' };
       return settle(order, {
         transactionNsu: transactionNsu || order.transactionNsu,
@@ -394,7 +381,7 @@ export function createOrderService(env, prisma, catalog, gateway, notifier, log,
 
       const order = await prisma.order.findUnique({ where: { number: orderNumber }, include: { items: true } });
       if (!order) return { ok: true, ignored: 'pedido desconhecido' };
-      if (['paid', 'sourcing', 'shipped', 'delivered'].includes(order.status)) return { ok: true, alreadyPaid: true };
+      if (PAID_STATUSES.includes(order.status)) return { ok: true, alreadyPaid: true };
 
       const result = await settle(order, {
         transactionNsu: parsed.transaction_nsu,
@@ -416,20 +403,22 @@ export function createOrderService(env, prisma, catalog, gateway, notifier, log,
     async getOrder(number, userId, { isAdmin = false } = {}) {
       const order = await prisma.order.findUnique({
         where: { number },
-        include: { items: true }
+        include: { items: true, invoice: { select: { number: true, accessKey: true, issuedAt: true, pdfBytes: true, sentAt: true } } }
       });
       if (!order) throw AppError.notFound('Pedido não encontrado');
 
       const isOwner = Boolean(userId && order.userId && order.userId === userId);
       const full = isAdmin || isOwner;
 
-      const { pricingSnapshot, events, id, userId: uid, items, internalNotes, ...rest } = order;
+      const { pricingSnapshot, events, id, userId: uid, items, internalNotes, invoice: inv, ...rest } = order;
+      const invoice = inv ? { number: inv.number, accessKey: inv.accessKey, issuedAt: inv.issuedAt, hasPdf: Boolean(inv.pdfBytes), sentAt: inv.sentAt } : null;
+      const international = isInternationalOrder(order); // rastreio: etapas dos EUA só para importado
       const publicItems = items.map(i => {
         const { breakdown, orderId, id: iid, ...publicItem } = i;
         return isAdmin ? publicItem : clientOrderItem(publicItem); // cliente: sem o US, rótulo só em BR
       });
 
-      if (full) return { ...rest, items: publicItems, scope: 'full' };
+      if (full) return { ...rest, international, invoice, items: publicItems, scope: 'full' };
 
       const firstName = String(order.customerName || '').trim().split(/\s+/)[0] || null;
       const addr = order.address || {};
@@ -440,6 +429,8 @@ export function createOrderService(env, prisma, catalog, gateway, notifier, log,
         totalBrl: order.totalBrl,
         subtotalBrl: order.subtotalBrl,
         shippingBrl: order.shippingBrl,
+        couponCode: order.couponCode,
+        discountBrl: order.discountBrl,
         paymentProvider: order.paymentProvider,
         paymentMethod: order.paymentMethod,
         installments: order.installments,
@@ -452,6 +443,7 @@ export function createOrderService(env, prisma, catalog, gateway, notifier, log,
         shippedAt: order.shippedAt,
         deliveredAt: order.deliveredAt,
         address: { city: addr.city ?? null, state: addr.state ?? null },
+        international,
         items: publicItems,
         scope: 'public'
       };
@@ -468,11 +460,19 @@ export function createOrderService(env, prisma, catalog, gateway, notifier, log,
         select: {
           number: true, status: true, totalBrl: true, paymentMethod: true, paidAt: true, createdAt: true,
           carrier: true, trackingCode: true, trackingUrl: true, shippedAt: true, deliveredAt: true, receiptUrl: true,
-          items: { select: { name: true, image: true, nikeSize: true, brLabel: true, sizeLabel: true, customization: true, quantity: true, unitPriceBrl: true, styleColor: true } }
+          items: { select: { name: true, image: true, nikeSize: true, brLabel: true, sizeLabel: true, customization: true, quantity: true, unitPriceBrl: true, styleColor: true, breakdown: true } },
+          invoice: { select: { number: true, accessKey: true, issuedAt: true, pdfBytes: true, sentAt: true } }
         }
       });
-      // "meus pedidos" é tela do cliente: só o BR
-      return { orders: rows.map((o) => ({ ...o, items: o.items.map(clientOrderItem) })) };
+      // "meus pedidos" é tela do cliente: só o BR; `international` diz se o rastreio mostra as etapas dos EUA
+      return {
+        orders: rows.map(({ invoice, ...o }) => ({
+          ...o,
+          international: isInternationalOrder(o),
+          invoice: invoice ? { number: invoice.number, accessKey: invoice.accessKey, issuedAt: invoice.issuedAt, hasPdf: Boolean(invoice.pdfBytes), sentAt: invoice.sentAt } : null,
+          items: o.items.map(({ breakdown, ...i }) => clientOrderItem(i))
+        }))
+      };
     }
   };
 }

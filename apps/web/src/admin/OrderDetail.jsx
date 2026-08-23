@@ -28,8 +28,120 @@ const EVENT_LABELS = {
   email_refunded: "E-mail: pedido estornado",
   email_paid_resent: "E-mail de confirmação reenviado",
   email_shipped_resent: "E-mail de envio reenviado",
-  email_delivered_resent: "E-mail de entrega reenviado"
+  email_delivered_resent: "E-mail de entrega reenviado",
+  email_sourcing: "E-mail: pedido comprado",
+  email_in_transit: "E-mail: em trânsito internacional",
+  email_arrived_br: "E-mail: chegou no Brasil",
+  email_sourcing_resent: "E-mail “pedido comprado” reenviado",
+  email_in_transit_resent: "E-mail “em trânsito” reenviado",
+  email_arrived_br_resent: "E-mail “chegou no Brasil” reenviado",
+  invoice_attached: "Nota fiscal anexada",
+  invoice_updated: "Nota fiscal atualizada",
+  invoice_removed: "Nota fiscal removida",
+  email_invoice: "E-mail: nota fiscal"
 };
+
+/** Arquivo (PDF/XML) → data URL para mandar no JSON. */
+const fileToDataUrlRaw = (file) => new Promise((resolve, reject) => {
+  const r = new FileReader();
+  r.onload = () => resolve(String(r.result));
+  r.onerror = () => reject(new Error("Não deu para ler o arquivo"));
+  r.readAsDataURL(file);
+});
+
+/** Card "Nota fiscal": anexar PDF/XML + dados, enviar ao cliente por e-mail, baixar, remover. */
+function InvoiceCard({ order, auth, notify, busy, setBusy, setMsg, reload }) {
+  const inv = order.invoice;
+  const [form, setForm] = useState({ number: "", series: "", accessKey: "", issuedAt: "", externalUrl: "" });
+  const [files, setFiles] = useState({ pdf: null, xml: null });
+  const [editing, setEditing] = useState(!inv);
+  const f = (k) => (e) => setForm((s) => ({ ...s, [k]: e.target.value }));
+  useEffect(() => {
+    setForm({ number: inv?.number || "", series: inv?.series || "", accessKey: inv?.accessKey || "", issuedAt: inv?.issuedAt ? String(inv.issuedAt).slice(0, 10) : "", externalUrl: inv?.externalUrl || "" });
+    setEditing(!inv);
+  }, [inv?.id, inv?.updatedAt]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  async function save() {
+    setBusy(true); setMsg(null);
+    try {
+      const payload = { ...form, number: form.number || null, series: form.series || null, accessKey: form.accessKey || null, issuedAt: form.issuedAt || null, externalUrl: form.externalUrl || null };
+      if (files.pdf) payload.pdfDataUrl = await fileToDataUrlRaw(files.pdf);
+      if (files.xml) payload.xmlDataUrl = await fileToDataUrlRaw(files.xml);
+      await auth.request(`/api/admin/orders/${encodeURIComponent(order.number)}/invoice`, { method: "PUT", body: JSON.stringify(payload) });
+      setFiles({ pdf: null, xml: null });
+      setMsg({ ok: true, text: "Nota fiscal salva. Agora é só enviar ao cliente." });
+      notify?.("Nota fiscal salva");
+      await reload();
+    } catch (e) { setMsg({ ok: false, text: e.message }); } finally { setBusy(false); }
+  }
+  async function send() {
+    if (!window.confirm(`Enviar a nota fiscal por e-mail para ${order.customerEmail}?`)) return;
+    setBusy(true); setMsg(null);
+    try {
+      const r = await auth.request(`/api/admin/orders/${encodeURIComponent(order.number)}/invoice/send`, { method: "POST", body: JSON.stringify({}) });
+      if (r.ok) { setMsg({ ok: true, text: `Nota enviada para ${r.to} via ${r.provider}${r.messageId ? ` (id ${r.messageId})` : ""}.` }); notify?.("Nota fiscal enviada"); }
+      else setMsg({ ok: false, text: `O provedor recusou: ${r.error || r.skipped || "erro desconhecido"}` });
+      await reload();
+    } catch (e) { setMsg({ ok: false, text: e.message }); } finally { setBusy(false); }
+  }
+  async function remove() {
+    if (!window.confirm("Remover a nota anexada deste pedido?")) return;
+    setBusy(true); setMsg(null);
+    try { await auth.request(`/api/admin/orders/${encodeURIComponent(order.number)}/invoice`, { method: "DELETE" }); await reload(); }
+    catch (e) { setMsg({ ok: false, text: e.message }); } finally { setBusy(false); }
+  }
+  const base = `/api/admin/orders/${encodeURIComponent(order.number)}/invoice`;
+  const openAuthed = async (path) => {
+    // download autenticado: busca com o token e abre o blob
+    try {
+      const res = await fetch(path, { headers: { Authorization: `Bearer ${auth.getToken?.() || ""}` }, credentials: "include" });
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      const blob = await res.blob();
+      window.open(URL.createObjectURL(blob), "_blank", "noopener");
+    } catch (e) { setMsg({ ok: false, text: `Não deu para baixar: ${e.message}` }); }
+  };
+
+  return (
+    <section className="adm-card">
+      <h3>Nota fiscal <small>{inv ? (inv.source === "bling" ? "emitida pelo Bling" : "anexada à mão") : "nenhuma"}</small></h3>
+      {inv && !editing ? (
+        <div className="inv-summary">
+          <dl className="stk-meta">
+            <dt>Número</dt><dd>{inv.number ? `${inv.number}${inv.series ? ` · série ${inv.series}` : ""}` : "—"}</dd>
+            <dt>Chave</dt><dd className="mono" style={{ wordBreak: "break-all" }}>{inv.accessKey || "—"}</dd>
+            <dt>Emissão</dt><dd>{inv.issuedAt ? new Date(inv.issuedAt).toLocaleDateString("pt-BR") : "—"}</dd>
+            <dt>Arquivos</dt><dd>{inv.hasPdf ? "PDF" : "sem PDF"}{inv.hasXml ? " · XML" : ""}{inv.externalUrl ? <> · <a href={inv.externalUrl} target="_blank" rel="noreferrer">link ↗</a></> : null}</dd>
+            <dt>Enviada</dt><dd>{inv.sentAt ? `${fmtDateTime(inv.sentAt)} → ${inv.sentTo}` : <span className="adm-note">ainda não enviada ao cliente</span>}</dd>
+          </dl>
+          <div className="adm-toolbar" style={{ margin: "12px 0 0", flexWrap: "wrap" }}>
+            <button className="btn primary" disabled={busy} onClick={send}>{inv.sentAt ? "Reenviar ao cliente" : "Enviar ao cliente por e-mail"}</button>
+            {inv.hasPdf && <button className="btn sm" type="button" onClick={() => openAuthed(`${base}.pdf`)}>Baixar PDF</button>}
+            {inv.hasXml && <button className="btn sm" type="button" onClick={() => openAuthed(`${base}.xml`)}>Baixar XML</button>}
+            <button className="btn sm" type="button" onClick={() => setEditing(true)}>Substituir / editar</button>
+            <button className="btn sm danger" type="button" disabled={busy} onClick={remove}>Remover</button>
+          </div>
+        </div>
+      ) : (
+        <div className="transition-form">
+          <div className="field"><label>PDF da nota (DANFE)</label><input type="file" accept="application/pdf" onChange={(e) => setFiles((s) => ({ ...s, pdf: e.target.files?.[0] || null }))} /></div>
+          <div className="field"><label>XML da NF-e (opcional)</label><input type="file" accept=".xml,text/xml,application/xml" onChange={(e) => setFiles((s) => ({ ...s, xml: e.target.files?.[0] || null }))} /></div>
+          <div className="form-grid">
+            <div className="field"><label>Número</label><input value={form.number} onChange={f("number")} placeholder="123" /></div>
+            <div className="field"><label>Série</label><input value={form.series} onChange={f("series")} placeholder="1" /></div>
+            <div className="field span2"><label>Chave de acesso (44 dígitos)</label><input value={form.accessKey} onChange={f("accessKey")} placeholder="3526 0812 3456 7800 0199 5500 1000 0001 2310 0000 0001" /></div>
+            <div className="field"><label>Emissão</label><input type="date" value={form.issuedAt} onChange={f("issuedAt")} /></div>
+            <div className="field"><label>Link externo (opcional)</label><input value={form.externalUrl} onChange={f("externalUrl")} placeholder="https://…/danfe" /></div>
+          </div>
+          <div className="adm-toolbar" style={{ margin: 0 }}>
+            <button className="btn primary" disabled={busy} onClick={save}>{inv ? "Salvar alterações" : "Anexar nota"}</button>
+            {inv && <button className="btn sm" type="button" onClick={() => setEditing(false)}>Cancelar</button>}
+          </div>
+          <p className="adm-note" style={{ marginTop: 8 }}>Emita a NF-e no seu emissor (Bling etc.), baixe o PDF/XML e anexe aqui. Depois, “Enviar ao cliente” manda por e-mail com os arquivos em anexo; o cliente também baixa em “Minha conta”.</p>
+        </div>
+      )}
+    </section>
+  );
+}
 
 const CARRIERS = ["Correios", "Jadlog", "Loggi", "DHL", "FedEx", "UPS", "Outro"];
 const trackingUrlFor = (carrier, code) => {
@@ -177,7 +289,7 @@ export default function OrderDetail({ auth, notify }) {
   if (!order) return <Loading />;
 
   const a = order.address || {};
-  const paidLike = ["paid", "sourcing", "shipped", "delivered"].includes(order.status);
+  const paidLike = ["paid", "sourcing", "in_transit", "arrived_br", "shipped", "delivered"].includes(order.status);
   const manual = order.paymentProvider === "manual" || order.external;
   const discount = Number(order.pricingSnapshot?.discountBrl) || 0;
   const registeredBy = order.pricingSnapshot?.registeredBy?.adminEmail || order.events?.find((e) => e.type === "created")?.payload?.adminEmail || null;
@@ -223,6 +335,7 @@ export default function OrderDetail({ auth, notify }) {
               <dt>Subtotal</dt><dd>{brl(order.subtotalBrl)}</dd>
               {discount > 0 && <><dt>Desconto</dt><dd>− {brl(discount)}</dd></>}
               <dt>Frete</dt><dd>Grátis (embutido)</dd>
+              {Number(order.discountBrl) > 0 && <><dt>Desconto</dt><dd style={{ color: "var(--green)" }}>-{brl(order.discountBrl)}{order.couponCode ? ` · cupom ${order.couponCode}` : ""}</dd></>}
               <dt>Total</dt><dd><b>{brl(order.totalBrl)}</b>{order.paidAmountBrl != null && Number(order.paidAmountBrl) !== Number(order.totalBrl) ? ` · pago ${brl(order.paidAmountBrl)} (${Number(order.paidAmountBrl) > Number(order.totalBrl) ? "juros repassados ao cliente: +" : "diferença: "}${brl(Math.abs(Number(order.paidAmountBrl) - Number(order.totalBrl)))})` : order.paidAt ? " · pago sem juros" : ""}</dd>
               {Number(order.exchangeRate) > 0 && <><dt>Câmbio</dt><dd>US$ 1 = R$ {Number(order.exchangeRate).toFixed(2)}{manual ? <small style={{ color: "var(--muted)" }}> (só informativo — venda negociada em R$)</small> : ""}</dd></>}
               <dt>Custo estimado</dt><dd>{brl(order.economics.costBrl)} <small style={{ color: "var(--muted)" }}>{manual ? "(custo informado no registro da venda; por item)" : "(produto + frete US + taxas, pelo breakdown salvo)"}</small></dd>
@@ -262,6 +375,7 @@ export default function OrderDetail({ auth, notify }) {
             {paidLike && (
               <div className="adm-toolbar" style={{ marginTop: 14, marginBottom: 0 }}>
                 <button className="btn sm" disabled={busy} onClick={() => resend("paid")}>{manual ? "Reenviar e-mail de pedido registrado" : "Reenviar e-mail de confirmação"}</button>
+                {["sourcing", "in_transit", "arrived_br"].includes(order.status) && <button className="btn sm" disabled={busy} onClick={() => resend(order.status)}>Reenviar e-mail “{STATUS_LABELS[order.status]}”</button>}
                 {order.trackingCode && <button className="btn sm" disabled={busy} onClick={() => resend("shipped")}>Reenviar e-mail de envio</button>}
               </div>
             )}
@@ -322,6 +436,8 @@ export default function OrderDetail({ auth, notify }) {
               </div>
             </div>
           </section>
+
+          <InvoiceCard order={order} auth={auth} notify={notify} busy={busy} setBusy={setBusy} setMsg={setMsg} reload={load} />
 
           <section className="adm-card">
             <h3>Notas internas <small>só o painel vê</small></h3>

@@ -1,4 +1,5 @@
 import { buildPasswordResetEmail } from "../mail/mailer.js";
+import { resolveWebUrl } from "../../lib/site-url.js";
 
 /**
  * Monta o link público de redefinição de senha e dispara o e-mail.
@@ -6,8 +7,10 @@ import { buildPasswordResetEmail } from "../mail/mailer.js";
  * Falha de e-mail nunca lança — devolve { mailed:false } e o link, para o admin repassar por WhatsApp.
  */
 export function createResetMailer({ env, mailer, log }) {
-  return async function sendPasswordResetEmail(reset) {
-    const link = `${env.PUBLIC_WEB_URL}/redefinir-senha?token=${encodeURIComponent(reset.token)}`;
+  /** `webOrigin` = origem do request (site que o cliente estava usando); só vale se estiver na allowlist. */
+  return async function sendPasswordResetEmail(reset, { webOrigin = null } = {}) {
+    // NUNCA o domínio do Railway: resolveWebUrl cai em canonicalWebUrl (lojakulture.com.br) quando PUBLIC_WEB_URL estiver errada
+    const link = `${resolveWebUrl(env, webOrigin)}/redefinir-senha?token=${encodeURIComponent(reset.token)}`;
     const mail = buildPasswordResetEmail({ name: reset.user.name, link, expiresMin: env.PASSWORD_RESET_TTL_MIN });
     let result = null;
     try {

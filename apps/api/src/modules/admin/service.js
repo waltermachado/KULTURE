@@ -2,17 +2,18 @@
  * Serviço do backoffice (admin). Só é chamado por rotas protegidas por requireAdmin.
  * Aqui o breakdown interno PODE aparecer — é o painel do dono, não a API pública.
  */
+import { canonicalWebUrl } from "../../lib/site-url.js";
 import { AppError } from "../../lib/errors.js";
 import { sizeLabel as buildSizeLabel } from "@kulture/shared/sizes";
 import { pricingRateOf } from "../catalog/normalize.js";
 import { newOrderNumber } from "../orders/service.js";
 import { isStockCode } from "../stock/service.js";
 import {
-  buildOrderPaidEmail, buildOrderShippedEmail, buildOrderDeliveredEmail, buildOrderCancelledEmail, buildOrderRegisteredEmail, PAYMENT_METHOD_LABELS
+  buildOrderPaidEmail, buildOrderShippedEmail, buildOrderDeliveredEmail, buildOrderCancelledEmail, buildOrderRegisteredEmail, buildOrderStageEmail, PAYMENT_METHOD_LABELS
 } from "../mail/mailer.js";
 
-/** Pedidos que contam como receita (dinheiro entrou e não foi devolvido). */
-export const PAID_STATUSES = ["paid", "sourcing", "shipped", "delivered"];
+import { ORDER_STATUS_LABELS, ORDER_TRANSITIONS, PAID_STATUSES, TO_SHIP_STATUSES } from "../orders/status.js";
+export { ORDER_STATUS_LABELS, ORDER_TRANSITIONS, PAID_STATUSES, TO_SHIP_STATUSES };
 
 /** Canal da venda (`orders.channel`). `site` = checkout normal; os demais = venda externa registrada no painel. */
 export const SALE_CHANNELS = { site: "Site", whatsapp: "WhatsApp", instagram: "Instagram", presencial: "Presencial", outro: "Outro" };
@@ -20,31 +21,9 @@ export const MANUAL_CHANNELS = ["whatsapp", "instagram", "presencial", "outro"];
 /** Formas de pagamento aceitas numa venda externa (o site só tem pix/credit_card, vindos do gateway). */
 export const MANUAL_PAYMENT_METHODS = Object.keys(PAYMENT_METHOD_LABELS);
 /** Em que etapa a venda externa já entra (é sempre "dinheiro recebido"; nunca pending_payment). */
-export const MANUAL_INITIAL_STATUSES = ["paid", "sourcing", "shipped", "delivered"];
+export const MANUAL_INITIAL_STATUSES = [...PAID_STATUSES];
 export { PAYMENT_METHOD_LABELS };
 
-/** Transições permitidas no painel. `pending_payment → paid` = baixa manual (comprovante fora do fluxo). */
-export const ORDER_TRANSITIONS = {
-  pending_payment: ["paid", "cancelled", "abandoned"],
-  abandoned: ["paid", "cancelled"],
-  paid: ["sourcing", "shipped", "cancelled", "refunded"],
-  sourcing: ["shipped", "cancelled", "refunded"],
-  shipped: ["delivered", "refunded"],
-  delivered: ["refunded"],
-  cancelled: [],
-  refunded: []
-};
-
-export const ORDER_STATUS_LABELS = {
-  pending_payment: "Aguardando pagamento",
-  paid: "Pago",
-  sourcing: "Comprando nos EUA",
-  shipped: "Enviado",
-  delivered: "Entregue",
-  abandoned: "Abandonado",
-  cancelled: "Cancelado",
-  refunded: "Estornado"
-};
 
 const num = (v) => (v == null ? 0 : Number(v));
 const round2 = (v) => Math.round(v * 100) / 100;
@@ -75,7 +54,7 @@ function orderRevenue(order) {
 }
 
 export function createAdminService({ prisma, env, mailer, gateway, orders, stock = null, catalog = null, log }) {
-  const siteUrl = env.PUBLIC_WEB_URL;
+  const siteUrl = canonicalWebUrl(env); // nunca o domínio do Railway
 
   async function sendMail(order, build, extra = {}) {
     if (!mailer || !order?.customerEmail) return { ok: false, skipped: true };
@@ -283,10 +262,12 @@ export function createAdminService({ prisma, env, mailer, gateway, orders, stock
       include: {
         items: true,
         events: { orderBy: { createdAt: "asc" } },
-        user: { select: { id: true, name: true, email: true, phone: true, role: true, createdAt: true } }
+        user: { select: { id: true, name: true, email: true, phone: true, role: true, createdAt: true } },
+        invoice: { select: { id: true, source: true, number: true, series: true, accessKey: true, issuedAt: true, pdfBytes: true, xmlData: true, externalId: true, externalUrl: true, sentAt: true, sentTo: true, createdAt: true, updatedAt: true } }
       }
     });
     if (!order) throw AppError.notFound("Pedido não encontrado");
+    const invoice = order.invoice ? { ...order.invoice, xmlData: undefined, hasPdf: Boolean(order.invoice.pdfBytes), hasXml: Boolean(order.invoice.xmlData) } : null;
     const notifications = await prisma.notification.findMany({ where: { orderId: order.id }, orderBy: { createdAt: "desc" } });
     const economics = order.items.reduce(
       (acc, it) => {
@@ -299,6 +280,7 @@ export function createAdminService({ prisma, env, mailer, gateway, orders, stock
     );
     return {
       ...order,
+      invoice,
       channelLabel: SALE_CHANNELS[order.channel] || order.channel,
       external: order.channel !== "site",
       economics,
@@ -354,6 +336,7 @@ export function createAdminService({ prisma, env, mailer, gateway, orders, stock
         }
         mailKind = "shipped";
       }
+      if (["sourcing", "in_transit", "arrived_br"].includes(patch.status)) mailKind = patch.status; // e-mail de etapa
       if (patch.status === "delivered") { data.deliveredAt = now; mailKind = "delivered"; }
       if (patch.status === "cancelled") { data.cancelledAt = now; mailKind = "cancelled"; }
       if (patch.status === "refunded") { data.refundedAt = now; mailKind = "refunded"; }
@@ -386,6 +369,7 @@ export function createAdminService({ prisma, env, mailer, gateway, orders, stock
       const build =
         mailKind === "shipped" ? buildOrderShippedEmail
         : mailKind === "delivered" ? buildOrderDeliveredEmail
+        : ["sourcing", "in_transit", "arrived_br"].includes(mailKind) ? (o, opts) => buildOrderStageEmail(o, mailKind, opts)
         : buildOrderCancelledEmail;
       const result = await sendMail(updated, build, { refunded: mailKind === "refunded" });
       await prisma.orderEvent.create({
@@ -420,6 +404,7 @@ export function createAdminService({ prisma, env, mailer, gateway, orders, stock
     const build =
       kind === "shipped" ? buildOrderShippedEmail
       : kind === "delivered" ? buildOrderDeliveredEmail
+      : ["sourcing", "in_transit", "arrived_br"].includes(kind) ? (o, opts) => buildOrderStageEmail(o, kind, opts)
       : kind === "registered" || order.paymentProvider === "manual" ? buildOrderRegisteredEmail
       : buildOrderPaidEmail;
     const result = await sendMail(order, build);
@@ -618,6 +603,7 @@ export function createAdminService({ prisma, env, mailer, gateway, orders, stock
             address,
             subtotalBrl: subtotal,
             shippingBrl: 0,
+            discountBrl: discount,
             totalBrl: total,
             exchangeRate,
             pricingSnapshot: { manual: true, channel, discountBrl: discount, registeredBy: actor },

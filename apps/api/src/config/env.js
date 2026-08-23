@@ -121,6 +121,9 @@ const schema = z.object({
   MAIL_FROM: z.string().default("no-reply@localhost"), // precisa ser do domínio verificado na MailerSend (em trial: @test-….mlsender.net)
   MAIL_FROM_NAME: z.string().default("Kulture"),
   MAIL_REPLY_TO: z.string().default(""), // opcional: e-mail de resposta (ex. atendimento)
+  // Bling (emissão automática de NF-e) — gancho; vazio = nota manual no painel
+  BLING_CLIENT_ID: z.string().default(""),
+  BLING_CLIENT_SECRET: z.string().default(""),
 
   WHATSAPP_PROVIDER: z.enum(["log", "evolution"]).default("log"),
   WHATSAPP_TO: z.string().default(""), // Opcional no mock

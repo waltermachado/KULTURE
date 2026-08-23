@@ -1,3 +1,4 @@
+import OrderTimeline from "./OrderTimeline.jsx";
 import { useId, useState } from "react";
 import PasswordInput from "./PasswordInput.jsx";
 
@@ -271,26 +272,10 @@ export default function AuthModal({ open, view, onSwitch, onClose, notify, auth 
           {tracked?.error && <small className="cep-status" style={{ color: "var(--red)", marginTop: 12 }}>{tracked.error}</small>}
           {tracked?.order && (() => {
             const o = tracked.order;
-            const step = ["pending_payment", "paid", "sourcing", "shipped", "delivered"].indexOf(o.status);
-            const dead = ["abandoned", "cancelled", "refunded"].includes(o.status);
-            const steps = [
-              ["Pagamento aprovado", step >= 1],
-              ["Comprado na loja oficial (EUA)", step >= 2],
-              [`Enviado${o.trackingCode ? ` — ${o.carrier || ""} ${o.trackingCode}` : ""}`, step >= 3],
-              ["Entregue", step >= 4]
-            ];
             return (
               <div className="track-result show">
                 <b className="track-title">Pedido {o.number}{o.customerName ? ` · ${o.customerName}` : ""}</b>
-                {dead ? (
-                  <small className="track-note">Este pedido está {o.status === "refunded" ? "estornado" : o.status === "cancelled" ? "cancelado" : "expirado (pagamento não concluído)"}.</small>
-                ) : (
-                  <div className="track-steps">
-                    {steps.map(([label, done]) => (
-                      <div className={`track-step${done ? "" : " pending"}`} key={label}><span className="dot" /> {label}</div>
-                    ))}
-                  </div>
-                )}
+                <OrderTimeline order={o} />
                 {o.trackingUrl && <a href={o.trackingUrl} target="_blank" rel="noreferrer" style={{ display: "inline-block", marginTop: 10, fontSize: 12 }}>Abrir rastreio na transportadora ↗</a>}
                 <small className="track-note">Entre na sua conta para ver todos os detalhes do pedido.</small>
               </div>

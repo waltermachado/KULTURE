@@ -13,13 +13,14 @@
 import { createHmac, timingSafeEqual } from "node:crypto";
 import { AppError } from "../../lib/errors.js";
 import { buildMarketingEmail } from "../mail/mailer.js";
+import { canonicalWebUrl } from "../../lib/site-url.js";
 
 export const AUDIENCES = {
   all: "Todos — contas + quem já comprou",
   buyers: "Só quem já comprou",
   accounts: "Só contas cadastradas"
 };
-const BOUGHT_STATUSES = ["paid", "sourcing", "shipped", "delivered"];
+import { PAID_STATUSES as BOUGHT_STATUSES } from "../orders/status.js";
 const CONCURRENCY = 2;
 const MAX_BODY = 8000;
 
@@ -36,7 +37,7 @@ export function createMarketingService({ prisma, env, mailer, log }) {
     return createHmac("sha256", env.JWT_SECRET).update(`unsub:${normEmail(email)}`).digest("base64url").slice(0, 32);
   }
   function unsubscribeUrl(email) {
-    return `${env.PUBLIC_WEB_URL}/api/marketing/unsubscribe?e=${b64url(normEmail(email))}&t=${tokenFor(email)}`;
+    return `${canonicalWebUrl(env)}/api/marketing/unsubscribe?e=${b64url(normEmail(email))}&t=${tokenFor(email)}`;
   }
   function verifyToken(email, token) {
     const a = Buffer.from(tokenFor(email));
@@ -127,7 +128,7 @@ export function createMarketingService({ prisma, env, mailer, log }) {
       ctaUrl: campaign.ctaUrl,
       imageUrl: campaign.imageUrl,
       unsubscribeUrl: unsubscribeUrl(recipient.email),
-      siteUrl: env.PUBLIC_WEB_URL,
+      siteUrl: canonicalWebUrl(env),
       name: String(recipient.name || "").trim().split(/\s+/)[0] || ""
     });
   }
@@ -169,12 +170,13 @@ export function createMarketingService({ prisma, env, mailer, log }) {
   async function startCampaign(id) {
     const c = await getCampaign(id);
     if (!["draft", "failed"].includes(c.status) || running.has(id)) throw AppError.badRequest(`Campanha já ${c.status === "sent" ? "enviada" : "em envio"}`);
-    if (mailer.provider === "log") log?.warn({ id }, "marketing: MAIL_PROVIDER=log — a campanha só vai para o log");
+    // com MAIL_PROVIDER=log nada sai de verdade — melhor recusar do que marcar "enviada" sem ninguém receber
+    if (mailer.provider === "log") throw AppError.badRequest("E-mail não configurado (MAIL_PROVIDER=log): configure o SMTP da MailerSend antes de disparar");
     const recipients = await audience(c.audience);
     if (!recipients.length) throw AppError.badRequest("Ninguém no público escolhido (todos descadastrados ou lista vazia)");
     const updated = await prisma.marketingCampaign.update({
       where: { id },
-      data: { status: "sending", total: recipients.length, sent: 0, failed: 0, lastError: null, startedAt: new Date(), finishedAt: null }
+      data: { status: "sending", total: recipients.length, sent: 0, failed: 0, lastError: null, errors: [], provider: mailer.provider, startedAt: new Date(), finishedAt: null }
     });
     running.add(id);
     setImmediate(() => runCampaign(updated, recipients).catch((err) => log?.error({ err: err.message, id }, "marketing: campanha falhou")).finally(() => running.delete(id)));
@@ -183,8 +185,9 @@ export function createMarketingService({ prisma, env, mailer, log }) {
 
   async function runCampaign(campaign, recipients) {
     let sent = 0, failed = 0, lastError = null, abort = false;
+    const errors = []; // primeiras 50 falhas, para o painel
     const queue = [...recipients];
-    const flush = () => prisma.marketingCampaign.update({ where: { id: campaign.id }, data: { sent, failed, lastError } }).catch(() => {});
+    const flush = () => prisma.marketingCampaign.update({ where: { id: campaign.id }, data: { sent, failed, lastError, errors } }).catch(() => {});
     const worker = async () => {
       while (queue.length && !abort) {
         const r = queue.shift();
@@ -194,6 +197,8 @@ export function createMarketingService({ prisma, env, mailer, log }) {
         else {
           failed += 1;
           lastError = res?.error || res?.skipped || "falha desconhecida";
+          if (errors.length < 50) errors.push({ email: r.email, error: String(lastError).slice(0, 300) });
+          log?.warn({ id: campaign.id, to: r.email, err: lastError }, "marketing: e-mail recusado");
           // credencial errada / conta bloqueada: parar em vez de falhar 200 vezes
           if (/auth|535|login|credential|invalid.*password/i.test(lastError)) abort = true;
         }
@@ -204,7 +209,7 @@ export function createMarketingService({ prisma, env, mailer, log }) {
     const status = sent > 0 && !abort ? "sent" : "failed";
     await prisma.marketingCampaign.update({
       where: { id: campaign.id },
-      data: { sent, failed, lastError, status, finishedAt: new Date() }
+      data: { sent, failed, lastError, errors, status, finishedAt: new Date() }
     });
     log?.info({ id: campaign.id, sent, failed, status }, "marketing: campanha concluída");
   }

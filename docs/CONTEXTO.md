@@ -266,6 +266,11 @@ Antes o seletor mostrava "38 · US 7" sem dizer de quem era o US (nos unissex da
 - Checkout envia `sizeGender`; a api valida (só se o tamanho tem esse US) e grava `order_items.size_label`; sacola, checkout,
   `/conta`, confirmação, e-mails, WhatsApp e admin usam o rótulo (pedidos antigos caem no formato antigo "BR 41 (US 8.5)").
 - Pronta entrega: modelagem no cadastro (§5.2); `usMapOf(gender, us)` no `stock/service.js` gera o mesmo formato.
+- **23/08 (opção B do dono): escala feminina DERIVADA da masculina** (W = M + 1,5 → tabela masculina; `WOMENS_TABLE/APPROX`
+  geradas de `MENS_*`). Motivo: as tabelas oficiais divergiam ±0,5 nas pontas e o mesmo par físico mostrava BR diferente
+  conforme a Nike listava em M ou W (do 41 pra cima o feminino saía 0,5 acima — reclamação do dono). Agora W 10.5 = M 9 =
+  BR 40,5 sempre; W 5 = 34; aproximado só de W 15 (M 13.5) em diante. Também no BR→US do cadastro (`StockForm`).
+  Cache do catálogo virou `v8-*`. Pedidos antigos mantêm o rótulo da época.
 
 **23/08 — o US não vaza mais para o cliente.** Regra do dono: o cliente só vê **numeração BR**; o US (modelagem) é informação
 interna para comprar na Nike.
@@ -317,6 +322,67 @@ SKU/tamanhos na API da Nike (`/product/:id` → 404 SIZES_UNAVAILABLE). Tratamen
   Endpoints admin: `GET /api/admin/mail/status`, `POST /api/admin/mail/test`, `GET /api/admin/marketing/audience`,
   `GET/POST /api/admin/marketing/campaigns`, `GET /…/campaigns/:id`, `POST /…/campaigns/:id/send`, `POST /…/preview`, `POST /…/test`.
   Migração `marketing` (users.marketing_opt_in, marketing_unsubscribes, marketing_campaigns). Teste: `marketing.test.js`.
+
+### 5.6c Links públicos nunca com o domínio do Railway (23/08)
+
+O e-mail de "esqueci minha senha" saiu com `https://kulture-api-production.up.railway.app/redefinir-senha?token=…` porque
+`PUBLIC_WEB_URL` no Railway ainda apontava para o domínio gerado. Agora o código se defende (`lib/site-url.js`):
+- `canonicalWebUrl(env)`: `PUBLIC_WEB_URL`, **exceto** se em produção for `*.railway.app`/localhost — aí usa o 1º host de
+  `PUBLIC_WEB_HOSTS` (padrão `lojakulture.com.br`) com https. `publicWebUrlMisconfigured(env)` expõe o problema em
+  `/health` (`siteUrl`, `publicWebUrlMisconfigured`), no log de boot e no card de e-mail de `/admin/marketing`.
+- `resolveWebUrl(env, origin)`: origem do request (Origin/X-Forwarded-Host) só se estiver na allowlist; `*.railway.app`
+  → canônica; `localhost` só se for exatamente o host:porta de `PUBLIC_WEB_URL` (em dev a api :3000 ≠ site :5173).
+- Usado em: reset de senha (cliente e painel), redirect do pagamento, e-mail de pedido pago, venda externa, campanhas,
+  descadastro, OG da página do tênis. Teste: `site-url.test.js`. **Mesmo assim, corrigir `PUBLIC_WEB_URL` no Railway.**
+
+### 5.6d Rodada de 23/08 (tarde): ModeBar mobile, preços no painel, filtro por tamanho, cupons
+
+- **ModeBar no celular**: com 3 abas, "IMPORTADOS" estourava a coluna (grid `1fr` não encolhe abaixo do conteúdo) e a
+  faixa amarela cortava. Agora `repeat(3, minmax(0,1fr))` + no ≤640px bandeira em cima e nome embaixo (centralizado);
+  breakpoint intermediário ≤900px. Conferido em 360/375/700px, transição avião/bola intacta.
+- **Preços — `/admin/precos`** (pedido: "LeBron +300 virar feature"): acréscimos por tipo de tênis editáveis.
+  Regras em `settings` "pricing_adjustments" (semente = LeBron 23 +R$300, que saiu do código); escopos
+  nome-contém/SKU/marca/categoria, acréscimo em R$ e/ou % (novo `extraRate` no motor; acréscimos de regras
+  diferentes SOMAM); regra global (fórmula) continua em `GLOBAL_PRICING_RULE`. O catálogo recebe as regras de um
+  provider e o namespace do cache vira `v7-<versão das regras>` → salvar no painel vale NA HORA (sem esperar 60 min).
+  Tela: fórmula explicada, lista de regras (ativa/nome/onde/termos/R$/%), "Testar com um tênis" (busca ao vivo mostrando
+  o preço e quais regras bateram). API: GET/PUT `/api/admin/pricing`, GET `/api/admin/pricing/test?q=`.
+  Módulo `modules/pricing`; testes `pricing.test.js` + shared.
+- **Filtro por tamanho na pronta entrega/hypados**: chips "Tamanho BR" (só números com par disponível na categoria,
+  com contagem no title), `?tam=41` na URL junto do `?cat=`; clicar de novo limpa; vazio → aviso + WhatsApp.
+  Client-side (o `GET /api/stock` já traz sizes); `toCard` ganhou `sizesAvailable`.
+- **Cupons de desconto**: tabela `coupons` + `orders.coupon_code/discount_brl` (migração `coupons`). Painel
+  `/admin/cupons`: código, % (com teto) ou R$ fixo, mínimo de compra, validade, limite de usos, pausar/editar/remover.
+  Sacola: campo "Cupom de desconto" antes de finalizar (valida em `POST /api/coupons/validate`, mostra desconto e novo
+  total; revalida quando o total muda); checkout manda `coupon` e o SERVIDOR recalcula (`applyForCheckout` → 400 com
+  motivo se não valer); `usedCount` só sobe quando o pedido é PAGO (settle; idempotente). Desconto aparece no checkout,
+  na visão pública, no admin (Pagamento) e nos e-mails (pago/registrado). Módulo `modules/coupons`; teste `coupons.test.js`.
+
+### 5.7 Etapas de rastreio do pedido (23/08)
+
+Status novos `in_transit` e `arrived_br` (migração `order_stages`). Fonte única: `modules/orders/status.js`
+(`ORDER_STATUS_LABELS`, `ORDER_STAGES`, `ORDER_TRANSITIONS`, `PAID_STATUSES`, `TO_SHIP_STATUSES`, `isInternationalOrder`).
+- Importado: **Pagamento aprovado → Pedido comprado → Em trânsito internacional → Chegou no Brasil → Enviado pro seu
+  endereço → Entregue**. Pronta entrega/hypados (`order.international === false`, calculado pelos itens): só
+  Pagamento aprovado → Enviado → Entregue. Pode pular etapas para a frente; nunca voltar; entregue só depois de enviado.
+- Cada etapa intermediária manda e-mail (`buildOrderStageEmail`: comprado 🛒 / em trânsito ✈️ / chegou 🇧🇷), com
+  `notifyCustomer:false` para silenciar; reenvio em `/resend-email` com `kind` = etapa.
+- Front: `components/OrderTimeline.jsx` (Rastrear pedido no AuthModal + "Meus pedidos", versão compacta); painel: rótulos
+  em `admin/ui.jsx` (`TO_SHIP`, `NEXT_STAGE`), fila de entregas com botão da próxima etapa, dashboard, venda externa.
+  Teste: `order-stages.test.js`.
+
+### 5.8 Nota fiscal do pedido — manual hoje, Bling depois (23/08)
+
+Tabela `order_invoices` (1 por pedido; PDF/XML no banco; `source` manual|bling; número/série/chave/emissão; `sentAt/sentTo`).
+- Painel → detalhe do pedido → card **Nota fiscal**: anexar PDF (DANFE) + XML opcional + dados; **Enviar ao cliente por
+  e-mail** (PDF/XML anexos, `buildInvoiceEmail`, evento `email_invoice`, resultado honesto do provedor); baixar; substituir;
+  remover. Rotas em `modules/invoices/routes.js` (`/api/admin/orders/:number/invoice[.pdf|.xml|/send]`).
+- Cliente: "Meus pedidos" mostra "Nota fiscal nº X · Baixar PDF" (`GET /api/orders/:number/invoice.pdf`, dono do pedido
+  por id ou e-mail, ou admin; convidado não vê). Mailer ganhou `attachments` (SMTP e API da MailerSend).
+- **Bling (automático)**: gancho `invoices.issueAutomatically(order)` + env `BLING_CLIENT_ID/SECRET` (vazios = manual).
+  Falta: app no Bling (OAuth2 authorization code + refresh), cadastro do contato/produto, `POST /nfe` + `/nfe/{id}/enviar`,
+  consulta de status (autorizada/rejeitada), download do DANFE/XML, disparo após `paid` (settle) e tela de erros.
+  Teste do manual: `invoices.test.js`.
 
 ### 5.6 Filtros por categoria respeitam a seção (18/08)
 
@@ -403,9 +469,11 @@ mostra "HYPADOS" em vez de "PRONTA ENTREGA"; card usa selo padrão "HYPADOS"; Si
 Tabelas: `cache_entries, users (+ marketing_opt_in), refresh_tokens, password_reset_tokens, login_events, orders (com carrier/tracking_*/shipped_at/
 delivered_at/cancelled_at/refunded_at/internal_notes/stock_released_at/channel), order_items (+ size_label, customization),
 order_events, notifications, idempotency_keys, stock_products (+ category, gender, section), stock_sizes, stock_images,
-settings (key→JSON; hoje "featured" = vitrine), marketing_unsubscribes, marketing_campaigns`.
+settings (key→JSON; hoje "featured" = vitrine), marketing_unsubscribes, marketing_campaigns (+ errors, provider), order_invoices`.
+Enum `OrderStatus` ganhou `in_transit` e `arrived_br`.
 Migrações: `init, auth, orders, user_profile, admin_backoffice, login_events, stock_products, stock_category, size_genders,
-by_you_customization, order_channel, stock_section_settings, marketing` — aplicadas no boot da api (`migrate deploy`).
+by_you_customization, order_channel, stock_section_settings, marketing, marketing_errors, order_stages, order_invoices` —
+aplicadas no boot da api (`migrate deploy`).
 Dev local: `apps/api/.env` aponta para Supabase (pooler us-east-2; `DIRECT_URL` para migrar), já migrado; seed de demonstração
 (`*@smoke.kulture.test`, admin `admin@smoke.kulture.test`, pedidos `KLT-2026-9*`). Os produtos de pronta entrega criados para
 teste nesta sessão foram removidos — o estoque de dev está vazio.

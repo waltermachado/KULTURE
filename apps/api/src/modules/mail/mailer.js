@@ -53,34 +53,59 @@ export function createMailer(env, log, { transport = null } = {}) {
       text: msg.text,
       html: msg.html || undefined,
       headers: msg.headers || undefined,
-      list: msg.unsubscribeUrl ? { unsubscribe: { url: msg.unsubscribeUrl, comment: "Descadastrar" } } : undefined
+      list: msg.unsubscribeUrl ? { unsubscribe: { url: msg.unsubscribeUrl, comment: "Descadastrar" } } : undefined,
+      attachments: (msg.attachments || []).map((a) => ({ filename: a.filename, content: a.content, contentType: a.contentType || undefined }))
     });
     return { ok: true, provider: "smtp", messageId: info?.messageId || null, accepted: info?.accepted?.length ?? null };
   }
 
+  /** Erro da API da MailerSend em uma frase legível (422 traz `errors: { campo: [msgs] }`). */
+  function mailerSendError(status, body) {
+    let detail = "";
+    try {
+      const j = JSON.parse(body);
+      const list = j?.errors && typeof j.errors === "object" ? Object.values(j.errors).flat() : [];
+      detail = [j?.message, ...list].filter(Boolean).join(" · ");
+    } catch { detail = String(body || "").slice(0, 300); }
+    const hint =
+      status === 401 ? " (token inválido — MAILERSEND_API_TOKEN)"
+      : status === 422 && /domain|from/i.test(detail) ? " (o MAIL_FROM precisa ser do domínio verificado na MailerSend)"
+      : status === 422 && /trial|approved|recipient/i.test(detail) ? " (conta em trial/não aprovada: só entrega para o e-mail do dono da conta)"
+      : status === 429 ? " (limite de envio da MailerSend — tente mais tarde)"
+      : "";
+    return new Error(`MailerSend ${status}: ${detail || "erro"}${hint}`);
+  }
+
   async function viaMailerSend(msg) {
     if (!env.MAILERSEND_API_TOKEN) throw new Error("MAILERSEND_API_TOKEN ausente");
+    const reply = msg.replyTo || replyTo;
     const res = await fetch(`${env.MAILERSEND_API_BASE || "https://api.mailersend.com/v1"}/email`, {
       method: "POST",
       headers: { Authorization: `Bearer ${env.MAILERSEND_API_TOKEN}`, "Content-Type": "application/json", Accept: "application/json" },
       body: JSON.stringify({
         from,
         to: [{ email: msg.to, name: msg.toName || undefined }],
+        reply_to: reply ? { email: reply } : undefined,
         subject: msg.subject,
         text: msg.text,
-        html: msg.html || undefined
+        html: msg.html || undefined,
+        attachments: msg.attachments?.length
+          ? msg.attachments.map((a) => ({ filename: a.filename, content: Buffer.from(a.content).toString("base64"), disposition: "attachment" }))
+          : undefined
+        // cabeçalhos customizados (List-Unsubscribe) só existem nos planos pagos da API — o link de descadastro vai no corpo
       }),
-      signal: AbortSignal.timeout(10_000)
+      signal: AbortSignal.timeout(15_000)
     });
     if (!res.ok && res.status !== 202) {
       const body = await res.text().catch(() => "");
-      throw new Error(`MailerSend ${res.status}: ${body.slice(0, 300)}`);
+      throw mailerSendError(res.status, body);
     }
     return { ok: true, provider: "mailersend", messageId: res.headers.get("x-message-id") };
   }
 
   /**
-   * @param {{to:string, toName?:string, subject:string, text:string, html?:string, headers?:object, replyTo?:string, unsubscribeUrl?:string}} msg
+   * @param {{to:string, toName?:string, subject:string, text:string, html?:string, headers?:object, replyTo?:string, unsubscribeUrl?:string,
+   *          attachments?: Array<{ filename: string, content: Buffer|string, contentType?: string }>}} msg
    * Nunca lança: devolve { ok:false, error } — quem precisa saber (campanha, reset) lê o resultado.
    */
   async function send(msg) {
@@ -102,7 +127,16 @@ export function createMailer(env, log, { transport = null } = {}) {
         await smtpTransport().verify();
         return { ok: true, provider, host: env.SMTP_HOST, port: env.SMTP_PORT, user: env.SMTP_USER, from: from.email };
       }
-      if (provider === "mailersend") return { ok: Boolean(env.MAILERSEND_API_TOKEN), provider, from: from.email, error: env.MAILERSEND_API_TOKEN ? null : "MAILERSEND_API_TOKEN ausente" };
+      if (provider === "mailersend") {
+        if (!env.MAILERSEND_API_TOKEN) return { ok: false, provider, from: from.email, error: "MAILERSEND_API_TOKEN ausente" };
+        // a API não tem "ping" público para todo token: confere só que o token é aceito (401 = inválido)
+        const res = await fetch(`${env.MAILERSEND_API_BASE || "https://api.mailersend.com/v1"}/domains?limit=1`, {
+          headers: { Authorization: `Bearer ${env.MAILERSEND_API_TOKEN}`, Accept: "application/json" }, signal: AbortSignal.timeout(10_000)
+        }).catch((err) => ({ status: 0, statusText: err.message }));
+        if (res.status === 401) return { ok: false, provider, from: from.email, error: "MAILERSEND_API_TOKEN inválido (401)" };
+        if (res.status === 0) return { ok: false, provider, from: from.email, error: `sem acesso à API da MailerSend: ${res.statusText}` };
+        return { ok: true, provider, from: from.email, note: res.status === 403 ? "token aceito (sem permissão para listar domínios — normal em token só de envio); use “E-mail de teste para mim”" : "token aceito" };
+      }
       return { ok: true, provider, from: from.email, note: "provedor log: e-mails só aparecem no log" };
     } catch (err) {
       return { ok: false, provider, host: env.SMTP_HOST, port: env.SMTP_PORT, user: env.SMTP_USER, from: from.email, error: err.message };
@@ -217,7 +251,7 @@ export function buildOrderShippedEmail(order, { siteUrl } = {}) {
   const text = lines([
     `Olá, ${order.customerName}!`,
     "",
-    `Seu pedido ${order.number} foi enviado. 📦`,
+    `Seu pedido ${order.number} foi enviado pro seu endereço. 📦`,
     "",
     order.carrier ? `Transportadora: ${order.carrier}` : null,
     order.trackingCode ? `Código de rastreio: ${order.trackingCode}` : null,
@@ -265,6 +299,52 @@ export function buildOrderCancelledEmail(order, { siteUrl, refunded = false } = 
   return { subject: `Pedido ${order.number} ${refunded ? "estornado" : "cancelado"} — Kulture`, text, html: asHtml(text, { siteUrl }) };
 }
 
+/**
+ * E-mails das etapas intermediárias do importado (o cliente acompanha o par a cada passo):
+ *   sourcing   → Pedido comprado na loja oficial nos EUA
+ *   in_transit → Em trânsito internacional
+ *   arrived_br → Chegou no Brasil
+ */
+const STAGE_COPY = {
+  sourcing: {
+    subject: (n) => `Pedido ${n}: compramos o seu par 🛒 — Kulture`,
+    title: "Seu par foi comprado na loja oficial nos EUA. 🛒",
+    body: "Agora ele segue para o trânsito internacional até o Brasil. Te avisamos assim que embarcar.",
+    next: "Próxima etapa: em trânsito internacional."
+  },
+  in_transit: {
+    subject: (n) => `Pedido ${n}: em trânsito internacional ✈️ — Kulture`,
+    title: "Seu par saiu dos EUA e está em trânsito internacional. ✈️",
+    body: "Essa etapa inclui o voo e a liberação na alfândega. Você não paga nada a mais — o preço já é final.",
+    next: "Próxima etapa: chegou no Brasil."
+  },
+  arrived_br: {
+    subject: (n) => `Pedido ${n}: chegou no Brasil 🇧🇷 — Kulture`,
+    title: "Seu par chegou no Brasil! 🇧🇷",
+    body: "Estamos preparando o envio para o seu endereço. Você recebe o código de rastreio assim que ele sair.",
+    next: "Próxima etapa: enviado pro seu endereço."
+  }
+};
+export function buildOrderStageEmail(order, stage, { siteUrl } = {}) {
+  const c = STAGE_COPY[stage] || STAGE_COPY.sourcing;
+  const text = lines([
+    `Olá, ${order.customerName}!`,
+    "",
+    `${c.title} (pedido ${order.number})`,
+    "",
+    c.body,
+    "",
+    "Itens:",
+    (order.items || []).map((i) => `• ${i.name} — tam. ${sizeLabel(i)} × ${i.quantity}${customLine(i)}`).join("\n"),
+    "",
+    c.next,
+    siteUrl ? `Acompanhe cada etapa em: ${siteUrl}/conta` : null,
+    "",
+    "— Equipe Kulture"
+  ]);
+  return { subject: c.subject(order.number), text, html: asHtml(text, { siteUrl }) };
+}
+
 /** E-mail de confirmação de pagamento para o cliente. */
 export function buildOrderPaidEmail(order, { siteUrl } = {}) {
   const items = (order.items || [])
@@ -280,6 +360,7 @@ export function buildOrderPaidEmail(order, { siteUrl } = {}) {
     items,
     "",
     `Frete: Grátis`,
+    Number(order.discountBrl) > 0 ? `Desconto${order.couponCode ? ` (cupom ${order.couponCode})` : ""}: -${brl(order.discountBrl)}` : null,
     `Total: ${brl(order.totalBrl)}`,
     `Pagamento: ${method}`,
     order.receiptUrl ? `Comprovante: ${order.receiptUrl}` : null,
@@ -318,8 +399,10 @@ export function buildOrderRegisteredEmail(order, { siteUrl } = {}) {
   const stage =
     status === "delivered" ? "Consta como entregue. 🎉"
     : status === "shipped" ? `Já foi enviado${order.trackingCode ? ` — ${order.carrier ? `${order.carrier} ` : ""}${order.trackingCode}` : ""}.`
-    : status === "sourcing" ? "Estamos comprando seu par na loja oficial nos EUA."
-    : "Pagamento confirmado — vamos te avisar a cada etapa.";
+    : status === "arrived_br" ? "Seu par já chegou no Brasil — em breve sai para o seu endereço."
+    : status === "in_transit" ? "Seu par está em trânsito internacional (EUA → Brasil)."
+    : status === "sourcing" ? "Seu par já foi comprado na loja oficial nos EUA."
+    : "Pagamento aprovado — vamos te avisar a cada etapa.";
   const text = lines([
     `Olá, ${order.customerName}!`,
     "",
@@ -329,6 +412,7 @@ export function buildOrderRegisteredEmail(order, { siteUrl } = {}) {
     items,
     "",
     "Frete: Grátis",
+    Number(order.discountBrl) > 0 ? `Desconto${order.couponCode ? ` (cupom ${order.couponCode})` : ""}: -${brl(order.discountBrl)}` : null,
     `Total: ${brl(order.totalBrl)}`,
     `Pagamento: ${method}${inst}`,
     order.receiptUrl ? `Comprovante: ${order.receiptUrl}` : null,
@@ -344,4 +428,24 @@ export function buildOrderRegisteredEmail(order, { siteUrl } = {}) {
     "— Equipe Kulture"
   ]);
   return { subject: `Pedido ${order.number} registrado — Kulture`, text, html: asHtml(text, { siteUrl }) };
+}
+
+/** E-mail com a nota fiscal (PDF e XML anexos) — disparado pelo painel (ou pela emissão automática, quando existir). */
+export function buildInvoiceEmail(order, invoice, { siteUrl } = {}) {
+  const n = invoice?.number ? `nº ${invoice.number}${invoice.series ? ` (série ${invoice.series})` : ""}` : "";
+  const text = lines([
+    `Olá, ${order.customerName}!`,
+    "",
+    `Segue a nota fiscal ${n ? `${n} ` : ""}do seu pedido ${order.number}. 🧾`,
+    "",
+    invoice?.accessKey ? `Chave de acesso: ${invoice.accessKey}` : null,
+    invoice?.issuedAt ? `Emitida em: ${new Date(invoice.issuedAt).toLocaleDateString("pt-BR")}` : null,
+    invoice?.externalUrl ? `Consultar: ${invoice.externalUrl}` : null,
+    "",
+    "O PDF (DANFE)" + (invoice?.xmlData ? " e o XML vão" : " vai") + " em anexo. Guarde para garantia e eventuais trocas.",
+    siteUrl ? `Ela também fica disponível em: ${siteUrl}/conta` : null,
+    "",
+    "— Equipe Kulture"
+  ]);
+  return { subject: `Nota fiscal do pedido ${order.number} — Kulture`, text, html: asHtml(text, { siteUrl }) };
 }

@@ -1,3 +1,4 @@
+import { canonicalWebUrl } from "../../lib/site-url.js";
 // usa o fetch global do Node ≥18 (node-fetch não é dependência do projeto)
 
 export function createInfinitePayGateway(env, log) {
@@ -20,7 +21,7 @@ export function createInfinitePayGateway(env, log) {
 
   return {
     async createCheckoutLink(order, { webUrl } = {}) {
-      const siteUrl = webUrl || env.PUBLIC_WEB_URL;
+      const siteUrl = webUrl || canonicalWebUrl(env);
       // 100 centavos = R$ 1,00
       const items = order.items.map(item => ({
         description: `${item.name} — tam. BR ${item.brLabel || item.nikeSize} (US ${item.nikeSize})`,

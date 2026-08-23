@@ -16,6 +16,8 @@ import Stock from "./Stock.jsx";
 import StockForm from "./StockForm.jsx";
 import Featured from "./Featured.jsx";
 import Marketing from "./Marketing.jsx";
+import Pricing from "./Pricing.jsx";
+import Coupons from "./Coupons.jsx";
 
 export default function AdminApp({ auth, onOpenLogin, notify }) {
   const navigate = useNavigate();
@@ -59,7 +61,7 @@ export default function AdminApp({ auth, onOpenLogin, notify }) {
     );
   }
 
-  const toShip = counts ? (counts.paid || 0) + (counts.sourcing || 0) : null;
+  const toShip = counts ? (counts.paid || 0) + (counts.sourcing || 0) + (counts.in_transit || 0) + (counts.arrived_br || 0) : null;
   const pending = counts ? counts.pending_payment || 0 : null;
 
   return (
@@ -78,6 +80,8 @@ export default function AdminApp({ auth, onOpenLogin, notify }) {
           <NavLink to="/admin/hypados">Hypados</NavLink>
           <NavLink to="/admin/vitrine">Vitrine</NavLink>
           <NavLink to="/admin/marketing">Marketing</NavLink>
+          <NavLink to="/admin/precos">Preços</NavLink>
+          <NavLink to="/admin/cupons">Cupons</NavLink>
         </nav>
         <div className="adm-side-foot">
           <b title={auth.user.email}>{auth.user.name}</b>
@@ -106,6 +110,8 @@ export default function AdminApp({ auth, onOpenLogin, notify }) {
           <Route path="hypados/:id" element={<StockForm auth={auth} notify={notify} section="hypados" />} />
           <Route path="vitrine" element={<Featured auth={auth} notify={notify} />} />
           <Route path="marketing" element={<Marketing auth={auth} notify={notify} />} />
+          <Route path="precos" element={<Pricing auth={auth} notify={notify} />} />
+          <Route path="cupons" element={<Coupons auth={auth} notify={notify} />} />
           <Route path="*" element={<Navigate to="/admin" replace />} />
         </Routes>
       </main>

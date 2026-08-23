@@ -36,6 +36,18 @@ export default function Checkout({ cart, auth, notify, onOpenLogin }) {
   // contrato do useCart: list = [{ key, item, sizeInfo, qty }], total já é a soma dos itens
   const lines = cart.list ?? [];
   const subtotal = cart.total ?? 0;
+  // cupom aplicado na sacola: revalida aqui (o desconto depende do subtotal); o servidor recalcula no checkout
+  const [couponInfo, setCouponInfo] = useState(null);
+  useEffect(() => {
+    let alive = true;
+    if (!cart.coupon || subtotal <= 0) { setCouponInfo(null); return; }
+    api.validateCoupon(cart.coupon, subtotal)
+      .then((r) => { if (alive) setCouponInfo(r.ok ? r : { ok: false, message: r.message }); })
+      .catch(() => { if (alive) setCouponInfo(null); });
+    return () => { alive = false; };
+  }, [cart.coupon, subtotal]);
+  const discount = couponInfo?.ok ? couponInfo.discountBrl : 0;
+  const totalToPay = Math.max(0, subtotal - discount);
   const shipping = 0; // frete embutido no preço — cliente vê "Grátis"
 
   const handleChange = (e) => setForm(f => ({ ...f, [e.target.name]: e.target.value }));
@@ -116,7 +128,8 @@ export default function Checkout({ cart, auth, notify, onOpenLogin }) {
         ...(l.sizeInfo.customization ? { customization: l.sizeInfo.customization } : {})
       })),
       customer: { name: form.name, email: form.email, phone: form.phone, cpf: form.cpf.replace(/\D/g, "") },
-      address: addressPayload
+      address: addressPayload,
+      ...(cart.coupon ? { coupon: cart.coupon } : {}) // o servidor revalida e recalcula o desconto
     };
 
     try {
@@ -252,9 +265,22 @@ export default function Checkout({ cart, auth, notify, onOpenLogin }) {
             <span>Frete</span>
             <span style={{ color: "var(--k-green)" }}>Grátis</span>
           </div>
+          {cart.coupon && (
+            couponInfo?.ok ? (
+              <div style={{ display: "flex", justifyContent: "space-between", color: "var(--k-green)" }}>
+                <span>Desconto ({cart.coupon})</span>
+                <span>-{brl(discount)}</span>
+              </div>
+            ) : couponInfo ? (
+              <div style={{ display: "flex", justifyContent: "space-between", gap: 8, color: "var(--red)", fontSize: 13 }}>
+                <span>Cupom {cart.coupon}: {couponInfo.message}</span>
+                <button type="button" onClick={() => cart.setCoupon(null)} style={{ background: "transparent", border: 0, color: "var(--muted)", cursor: "pointer", textDecoration: "underline", fontFamily: "inherit", fontSize: 12 }}>remover</button>
+              </div>
+            ) : null
+          )}
           <div style={{ display: "flex", justifyContent: "space-between", marginTop: 8, fontSize: 18, fontWeight: 700, color: "var(--k-yellow)" }}>
             <span>Total no Pix</span>
-            <span>{brl(subtotal)}</span>
+            <span>{brl(totalToPay)}</span>
           </div>
         </div>
 

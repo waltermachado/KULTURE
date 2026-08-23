@@ -1,9 +1,12 @@
 /**
- * Tabelas oficiais de conversão de tamanhos da Nike (US -> BR)
- * Fonte: https://static.nike.com.br/web/prd/tabela-de-medidas.html
- * 
- * Atenção: NÃO converta W->M antes de aplicar a tabela.
- * Exemplo: US M 3.5 = 34; US W 5 = 33.5.
+ * Conversão de tamanhos Nike (US -> BR).
+ * Fonte da tabela masculina: https://static.nike.com.br/web/prd/tabela-de-medidas.html
+ *
+ * A escala FEMININA é DERIVADA da masculina (decisão do dono, 23/08/2026 — opção B): o mesmo par físico
+ * (W = M + 1,5) mostra o MESMO BR em qualquer produto, seja listado em M (Kobe/LeBron) ou em W (Sabrina).
+ * As duas tabelas oficiais da Nike BR divergiam ±0,5 nas pontas (W 5 = 33,5 × M 3.5 = 34; W 10.5 = 41 × M 9 = 40,5),
+ * então o mesmo tênis mostrava BR diferente conforme a listagem — do 41 pra cima o feminino saía 0,5 acima.
+ * Venceu a tabela masculina. Exemplo: US M 3.5 = US W 5 = BR 34.
  */
 
 const MENS_TABLE = {
@@ -16,20 +19,13 @@ const MENS_APPROX = {
   '13.5': 46.5, '14': 47, '14.5': 47.5, '15': 48, '15.5': 48.5, '16': 49, '16.5': 49.5, '17': 50, '17.5': 50.5, '18': 51
 };
 
-const WOMENS_TABLE = {
-  '5': 33.5, '5.5': 34, '6': 35, '6.5': 35.5, '7': 36, '7.5': 37, '8': 37.5,
-  '8.5': 38, '9': 39, '9.5': 39.5, '10': 40, '10.5': 41, '11': 41.5, '11.5': 42, '12': 43
-};
-// Fora da tabela oficial (que vai de W 5 a W 12): aproximações derivadas do equivalente masculino
-// (mesmo par: W = M + 1,5 — é o que a própria Nike mostra em "W 12.5 / M 11") mantendo o degrau de +0,5
-// que a tabela feminina oficial tem sobre a masculina no topo (W 12 → 43, enquanto M 10.5 → 42,5).
-// Sequência contínua, sem repetir BR: 43 → 43,5 → 44 → 44,5 → 45,5 → 46,5 → 47 → 47,5 → 48.
-// De W 16,5 em diante (unissex listado na escala feminina, ex. "W 16.5 / M 15"): segue o masculino + 0,5
-// (M 15 → 48 ⇒ W 16,5 → 48,5 … M 18 → 51 ⇒ W 19,5 → 51,5), para nenhum tamanho ficar sem BR no seletor.
+// W = M + 1,5 (mesmo par físico) → o BR vem da tabela masculina. W 5–14,5 cai na tabela oficial;
+// W 15+ cai nas aproximações masculinas; W 4/4,5 (abaixo de M 3.5) seguem o degrau de 0,5 para baixo.
+const wOf = (mUs) => String(Number(mUs) + 1.5);
+const WOMENS_TABLE = Object.fromEntries(Object.entries(MENS_TABLE).map(([us, br]) => [wOf(us), br]));
 const WOMENS_APPROX = {
-  '4': 32.5, '4.5': 33,
-  '12.5': 43.5, '13': 44, '13.5': 44.5, '14': 45.5, '14.5': 46.5, '15': 47, '15.5': 47.5, '16': 48,
-  '16.5': 48.5, '17': 49, '17.5': 49.5, '18': 50, '18.5': 50.5, '19': 51, '19.5': 51.5
+  '4': 33, '4.5': 33.5,
+  ...Object.fromEntries(Object.entries(MENS_APPROX).map(([us, br]) => [wOf(us), br]))
 };
 
 const KIDS_TABLE = {

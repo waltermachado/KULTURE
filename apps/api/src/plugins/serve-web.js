@@ -16,7 +16,7 @@ import fs from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import fastifyStatic from "@fastify/static";
-import { resolveWebUrl } from "../modules/orders/service.js";
+import { resolveWebUrl } from "../lib/site-url.js";
 
 const PRODUCT_PAGE_RE = /^\/(?:pronta-entrega|hypados)\/([^/?#]+)\/?(?:[?#].*)?$/;
 const esc = (v) => String(v ?? "").replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");

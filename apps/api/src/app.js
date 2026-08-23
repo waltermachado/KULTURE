@@ -8,6 +8,10 @@ import fastifyCookie from "@fastify/cookie";
 import rateLimit from "@fastify/rate-limit";
 import { createRequire } from "node:module";
 import { DEFAULT_PRICING_RULES } from "@kulture/shared/pricing";
+import { createPricingService } from "./modules/pricing/service.js";
+import { pricingRoutes } from "./modules/pricing/routes.js";
+import { createCouponService } from "./modules/coupons/service.js";
+import { couponRoutes } from "./modules/coupons/routes.js";
 
 import { loadEnv } from "./config/env.js";
 import { errorHandler } from "./lib/errors.js";
@@ -29,7 +33,10 @@ import { createOrderService } from "./modules/orders/service.js";
 import { orderRoutes } from "./modules/orders/routes.js";
 import { featuredRoutes } from "./modules/featured/routes.js";
 import { marketingRoutes } from "./modules/marketing/routes.js";
+import { canonicalWebUrl, publicWebUrlMisconfigured } from "./lib/site-url.js";
 import { createMarketingService } from "./modules/marketing/service.js";
+import { invoiceRoutes } from "./modules/invoices/routes.js";
+import { createInvoiceService } from "./modules/invoices/service.js";
 import { startAbandonedCheckoutJob } from "./modules/jobs/abandoned-checkout.js";
 import { createStockService } from "./modules/stock/service.js";
 import { stockRoutes } from "./modules/stock/routes.js";
@@ -81,7 +88,9 @@ export async function buildApp(overrides = {}) {
   const images =
     overrides.images ??
     createImageMirror({ publicBase: env.MEDIA_BASE, ...(env.STORAGE_DIR ? { storageDir: env.STORAGE_DIR } : {}), log: app.log });
-  const rules = overrides.pricingRules ?? DEFAULT_PRICING_RULES; // Fase 1: tabela PricingRule
+  // preço: regra global do shared + acréscimos por tipo de tênis editáveis em /admin/precos (settings); sem Postgres → lista fixa
+  const pricing = prisma ? createPricingService({ prisma, log: app.log }) : null;
+  const rules = overrides.pricingRules ?? pricing ?? DEFAULT_PRICING_RULES;
   // pronta entrega (estoque próprio no banco) — só existe com Postgres
   const stock = prisma ? createStockService({ prisma, log: app.log }) : null;
   const catalog = createCatalogService({ scraper, cache, sizesCache, images, rules, top8Terms: env.TOP8_TERMS, testProduct: env.TEST_PRODUCT_ENABLED, stock, log: app.log });
@@ -91,15 +100,20 @@ export async function buildApp(overrides = {}) {
   app.decorate("scraper", scraper);
   app.decorate("images", images);
   app.decorate("catalog", catalog);
+  app.decorate("pricing", pricing);
   app.decorate("stock", stock);
 
   const gateway = overrides.gateway ?? createPaymentGateway(env, app.log);
   const notifier = overrides.notifier ?? createNotifier(env, app.log, prisma);
   const mailer = overrides.mailer ?? createMailer(env, app.log);
-  const orders = overrides.orders ?? createOrderService(env, prisma, catalog, gateway, notifier, app.log, mailer, stock);
+  const coupons = prisma ? createCouponService({ prisma, log: app.log }) : null;
+  app.decorate("coupons", coupons);
+  const orders = overrides.orders ?? createOrderService(env, prisma, catalog, gateway, notifier, app.log, mailer, stock, coupons);
   app.decorate("mailer", mailer);
   // marketing por e-mail (campanhas do backoffice + descadastro) — só com Postgres
   app.decorate("marketing", prisma ? createMarketingService({ prisma, env, mailer, log: app.log }) : null);
+  // nota fiscal do pedido (manual hoje; gancho para o Bling)
+  app.decorate("invoices", prisma ? createInvoiceService({ prisma, env, mailer, log: app.log }) : null);
   app.decorate("orders", orders);
 
   // ---- plugins ----
@@ -163,6 +177,13 @@ export async function buildApp(overrides = {}) {
     await app.register(stockAdminRoutes);
     await app.register(featuredRoutes);
     await app.register(marketingRoutes);
+    await app.register(invoiceRoutes);
+    await app.register(pricingRoutes);
+    await app.register(couponRoutes);
+  }
+
+  if (publicWebUrlMisconfigured(env)) {
+    app.log.warn({ PUBLIC_WEB_URL: env.PUBLIC_WEB_URL, usando: canonicalWebUrl(env) }, "PUBLIC_WEB_URL aponta para o domínio do Railway/localhost — links de e-mail e redirects usam o domínio próprio; corrija a variável");
   }
 
   // ---- ciclo de vida ----

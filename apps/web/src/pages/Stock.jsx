@@ -50,6 +50,7 @@ export default function Stock({ section = "stock", setSelectedProductForSize, on
   const [params, setParams] = useSearchParams();
   const openProduct = (p) => (p?.href ? navigate(p.href) : setSelectedProductForSize(p));
   const cat = CATEGORIES.some((c) => c.key === params.get("cat")) ? params.get("cat") : null;
+  const size = /^\d{2}(\.5)?$/.test(params.get("tam") || "") ? params.get("tam") : null; // filtro por tamanho BR (?tam=41)
   const [all, setAll] = useState({ status: "loading", products: [] });
   const [pinned, setPinned] = useState(null); // destaque configurado no backoffice (Vitrine)
 
@@ -73,9 +74,16 @@ export default function Stock({ section = "stock", setSelectedProductForSize, on
     return () => { alive = false; };
   }, [section, cat]);
 
-  const filtered = useMemo(() => (cat ? all.products.filter((p) => p.category === cat) : all.products), [all.products, cat]);
+  const byCat = useMemo(() => (cat ? all.products.filter((p) => p.category === cat) : all.products), [all.products, cat]);
+  const filtered = useMemo(() => (size ? byCat.filter((p) => p.sizesAvailable?.includes(size)) : byCat), [byCat, size]);
   const catLabel = CATEGORIES.find((c) => c.key === cat)?.label || null;
   const counts = useMemo(() => Object.fromEntries(CATEGORIES.map((c) => [c.key, all.products.filter((p) => p.category === c.key).length])), [all.products]);
+  // tamanhos com par disponível na categoria atual (ordem numérica) + quantos modelos têm cada um
+  const sizeCounts = useMemo(() => {
+    const m = new Map();
+    for (const p of byCat) for (const s of new Set(p.sizesAvailable || [])) m.set(s, (m.get(s) || 0) + 1);
+    return [...m.entries()].sort((a, b) => Number(a[0]) - Number(b[0]));
+  }, [byCat]);
 
   const grid = {
     status: all.status === "loading" ? "loading" : all.status === "error" ? "error" : filtered.length ? "ok" : "empty",
@@ -86,8 +94,10 @@ export default function Stock({ section = "stock", setSelectedProductForSize, on
       : all.status === "error"
         ? "// erro ao carregar"
         : filtered.length
-          ? copy.subOk(filtered.length, catLabel)
-          : copy.subEmpty(catLabel),
+          ? `${copy.subOk(filtered.length, catLabel)}${size ? ` · tamanho ${size}` : ""}`
+          : size
+            ? `// nenhum par no tamanho ${size}${catLabel ? ` em ${catLabel.toLowerCase()}` : ""} agora`
+            : copy.subEmpty(catLabel),
     query: ""
   };
 
@@ -96,19 +106,41 @@ export default function Stock({ section = "stock", setSelectedProductForSize, on
     if (key) next.set("cat", key); else next.delete("cat");
     setParams(next);
   };
+  const setSize = (br) => {
+    const next = new URLSearchParams(params);
+    if (br && br !== size) next.set("tam", br); else next.delete("tam"); // clicar de novo desmarca
+    setParams(next);
+  };
 
   // hero: o configurado no backoffice para (seção, categoria); senão o 1º da lista filtrada (ou do estoque todo)
   const featured = pinned || (all.status === "ok" ? (filtered[0] || all.products[0] || null) : null);
 
   const filters = all.status === "ok" && all.products.length > 0 ? (
-    <div className="grid-filters" role="tablist" aria-label="Filtrar por categoria">
-      <button type="button" role="tab" aria-selected={!cat} className={`cat-chip${!cat ? " on" : ""}`} onClick={() => setCat(null)}>Todos <i>{all.products.length}</i></button>
-      {CATEGORIES.map((c) => (
-        <button type="button" role="tab" key={c.key} aria-selected={cat === c.key} className={`cat-chip${cat === c.key ? " on" : ""}${counts[c.key] ? "" : " zero"}`} onClick={() => setCat(c.key)}>
-          {c.label} <i>{counts[c.key]}</i>
-        </button>
-      ))}
-    </div>
+    <>
+      <div className="grid-filters" role="tablist" aria-label="Filtrar por categoria">
+        <button type="button" role="tab" aria-selected={!cat} className={`cat-chip${!cat ? " on" : ""}`} onClick={() => setCat(null)}>Todos <i>{all.products.length}</i></button>
+        {CATEGORIES.map((c) => (
+          <button type="button" role="tab" key={c.key} aria-selected={cat === c.key} className={`cat-chip${cat === c.key ? " on" : ""}${counts[c.key] ? "" : " zero"}`} onClick={() => setCat(c.key)}>
+            {c.label} <i>{counts[c.key]}</i>
+          </button>
+        ))}
+      </div>
+      {/* filtro por tamanho: só os BR com par disponível agora (na categoria escolhida); clicar de novo limpa */}
+      {sizeCounts.length > 0 && (
+        <div className="grid-filters size-filters" role="group" aria-label="Filtrar por tamanho">
+          <span className="size-filters-label">Tamanho <small>BR</small></span>
+          <button type="button" className={`cat-chip size-chip${!size ? " on" : ""}`} aria-pressed={!size} onClick={() => setSize(null)}>Todos</button>
+          {sizeCounts.map(([br, n]) => (
+            <button type="button" key={br} className={`cat-chip size-chip${size === br ? " on" : ""}`} aria-pressed={size === br} title={`${n} modelo(s) no ${br}`} onClick={() => setSize(br)}>
+              {br}
+            </button>
+          ))}
+          {size && !sizeCounts.some(([br]) => br === size) && (
+            <button type="button" className="cat-chip size-chip on" aria-pressed onClick={() => setSize(null)}>{size} ✕</button>
+          )}
+        </div>
+      )}
+    </>
   ) : null;
 
   return (
@@ -121,7 +153,7 @@ export default function Stock({ section = "stock", setSelectedProductForSize, on
         kicker={catLabel ? copy.catKicker(catLabel) : copy.kicker}
         filters={filters}
         loadingMsg={copy.loading}
-        emptyMsg={catLabel && all.products.length ? copy.emptyCat(catLabel) : copy.empty}
+        emptyMsg={size && all.products.length ? `Nenhum par no tamanho ${size}${catLabel ? ` em ${catLabel.toLowerCase()}` : ""} neste momento — veja “Todos” nos tamanhos, ou chame no WhatsApp que a gente importa pra você.` : catLabel && all.products.length ? copy.emptyCat(catLabel) : copy.empty}
         errorMsg={copy.error}
         context="stock"
       />

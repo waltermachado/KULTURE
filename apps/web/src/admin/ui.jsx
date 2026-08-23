@@ -7,16 +7,22 @@ export { brl };
 
 export const STATUS_LABELS = {
   pending_payment: "Aguardando pagamento",
-  paid: "Pago",
-  sourcing: "Comprando nos EUA",
-  shipped: "Enviado",
+  paid: "Pagamento aprovado",
+  sourcing: "Pedido comprado",
+  in_transit: "Em trânsito internacional",
+  arrived_br: "Chegou no Brasil",
+  shipped: "Enviado pro endereço",
   delivered: "Entregue",
   abandoned: "Abandonado",
   cancelled: "Cancelado",
   refunded: "Estornado"
 };
 
-export const STATUS_ORDER = ["pending_payment", "paid", "sourcing", "shipped", "delivered", "abandoned", "cancelled", "refunded"];
+export const STATUS_ORDER = ["pending_payment", "paid", "sourcing", "in_transit", "arrived_br", "shipped", "delivered", "abandoned", "cancelled", "refunded"];
+/** Pagos ainda sem envio ao cliente — fila "para enviar" (mesma lista de TO_SHIP_STATUSES na api). */
+export const TO_SHIP = ["paid", "sourcing", "in_transit", "arrived_br"];
+/** Próxima etapa "natural" do importado, para o botão rápido da fila de entregas. */
+export const NEXT_STAGE = { paid: "sourcing", sourcing: "in_transit", in_transit: "arrived_br" };
 
 export const METHOD_LABELS = { pix: "Pix", credit_card: "Cartão", debit_card: "Débito", cash: "Dinheiro", transfer: "Transferência", other: "Outro", outro: "Outro", unknown: "—" };
 

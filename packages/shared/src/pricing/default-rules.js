@@ -14,6 +14,8 @@
 //   paymentFeeRate:  taxa do meio de pagamento sobre (produto + frete) em BRL
 //   extraFixedBrl:   acréscimo FIXO em R$ no preço final (depois da comissão, antes do arredondamento ↑99);
 //                    a comissão NÃO incide sobre ele — é margem pura do modelo
+//   extraRate:       acréscimo PERCENTUAL sobre o preço já com comissão (ex.: 0.10 = +10%), antes do
+//                    acréscimo fixo e do arredondamento — também margem pura do modelo
 //   roundUpToEnding: null | reais inteiros (ex.: 99 → arredonda PARA CIMA até o próximo valor terminado em 99:
 //                    1714→1799, 1880→1899, 1899→1899, 1900→1999)
 //   roundEnding:     null | centavos (legado: 90 → arredonda para cima até R$ x,90) — ignorado se roundUpToEnding estiver definido
@@ -21,8 +23,9 @@
 // Fórmula (decisão do dono, 16/08/2026):
 //   Pix = arredondar↑99( [(USD × (1+7%) + 65) × dólar TURISMO] × (1+30%) )
 //
-// Em produção estas regras vivem na tabela PricingRule (editável no admin);
-// este arquivo é o seed/fallback.
+// Em produção a regra global fica aqui e os ACRÉSCIMOS por tipo de tênis vivem no banco (settings
+// "pricing_adjustments", editáveis em /admin/precos) — SEED_PRICE_ADJUSTMENTS é a semente (LeBron 23).
+// DEFAULT_PRICING_RULES (global + LeBron) continua como fallback/uso direto do pacote.
 
 export const DEFAULT_SCOPE_PRIORITY = {
   global: 0,
@@ -31,6 +34,24 @@ export const DEFAULT_SCOPE_PRIORITY = {
   model: 30,
   sku: 40
 };
+
+export const GLOBAL_PRICING_RULE = Object.freeze({
+  id: "default",
+  scope: "global",
+  match: null,
+  commission: { rate: 0.3 },
+  productSurchargeRate: 0.07,
+  shippingUsd: 65.0,
+  importDutyRate: 0.0,
+  paymentFeeRate: 0.0,
+  roundUpToEnding: 99,
+  roundEnding: null
+});
+
+/** Acréscimos por tipo de tênis que o admin edita — formato do painel (termos no nome, R$ e/ou %). */
+export const SEED_PRICE_ADJUSTMENTS = [
+  { id: "lebron-23-acrescimo", name: "LeBron 23", scope: "model", terms: ["LeBron XXIII", "LeBron 23"], extraFixedBrl: 300, extraRate: 0, active: true }
+];
 
 export const DEFAULT_PRICING_RULES = [
   {

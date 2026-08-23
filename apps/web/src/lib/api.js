@@ -36,6 +36,9 @@ export const api = {
   /** tênis em destaque no hero (configurado no backoffice) por seção × categoria; product null = sem config */
   featured: (section, cat) => get(`/api/featured?section=${encodeURIComponent(section)}${cat ? `&cat=${encodeURIComponent(cat)}` : ""}`),
   /** configuração pública: { whatsapp: { phone, url } | null, installments, stock } */
+  /** cupom de desconto: { ok, code, description, discountBrl } ou { ok:false, message } */
+  validateCoupon: (code, subtotalBrl) =>
+    fetch(`${API_BASE}/api/coupons/validate`, { method: "POST", headers: { "Content-Type": "application/json", Accept: "application/json" }, body: JSON.stringify({ code, subtotalBrl }) }).then((r) => r.json()),
   config: () => get("/api/config")
 };
 

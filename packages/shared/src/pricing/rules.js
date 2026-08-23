@@ -70,9 +70,12 @@ export function resolvePricingRules(product, rules) {
   const merged = { matchedRuleIds: [] };
   for (const rule of applicable) {
     merged.matchedRuleIds.push(rule.id ?? "(sem id)");
-    for (const key of ["commission", "productSurchargeRate", "shippingUsd", "importDutyRate", "paymentFeeRate", "extraFixedBrl", "roundUpToEnding", "roundEnding"]) {
+    for (const key of ["commission", "productSurchargeRate", "shippingUsd", "importDutyRate", "paymentFeeRate", "extraFixedBrl", "extraRate", "roundUpToEnding", "roundEnding"]) {
       if (rule[key] !== undefined) merged[key] = rule[key];
     }
+    // acréscimos de várias regras SOMAM (ex.: "LeBron" +300 e "Basquete" +50 → +350); os demais campos sobrescrevem
+    if (rule.extraFixedBrl !== undefined) merged.extraFixedBrl = (merged.__extraFixedSum = (merged.__extraFixedSum || 0) + (Number(rule.extraFixedBrl) || 0));
+    if (rule.extraRate !== undefined) merged.extraRate = (merged.__extraRateSum = (merged.__extraRateSum || 0) + (Number(rule.extraRate) || 0));
   }
 
   if (!merged.commission) throw new Error("Regras resolvidas sem comissão definida.");
@@ -81,6 +84,9 @@ export function resolvePricingRules(product, rules) {
   merged.importDutyRate ??= 0;
   merged.paymentFeeRate ??= 0;
   merged.extraFixedBrl ??= 0;
+  merged.extraRate ??= 0;
+  delete merged.__extraFixedSum;
+  delete merged.__extraRateSum;
   merged.roundUpToEnding ??= null;
   merged.roundEnding ??= null;
   return merged;

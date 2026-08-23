@@ -16,6 +16,7 @@
  */
 import { requireAdmin } from "../../lib/guards.js";
 import { AUDIENCES, unsubscribePage } from "./service.js";
+import { canonicalWebUrl, publicWebUrlMisconfigured } from "../../lib/site-url.js";
 
 const CAMPAIGN_BODY = {
   type: "object",
@@ -48,7 +49,7 @@ export async function marketingRoutes(app) {
       ok = r.ok; email = r.email;
     } catch { /* link inválido → página explica */ }
     if (request.method === "POST") return reply.code(ok ? 200 : 400).send({ ok });
-    return reply.code(ok ? 200 : 400).header("Cache-Control", "no-store").type("text/html; charset=utf-8").send(unsubscribePage({ ok, email, siteUrl: app.env.PUBLIC_WEB_URL }));
+    return reply.code(ok ? 200 : 400).header("Cache-Control", "no-store").type("text/html; charset=utf-8").send(unsubscribePage({ ok, email, siteUrl: canonicalWebUrl(app.env) }));
   };
   app.get("/api/marketing/unsubscribe", { schema: { tags: ["marketing"], summary: "Descadastrar e-mail das campanhas", querystring: UNSUB_QUERY } }, unsubscribeHandler);
   app.post("/api/marketing/unsubscribe", { schema: { tags: ["marketing"], summary: "Descadastro one-click (List-Unsubscribe-Post)", querystring: UNSUB_QUERY } }, unsubscribeHandler);
@@ -94,5 +95,9 @@ export async function marketingRoutes(app) {
 
 async function marketing_mailStatus(app) {
   const status = await app.mailer.verify();
-  return { ...status, from: app.env.MAIL_FROM, fromName: app.env.MAIL_FROM_NAME, replyTo: app.env.MAIL_REPLY_TO || null };
+  return {
+    ...status,
+    from: app.env.MAIL_FROM, fromName: app.env.MAIL_FROM_NAME, replyTo: app.env.MAIL_REPLY_TO || null,
+    siteUrl: canonicalWebUrl(app.env), publicWebUrl: app.env.PUBLIC_WEB_URL, publicWebUrlMisconfigured: publicWebUrlMisconfigured(app.env)
+  };
 }

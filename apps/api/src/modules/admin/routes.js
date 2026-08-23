@@ -17,6 +17,7 @@
  *   POST  /api/admin/customers/:id/revoke-sessions derruba sessões (refresh tokens)
  */
 import { requireAdmin } from "../../lib/guards.js";
+import { requestOrigin } from "../../lib/site-url.js";
 import { AppError } from "../../lib/errors.js";
 import {
   createAdminService, ORDER_STATUS_LABELS, ORDER_TRANSITIONS, SALE_CHANNELS, MANUAL_CHANNELS, MANUAL_PAYMENT_METHODS, MANUAL_INITIAL_STATUSES, PAYMENT_METHOD_LABELS
@@ -181,7 +182,7 @@ export async function adminRoutes(app) {
   }, async (request) => admin.recheckPayment(request.params.number, request.body || {}));
 
   app.post("/api/admin/orders/:number/resend-email", {
-    schema: { tags, body: { type: "object", properties: { kind: { type: "string", enum: ["paid", "registered", "shipped", "delivered"] } } } }
+    schema: { tags, body: { type: "object", properties: { kind: { type: "string", enum: ["paid", "registered", "sourcing", "in_transit", "arrived_br", "shipped", "delivered"] } } } }
   }, async (request) => admin.resendOrderEmail(request.params.number, request.body?.kind || "paid"));
 
   // ─── clientes ──────────────────────────────────────────────────────────
@@ -221,7 +222,7 @@ export async function adminRoutes(app) {
   app.post("/api/admin/customers/:id/password-reset", { schema: { tags } }, async (request) => {
     const reset = await app.auth.createPasswordReset({ userId: request.params.id, requestedBy: "admin" });
     if (!reset) throw AppError.notFound("Cliente não encontrado");
-    const sent = await app.sendPasswordResetEmail(reset);
+    const sent = await app.sendPasswordResetEmail(reset, { webOrigin: requestOrigin(request) });
     app.log.info({ userId: request.params.id, adminId: request.admin.id, mailed: sent.mailed }, "admin: link de reset gerado");
     // o link volta para o admin poder repassar por WhatsApp quando o e-mail não estiver configurado
     return { ok: true, email: reset.user.email, ...sent };

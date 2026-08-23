@@ -65,7 +65,8 @@ export default function Marketing({ auth, notify }) {
   });
   const doTest = () => run("test", async () => {
     const r = await auth.request("/api/admin/marketing/test", { method: "POST", body: JSON.stringify(payload()) });
-    if (r.ok) { setMsg({ ok: true, text: `Teste enviado para ${r.to} (${r.provider || mail?.provider || "e-mail"}). Confira a caixa de entrada — e o spam.` }); notify?.("Teste enviado"); }
+    if (r.ok && r.provider === "log") setMsg({ ok: false, text: "Nada foi enviado: o servidor está com MAIL_PROVIDER=log. Configure MAIL_PROVIDER=mailersend (+ MAILERSEND_API_TOKEN) ou smtp no Railway." });
+    else if (r.ok) { setMsg({ ok: true, text: `Teste enviado para ${r.to} via ${r.provider || mail?.provider || "e-mail"}${r.messageId ? ` (id ${r.messageId})` : ""}. Confira a caixa de entrada — e o spam. Se não chegar, veja Activity no painel da MailerSend.` }); notify?.("Teste enviado"); }
     else setMsg({ ok: false, text: `O provedor recusou o teste: ${r.error || r.skipped || "erro desconhecido"}` });
   });
   const doSend = () => run("send", async () => {
@@ -99,7 +100,10 @@ export default function Marketing({ auth, notify }) {
           <button className="btn" type="button" onClick={loadStatus} disabled={mailBusy}>{mailBusy ? "Testando…" : "Testar conexão"}</button>
           <button className="btn" type="button" disabled={mailBusy || !mail} onClick={async () => {
             setMailBusy(true);
-            try { const r = await auth.request("/api/admin/mail/test", { method: "POST" }); setMsg(r.ok ? { ok: true, text: `E-mail simples enviado para ${r.to}.` } : { ok: false, text: `Falhou: ${r.error || r.skipped}` }); }
+            try {
+              const r = await auth.request("/api/admin/mail/test", { method: "POST" });
+              setMsg(r.ok && r.provider === "log" ? { ok: false, text: "Nada foi enviado: MAIL_PROVIDER=log no servidor." } : r.ok ? { ok: true, text: `E-mail simples enviado para ${r.to} via ${r.provider}${r.messageId ? ` (id ${r.messageId})` : ""}.` } : { ok: false, text: `Falhou: ${r.error || r.skipped}` });
+            }
             catch (e) { setMsg({ ok: false, text: e.message }); } finally { setMailBusy(false); }
           }}>E-mail de teste para mim</button>
         </div>
@@ -117,7 +121,9 @@ export default function Marketing({ auth, notify }) {
             {mail.provider === "smtp" && <span className="mono">{mail.host}:{mail.port} · usuário {mail.user || "—"}</span>}
             {mail.error && <span className="mkt-err">{mail.error}</span>}
             {mail.note && <span className="sub">{mail.note}</span>}
-            {mail.provider === "log" && <span className="mkt-err">MAIL_PROVIDER=log: nada sai de verdade. Em produção use MAIL_PROVIDER=smtp (MailerSend) — ver docs/DEPLOY.md.</span>}
+            {mail.siteUrl && <span>Links nos e-mails: <b>{mail.siteUrl}</b></span>}
+            {mail.publicWebUrlMisconfigured && <span className="mkt-err">PUBLIC_WEB_URL no Railway está como {mail.publicWebUrl} — os links já saem com o domínio próprio, mas corrija a variável para {mail.siteUrl}.</span>}
+            {mail.provider === "log" && <span className="mkt-err">MAIL_PROVIDER=log: nada sai de verdade e o disparo fica bloqueado. Em produção use MAIL_PROVIDER=mailersend (token da API) ou smtp — ver docs/DEPLOY.md §6c.</span>}
           </div>
         )}
       </div>
@@ -144,7 +150,7 @@ export default function Marketing({ auth, notify }) {
           <div className="mkt-actions">
             <button className="btn" type="button" onClick={doPreview} disabled={!canAct}>{busy === "preview" ? "…" : "Ver prévia"}</button>
             <button className="btn" type="button" onClick={doTest} disabled={!canAct}>{busy === "test" ? "Enviando…" : "Enviar teste para mim"}</button>
-            <button className="btn primary" type="button" onClick={doSend} disabled={!canAct || !count}>{busy === "send" ? "Disparando…" : `Enviar campanha${count != null ? ` · ${count}` : ""}`}</button>
+            <button className="btn primary" type="button" onClick={doSend} disabled={!canAct || !count || mail?.provider === "log"}>{busy === "send" ? "Disparando…" : `Enviar campanha${count != null ? ` · ${count}` : ""}`}</button>
           </div>
           <p className="sub mkt-hint">
             Todo e-mail sai com link de descadastro (obrigatório pela LGPD): quem clicar some do público. Quem comprou como convidado
@@ -173,7 +179,17 @@ export default function Marketing({ auth, notify }) {
                 return (
                   <tr key={c.id}>
                     <td>{fmtDateTime(c.startedAt || c.createdAt)}</td>
-                    <td>{c.subject}{c.lastError && <span className="sub" title={c.lastError}>último erro: {c.lastError}</span>}</td>
+                    <td>
+                      {c.subject}
+                      {c.provider && <span className="sub">via {c.provider}</span>}
+                      {c.lastError && <span className="sub" title={c.lastError}>último erro: {c.lastError}</span>}
+                      {Array.isArray(c.errors) && c.errors.length > 0 && (
+                        <details className="mkt-errors">
+                          <summary>{c.errors.length} falha(s) — ver quem</summary>
+                          <ul>{c.errors.map((e, i) => <li key={i}><b>{e.email}</b>: {e.error}</li>)}</ul>
+                        </details>
+                      )}
+                    </td>
                     <td>{audience?.audiences?.[c.audience] || c.audience}</td>
                     <td className="num">{c.sent} / {c.total}</td>
                     <td className="num">{c.failed || "—"}</td>

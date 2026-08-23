@@ -1,3 +1,4 @@
+import { requestOrigin } from "../../lib/site-url.js";
 import { requireAuth } from "../../lib/guards.js";
 
 const COOKIE_NAME = "kulture_refresh";
@@ -203,7 +204,7 @@ export async function authRoutes(app) {
   }, async (request) => {
     const reset = await auth.createPasswordReset({ email: request.body.email, requestedBy: "self" });
     if (reset) {
-      sendResetEmail(reset).catch((err) => app.log.warn({ err: err.message }, "auth: falha ao enviar e-mail de reset"));
+      sendResetEmail(reset, { webOrigin: requestOrigin(request) }).catch((err) => app.log.warn({ err: err.message }, "auth: falha ao enviar e-mail de reset"));
     }
     return { ok: true, message: "Se este e-mail tiver cadastro, enviamos um link para redefinir a senha." };
   });

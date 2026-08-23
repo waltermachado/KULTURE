@@ -1,9 +1,20 @@
 import { expect, test, describe } from 'vitest';
 import { convertUsToBr, parseUsSizes, sizeGroupsOf, sizeLabel, sizeLabelBr, standardSizes } from '../src/sizes/index.js';
 
-describe("feminino acima de W 12 (bug: tamanho repetido no seletor)", () => {
-  test("W 12.5–16 convertem para BR aproximado, sem repetir e sempre crescendo", () => {
-    // Air Jordan 1 Mid SE feminino vai até W 15.5 — antes, brSize saía null e o chip mostrava "12.5 · US W 12.5"
+describe("escala feminina DERIVADA da masculina (23/08 — opção B): mesmo par físico → mesmo BR", () => {
+  test("todo W bate com o BR do M equivalente (W = M + 1,5) — o feminino não sai mais 0,5 acima do 41", () => {
+    // o bug reportado: num modelo listado em W, do 41 pra cima o BR saía 0,5 acima do mesmo par listado em M
+    for (const [mUs, wUs] of [["9", "10.5"], ["9.5", "11"], ["10", "11.5"], ["10.5", "12"], ["11", "12.5"], ["13", "14.5"], ["15", "16.5"], ["18", "19.5"], ["3.5", "5"]]) {
+      const m = convertUsToBr(mUs, `M ${mUs}`);
+      const w = convertUsToBr(wUs, `W ${wUs}`, ["WOMEN"]);
+      expect(w.brSize, `W ${wUs} × M ${mUs}`).toBe(m.brSize);
+    }
+    expect(convertUsToBr("10.5", "W 10.5", ["WOMEN"])).toEqual({ brSize: 40.5, approximate: false });
+    expect(convertUsToBr("11", "W 11", ["WOMEN"])).toEqual({ brSize: 41, approximate: false });
+    expect(convertUsToBr("12", "W 12", ["WOMEN"])).toEqual({ brSize: 42.5, approximate: false });
+  });
+
+  test("W 12–16 sem repetir e sempre crescendo; aproximado só do W 15 (M 13.5) em diante", () => {
     const seq = ["12", "12.5", "13", "13.5", "14", "14.5", "15", "15.5", "16"];
     let prev = 0;
     const seen = new Set();
@@ -14,21 +25,20 @@ describe("feminino acima de W 12 (bug: tamanho repetido no seletor)", () => {
       expect(seen.has(brSize), `W ${us} repetiu BR ${brSize}`).toBe(false);
       seen.add(brSize);
       prev = brSize;
-      expect(approximate, `W ${us}`).toBe(us !== "12"); // só o 12 é da tabela oficial
+      expect(approximate, `W ${us}`).toBe(Number(us) >= 15); // W 14.5 = M 13 ainda é tabela oficial
     }
   });
 
-  test("W 4 e W 4.5 (abaixo da tabela oficial) também ganham BR aproximado", () => {
-    expect(convertUsToBr("4", "W 4", ["WOMEN"])).toEqual({ brSize: 32.5, approximate: true });
-    expect(convertUsToBr("4.5", "W 4.5", ["WOMEN"])).toEqual({ brSize: 33, approximate: true });
-    expect(convertUsToBr("5", "W 5", ["WOMEN"])).toEqual({ brSize: 33.5, approximate: false });
+  test("W 4 e W 4.5 (abaixo de M 3.5) ganham BR aproximado seguindo o degrau", () => {
+    expect(convertUsToBr("4", "W 4", ["WOMEN"])).toEqual({ brSize: 33, approximate: true });
+    expect(convertUsToBr("4.5", "W 4.5", ["WOMEN"])).toEqual({ brSize: 33.5, approximate: true });
+    expect(convertUsToBr("5", "W 5", ["WOMEN"])).toEqual({ brSize: 34, approximate: false });
   });
 
-  test("W 16.5–19.5 (unissex listado na escala feminina, ex. Sabrina 'W 16.5 / M 15') também ganham BR — nenhum chip fica sem número", () => {
-    // antes: M 15 / 17 / 18 apareciam só como "US M 15" no seletor, porque W 16.5 / 18.5 / 19.5 não tinham BR
-    expect(convertUsToBr("16.5", "W 16.5 / M 15", ["MEN", "WOMEN"])).toEqual({ brSize: 48.5, approximate: true });
-    expect(convertUsToBr("18.5", "W 18.5 / M 17", ["MEN", "WOMEN"])).toEqual({ brSize: 50.5, approximate: true });
-    expect(convertUsToBr("19.5", "W 19.5 / M 18", ["MEN", "WOMEN"])).toEqual({ brSize: 51.5, approximate: true });
+  test("W 16.5–19.5 (unissex listado em W, ex. Sabrina 'W 16.5 / M 15') com BR do masculino — nenhum chip sem número", () => {
+    expect(convertUsToBr("16.5", "W 16.5 / M 15", ["MEN", "WOMEN"])).toEqual({ brSize: 48, approximate: true });
+    expect(convertUsToBr("18.5", "W 18.5 / M 17", ["MEN", "WOMEN"])).toEqual({ brSize: 50, approximate: true });
+    expect(convertUsToBr("19.5", "W 19.5 / M 18", ["MEN", "WOMEN"])).toEqual({ brSize: 51, approximate: true });
     let prev = 0;
     for (const us of ["16", "16.5", "17", "17.5", "18", "18.5", "19", "19.5"]) {
       const { brSize } = convertUsToBr(us, `W ${us}`, ["WOMEN"]);
@@ -40,8 +50,9 @@ describe("feminino acima de W 12 (bug: tamanho repetido no seletor)", () => {
   test("rótulo completo para o tamanho grande feminino", () => {
     const { scale, us } = parseUsSizes("13", "W 13 / M 11.5", ["WOMEN"]);
     const { brSize } = convertUsToBr("13", "W 13 / M 11.5", ["WOMEN"]);
-    expect(sizeLabel({ brLabel: String(brSize), brSize, scale, us }, "W")).toBe("BR 44 (US W 13)");
-    expect(sizeLabel({ brLabel: String(brSize), brSize, scale, us }, "M")).toBe("BR 44 (US M 11.5)");
+    expect(brSize).toBe(43.5); // = M 11.5
+    expect(sizeLabel({ brLabel: String(brSize), brSize, scale, us }, "W")).toBe("BR 43.5 (US W 13)");
+    expect(sizeLabel({ brLabel: String(brSize), brSize, scale, us }, "M")).toBe("BR 43.5 (US M 11.5)");
   });
 });
 
@@ -57,10 +68,10 @@ describe('convertUsToBr', () => {
     expect(convertUsToBr('18', 'M 18')).toEqual({ brSize: 51, approximate: true });
   });
 
-  test('converte WOMENS exato (prefixo W)', () => {
-    expect(convertUsToBr('5', 'W 5')).toEqual({ brSize: 33.5, approximate: false });
-    expect(convertUsToBr('10.5', 'W 10.5 / M 9')).toEqual({ brSize: 41, approximate: false });
-    expect(convertUsToBr('12', 'W 12')).toEqual({ brSize: 43, approximate: false });
+  test('converte WOMENS exato (prefixo W) — derivado do masculino', () => {
+    expect(convertUsToBr('5', 'W 5')).toEqual({ brSize: 34, approximate: false });
+    expect(convertUsToBr('10.5', 'W 10.5 / M 9')).toEqual({ brSize: 40.5, approximate: false }); // = M 9
+    expect(convertUsToBr('12', 'W 12')).toEqual({ brSize: 42.5, approximate: false }); // = M 10.5
   });
 
   test('converte INFANTIL exato e aproximado (sufixo C ou Y, sem prefixo forte)', () => {
@@ -77,7 +88,7 @@ describe('convertUsToBr', () => {
     expect(convertUsToBr('10.5', '10.5', ['MEN'])).toEqual({ brSize: 42.5, approximate: false });
     
     // Sem prefixo claro, mas genders tem WOMEN
-    expect(convertUsToBr('5', '5', ['WOMEN'])).toEqual({ brSize: 33.5, approximate: false });
+    expect(convertUsToBr('5', '5', ['WOMEN'])).toEqual({ brSize: 34, approximate: false });
     
     // Genders tem BOYS
     expect(convertUsToBr('6Y', '6Y', ['BOYS'])).toEqual({ brSize: 36.5, approximate: false });

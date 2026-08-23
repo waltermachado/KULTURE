@@ -1,9 +1,10 @@
+import { canonicalWebUrl } from "../../lib/site-url.js";
 import crypto from 'crypto';
 
 export function createMockGateway(env, log) {
   return {
     async createCheckoutLink(order, { webUrl } = {}) {
-      const siteUrl = webUrl || env.PUBLIC_WEB_URL;
+      const siteUrl = webUrl || canonicalWebUrl(env);
       // Retorna uma URL local para simular a aprovação/recusa
       const mockSlug = `mock_slug_${crypto.randomBytes(4).toString('hex')}`;
       const url = `${siteUrl}/mock/infinitepay/${encodeURIComponent(order.number)}?slug=${mockSlug}`;

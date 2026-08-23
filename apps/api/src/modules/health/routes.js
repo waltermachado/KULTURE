@@ -1,4 +1,5 @@
 /** @param {import('fastify').FastifyInstance} app */
+import { canonicalWebUrl, publicWebUrlMisconfigured } from "../../lib/site-url.js";
 export async function healthRoutes(app) {
   app.get(
     "/health",
@@ -12,6 +13,9 @@ export async function healthRoutes(app) {
       // qual gateway está ativo (mock | infinitepay) e qual e-mail (log | mailersend) — para conferir a config em prod
       paymentProvider: app.env.PAYMENT_PROVIDER,
       mailProvider: app.env.MAIL_PROVIDER,
+      // URL que vai nos links de e-mail/redirect; `publicWebUrlMisconfigured` = PUBLIC_WEB_URL aponta para *.railway.app
+      siteUrl: canonicalWebUrl(app.env),
+      publicWebUrlMisconfigured: publicWebUrlMisconfigured(app.env),
       // false = imagens sendo servidas da origem (Nike) porque o storage não é gravável
       storageWritable: typeof app.images?.checkWritable === "function" ? await app.images.checkWritable() : null
     })

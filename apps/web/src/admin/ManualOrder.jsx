@@ -16,7 +16,7 @@ import { SIZE_GROUP_LABELS } from "../lib/format.js";
 const EMPTY_ADDR = { cep: "", street: "", number: "", complement: "", neighborhood: "", city: "", state: "" };
 const CARRIERS = ["Correios", "Jadlog", "Loggi", "DHL", "FedEx", "UPS", "Outro"];
 const PAYMENT_METHODS = ["pix", "credit_card", "debit_card", "cash", "transfer", "other"];
-const INITIAL_STATUSES = ["paid", "sourcing", "shipped", "delivered"];
+const INITIAL_STATUSES = ["paid", "sourcing", "in_transit", "arrived_br", "shipped", "delivered"];
 const GENDER_OPTS = [["", "—"], ["M", "Masculino"], ["W", "Feminino"], ["K", "Infantil"]];
 
 const parseMoney = (v) => {

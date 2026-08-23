@@ -30,7 +30,8 @@ const EMPTY = {
 };
 // Tabela oficial Nike BR (mesma do packages/shared/src/sizes): BR → US, por modelagem — preenche o US ao clicar no BR
 const US_BY_BR_MEN = { "34": "3.5", "34.5": "4", "35": "4.5", "35.5": "5", "36": "5.5", "37": "6", "37.5": "6.5", "38": "7", "39": "7.5", "39.5": "8", "40": "8.5", "40.5": "9", "41": "9.5", "42": "10", "42.5": "10.5", "43": "11", "43.5": "11.5", "44": "12", "45": "12.5", "46": "13", "46.5": "13.5", "47": "14", "48": "15" };
-const US_BY_BR_WOMEN = { "33.5": "5", "34": "5.5", "35": "6", "35.5": "6.5", "36": "7", "37": "7.5", "37.5": "8", "38": "8.5", "39": "9", "39.5": "9.5", "40": "10", "41": "10.5", "41.5": "11", "42": "11.5", "43": "12" };
+// feminino DERIVADO do masculino (W = M + 1,5; mesmo par físico → mesmo BR) — decisão de 23/08
+const US_BY_BR_WOMEN = Object.fromEntries(Object.entries(US_BY_BR_MEN).map(([br, us]) => [br, String(Number(us) + 1.5)]));
 const US_BY_BR_KIDS = { "31": "1Y", "32": "1.5Y", "33": "2.5Y", "34": "3.5Y", "35": "4.5Y", "36": "5.5Y", "36.5": "6Y", "37": "6.5Y", "38": "7Y" };
 const usTableFor = (gender) => (gender === "W" ? US_BY_BR_WOMEN : gender === "K" ? US_BY_BR_KIDS : US_BY_BR_MEN);
 const presetsFor = (gender) => Object.keys(usTableFor(gender)).sort((a, b) => Number(a) - Number(b)); // chaves inteiras vêm antes das decimais → ordena

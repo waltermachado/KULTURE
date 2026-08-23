@@ -1,3 +1,4 @@
+import { requestOrigin } from "../../lib/site-url.js";
 import { AppError } from '../../lib/errors.js';
 import { requireAuth } from '../../lib/guards.js';
 
@@ -8,7 +9,7 @@ export async function orderRoutes(app) {
     const idempotencyKey = req.headers['idempotency-key'];
     if (!idempotencyKey) throw AppError.badRequest('Idempotency-Key é obrigatório no header');
 
-    const { items, customer, address } = req.body;
+    const { items, customer, address, coupon } = req.body;
     let userId = null;
     try {
       await req.jwtVerify();
@@ -18,11 +19,9 @@ export async function orderRoutes(app) {
     }
 
     // origem que o cliente está usando (lojakulture.com.br ou o domínio do Railway) → redirect volta para ela
-    const proto = String(req.headers['x-forwarded-proto'] || req.protocol || 'https').split(',')[0].trim();
-    const host = String(req.headers['x-forwarded-host'] || req.headers.host || '').split(',')[0].trim();
-    const webOrigin = req.headers.origin || (host ? `${proto}://${host}` : null);
+    const webOrigin = requestOrigin(req); // domínio que o cliente está usando → redirect do pagamento volta nele
 
-    return orders.checkout({ items, customer, address }, idempotencyKey, userId, { webOrigin });
+    return orders.checkout({ items, customer, address, coupon }, idempotencyKey, userId, { webOrigin });
   });
 
   app.post('/api/orders/:number/confirm', async (req) => {

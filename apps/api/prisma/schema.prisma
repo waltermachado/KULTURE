@@ -112,6 +112,8 @@ enum OrderStatus {
   cancelled
   refunded
   sourcing
+  in_transit
+  arrived_br
   shipped
   delivered
 }
@@ -128,6 +130,9 @@ model Order {
   address             Json // { cep, street, number, complement, neighborhood, city, state }
   subtotalBrl         Decimal     @map("subtotal_brl")
   shippingBrl         Decimal     @default(0) @map("shipping_brl")
+  /// cupom aplicado no checkout (código em maiúsculas) e o desconto em R$ já abatido do total
+  couponCode          String?     @map("coupon_code")
+  discountBrl         Decimal     @default(0) @map("discount_brl")
   totalBrl            Decimal     @map("total_brl")
   exchangeRate        Decimal     @map("exchange_rate")
   pricingSnapshot     Json        @map("pricing_snapshot") // breakdown interno sumário
@@ -161,8 +166,9 @@ model Order {
   createdAt           DateTime    @default(now()) @map("created_at")
   updatedAt           DateTime    @updatedAt @map("updated_at")
 
-  items  OrderItem[]
-  events OrderEvent[]
+  items   OrderItem[]
+  events  OrderEvent[]
+  invoice OrderInvoice?
 
   user User? @relation(fields: [userId], references: [id])
 
@@ -339,6 +345,10 @@ model MarketingCampaign {
   sent       Int       @default(0)
   failed     Int       @default(0)
   lastError  String?   @map("last_error")
+  /// primeiras 50 falhas: [{ email, error }] — para o painel mostrar o que o provedor recusou
+  errors     Json?
+  /// provedor usado no disparo (smtp | mailersend | log)
+  provider   String?
   createdBy  String?   @map("created_by")
   createdAt  DateTime  @default(now()) @map("created_at")
   startedAt  DateTime? @map("started_at")
@@ -346,4 +356,51 @@ model MarketingCampaign {
 
   @@index([createdAt])
   @@map("marketing_campaigns")
+}
+
+/// Nota fiscal do pedido. Hoje anexada à mão no painel (PDF + XML da NF-e emitida fora do site); `source`/`externalId`
+/// preparam a emissão automática pelo Bling. PDF/XML ficam no banco (como as fotos do estoque) e vão anexados no e-mail.
+model OrderInvoice {
+  id          String    @id @default(cuid())
+  orderId     String    @unique @map("order_id")
+  order       Order     @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  source      String    @default("manual") // manual | bling
+  number      String?
+  series      String?
+  accessKey   String?   @map("access_key") // chave de acesso da NF-e (44 dígitos)
+  issuedAt    DateTime? @map("issued_at")
+  pdfData     Bytes?    @map("pdf_data")
+  pdfBytes    Int?      @map("pdf_bytes")
+  xmlData     String?   @map("xml_data")
+  externalId  String?   @map("external_id") // id da nota no Bling
+  externalUrl String?   @map("external_url") // link do DANFE no Bling, se houver
+  sentAt      DateTime? @map("sent_at")
+  sentTo      String?   @map("sent_to")
+  createdBy   String?   @map("created_by")
+  createdAt   DateTime  @default(now()) @map("created_at")
+  updatedAt   DateTime  @updatedAt @map("updated_at")
+
+  @@map("order_invoices")
+}
+
+/// Cupom de desconto (cadastro em /admin/cupons). `kind` percent = % sobre o subtotal (com teto opcional) ·
+/// fixed = R$ fixo. Validade, mínimo de compra e limite de usos opcionais; `usedCount` sobe quando o pedido é PAGO.
+model Coupon {
+  id             String    @id @default(cuid())
+  code           String    @unique
+  kind           String    @default("percent") // percent | fixed
+  value          Decimal
+  minSubtotalBrl Decimal?  @map("min_subtotal_brl")
+  maxDiscountBrl Decimal?  @map("max_discount_brl")
+  startsAt       DateTime? @map("starts_at")
+  endsAt         DateTime? @map("ends_at")
+  maxUses        Int?      @map("max_uses")
+  usedCount      Int       @default(0) @map("used_count")
+  active         Boolean   @default(true)
+  note           String?
+  createdBy      String?   @map("created_by")
+  createdAt      DateTime  @default(now()) @map("created_at")
+  updatedAt      DateTime  @updatedAt @map("updated_at")
+
+  @@map("coupons")
 }

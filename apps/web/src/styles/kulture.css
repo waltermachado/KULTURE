@@ -283,6 +283,11 @@ footer a:hover,footer .foot-link:hover{color:var(--yellow)}
 .track-step .dot{width:10px;height:10px;background:var(--yellow);flex-shrink:0}
 .track-step.pending .dot{background:var(--hair-3)}
 .track-step.pending{color:var(--muted-3)}
+.track-step.current{color:var(--paper);font-weight:700}
+.track-step.current .dot{box-shadow:0 0 0 3px rgba(246,178,52,.25)}
+.track-steps.compact{margin-top:8px;display:flex;flex-wrap:wrap;gap:2px 14px}
+.track-steps.compact .track-step{padding:2px 0;font-size:12px;gap:7px}
+.track-steps.compact .track-step .dot{width:8px;height:8px}
 .track-note{color:var(--muted-3);display:block;margin-top:10px}
 
 /* ============ SACOLA (drawer) ============ */
@@ -379,7 +384,7 @@ footer a:hover,footer .foot-link:hover{color:var(--yellow)}
 
 /* ============ SEÇÕES: IMPORTADOS × PRONTA ENTREGA (mode bar) ============ */
 /* barra logo abaixo do topo, nas duas vitrines; .mode-track é a "pista" onde a transição do avião vai rodar */
-.mode-bar{position:relative;display:grid;grid-template-columns:repeat(3,1fr);border-bottom:1px solid var(--hair-2);background:var(--ink-2);overflow:hidden}
+.mode-bar{position:relative;display:grid;grid-template-columns:repeat(3,minmax(0,1fr));border-bottom:1px solid var(--hair-2);background:var(--ink-2);overflow:hidden} /* minmax(0,…): 3 colunas de 1/3 exato — "IMPORTADOS" não empurra a grade além da tela */
 /* bloco amarelo que desliza junto com o avião (EUA = esquerda, BR = direita) */
 .mode-hl{position:absolute;top:0;bottom:0;left:0;width:33.3334%;background:var(--yellow);transform:translateX(0);transition:transform .5s cubic-bezier(.4,0,.2,1);z-index:0;pointer-events:none}
 .mode-bar.mode-stock .mode-hl{transform:translateX(100%)}
@@ -407,12 +412,18 @@ footer a:hover,footer .foot-link:hover{color:var(--yellow)}
 /* rastro tracejado em "difference": branco sobre o escuro, escuro sobre o amarelo */
 .mode-trail{position:absolute;z-index:2;height:0;border-top:2px dashed #fff;mix-blend-mode:difference;opacity:0;transform:scaleX(0);pointer-events:none}
 .page-view{position:relative;will-change:auto}
+@media(max-width:900px){
+  .mode-link{padding:12px 14px;gap:10px}
+  .mode-text b{font-size:12px;letter-spacing:.14em}
+}
 @media(max-width:640px){
-  .mode-link{padding:10px 10px;min-height:56px;gap:8px}
-  .mode-flag{min-width:32px;height:22px;font-size:10px;padding:0 5px}
+  /* 3 abas em ~375px: bandeira em cima, nome embaixo, centralizado — cada coluna precisa só da largura do nome */
+  .mode-link{flex-direction:column;justify-content:center;align-items:center;text-align:center;padding:9px 4px 8px;min-height:64px;gap:6px}
+  .mode-flag{min-width:34px;height:22px;font-size:10px;padding:0 6px}
   .mode-flag.ballchip .chip-ball{width:15px;height:15px}
-  .mode-text b{font-size:11px;letter-spacing:.14em}
-  .mode-text small{display:none} /* 3 abas em ~375px: o subtítulo não cabe */
+  .mode-text{align-items:center;width:100%}
+  .mode-text b{font-size:10px;letter-spacing:.1em;line-height:1.15;white-space:normal}
+  .mode-text small{display:none} /* o subtítulo não cabe */
   .mode-ball{width:20px;height:20px;margin:-10px 0 0 -10px}
   .mode-plane{width:22px;height:22px;margin:-11px 0 0 -11px}
 }
@@ -474,6 +485,10 @@ footer a:hover,footer .foot-link:hover{color:var(--yellow)}
 .grid-filters{display:flex;gap:8px;flex-wrap:wrap;padding:14px 0 16px}
 .cat-chip{background:transparent;border:1px solid var(--hair-3);color:var(--muted-2);font-family:inherit;font-size:11px;letter-spacing:.16em;text-transform:uppercase;font-weight:800;padding:0 14px;height:36px;cursor:pointer;display:inline-flex;align-items:center;gap:8px;transition:.15s}
 .cat-chip i{font-style:normal;font-size:10px;letter-spacing:.06em;color:var(--muted);background:var(--ink-3);padding:2px 6px}
+.size-filters{padding-top:0;gap:6px;align-items:center}
+.size-filters-label{font-size:11px;letter-spacing:.22em;text-transform:uppercase;font-weight:800;color:var(--yellow);margin-right:6px}
+.size-filters-label small{color:var(--muted);letter-spacing:.12em;font-size:10px}
+.size-chip{height:34px;padding:0 12px;letter-spacing:.04em;font-size:13px;min-width:46px;justify-content:center}
 .cat-chip:hover{border-color:var(--yellow);color:var(--yellow)}
 .cat-chip.on{background:var(--yellow);border-color:var(--yellow);color:var(--ink)}
 .cat-chip.on i{background:var(--ink);color:var(--yellow)}
@@ -516,3 +531,17 @@ footer a:hover,footer .foot-link:hover{color:var(--yellow)}
 a.btn-add{text-decoration:none;color:inherit}
 @media(max-width:900px){.pp-grid{grid-template-columns:1fr;gap:24px}.pp-gallery{position:static}.pp-gallery .sp-hero-img{height:clamp(260px,70vw,420px)}}
 @media(max-width:640px){.pp{padding:18px 16px 0}.pp-crumbs{margin-bottom:14px}.pp-crumbs .here{display:none}.pp-actions .btn-full{padding:18px}}
+
+/* ============ CUPOM (sacola, antes de finalizar) ============ */
+.coupon-box{margin-bottom:12px}
+.coupon-form{display:flex;gap:0;border:1px solid var(--hair-3)}
+.coupon-form input{flex:1;background:var(--ink-3);border:0;color:var(--paper);font-family:inherit;font-size:13px;letter-spacing:.08em;padding:0 12px;height:42px;outline:none;text-transform:uppercase;min-width:0}
+.coupon-form input:focus{background:var(--ink-2)}
+.coupon-form input::placeholder{text-transform:none;letter-spacing:.02em;color:var(--muted)}
+.coupon-form button{background:transparent;border:0;border-left:1px solid var(--hair-3);color:var(--yellow);font-family:inherit;font-size:11px;font-weight:800;letter-spacing:.16em;text-transform:uppercase;padding:0 14px;cursor:pointer}
+.coupon-form button:disabled{opacity:.45;cursor:not-allowed}
+.coupon-applied{display:flex;align-items:center;justify-content:space-between;gap:10px;border:1px dashed var(--yellow);padding:10px 12px;font-size:12px;color:var(--muted-2)}
+.coupon-applied b{color:var(--yellow);letter-spacing:.08em}
+.coupon-applied button{background:transparent;border:0;color:var(--muted);font-family:inherit;font-size:11px;letter-spacing:.1em;text-transform:uppercase;cursor:pointer;text-decoration:underline}
+.coupon-applied button:hover{color:var(--red)}
+.coupon-msg{display:block;margin-top:6px;font-size:12px;color:var(--red)}

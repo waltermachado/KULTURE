@@ -83,8 +83,8 @@ export default function Dashboard({ auth }) {
             </div>
             <div className="tile">
               <span className="k">Para enviar</span>
-              <span className="v">{(data.byStatus.paid || 0) + (data.byStatus.sourcing || 0)}</span>
-              <span className="d">{data.byStatus.paid || 0} pagos · {data.byStatus.sourcing || 0} comprando nos EUA</span>
+              <span className="v">{(data.byStatus.paid || 0) + (data.byStatus.sourcing || 0) + (data.byStatus.in_transit || 0) + (data.byStatus.arrived_br || 0)}</span>
+              <span className="d">{data.byStatus.paid || 0} pagos · {data.byStatus.sourcing || 0} comprados · {data.byStatus.in_transit || 0} em trânsito · {data.byStatus.arrived_br || 0} no Brasil</span>
             </div>
             <div className="tile">
               <span className="k">Em trânsito</span>
