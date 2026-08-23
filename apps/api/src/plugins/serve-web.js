@@ -37,8 +37,13 @@ export async function productPageHtml(app, request, indexHtml) {
     const price = product.price?.brl != null ? brl(product.price.brl) : null;
     const title = `${product.name}${price ? ` — ${price} no Pix` : ""} | Kulture`;
     const soldOut = !(product.stock?.total > 0);
+    const availability = soldOut
+      ? " · esgotado"
+      : product.section === "hypados"
+        ? " · garimpado nos EUA · importamos pra você · frete grátis"
+        : " · em estoque no Brasil · envio imediato · frete grátis";
     const description = [
-      `${product.sectionLabel || "Pronta entrega"}${soldOut ? " · esgotado" : " · em estoque no Brasil · envio imediato · frete grátis"}`,
+      `${product.sectionLabel || "Pronta entrega"}${availability}`,
       product.description
     ].filter(Boolean).join(" — ").replace(/\s+/g, " ").slice(0, 300);
     const tags = [

@@ -1,7 +1,8 @@
 /**
  * Linha do tempo do pedido (rastreio) — a mesma em "Rastrear pedido" e em "Meus pedidos".
  * Importado: Pagamento aprovado → Pedido comprado → Em trânsito internacional → Chegou no Brasil → Enviado pro seu endereço → Entregue.
- * Pronta entrega / hypados (order.international === false): Pagamento aprovado → Enviado pro seu endereço → Entregue.
+ * Pronta entrega (order.international === false): Pagamento aprovado → Enviado pro seu endereço → Entregue.
+ * Hypados são garimpados nos EUA → seguem o fluxo internacional completo, como os importados.
  * Cancelado / estornado / abandonado: uma frase em vez da linha.
  */
 const STAGES = ["paid", "sourcing", "in_transit", "arrived_br", "shipped", "delivered"];

@@ -118,8 +118,10 @@ export function SizePicker({ item, onClose, onAdd }) {
                   )}
                   {product.source === "stock" && (
                     <span className="sp-launch sp-stock">
-                      <b>{product.section === "hypados" ? "Hypados · pronta entrega" : "Pronta entrega"}</b>
-                      {product.stock?.total === 1 ? " — último par! Está no Brasil e sai assim que o pagamento cair." : " — está no Brasil e sai assim que o pagamento cair, sem espera de importação."}
+                      <b>{product.section === "hypados" ? "Hypados" : "Pronta entrega"}</b>
+                      {product.section === "hypados"
+                        ? (product.stock?.total === 1 ? " — último par disponível! Garimpado nos EUA pelos contatos Kulture BR; importamos pra você assim que o pagamento cair." : " — difícil de achar: garimpado nos EUA pelos contatos Kulture BR; importamos pra você assim que o pagamento cair.")
+                        : (product.stock?.total === 1 ? " — último par! Está no Brasil e sai assim que o pagamento cair." : " — está no Brasil e sai assim que o pagamento cair, sem espera de importação.")}
                     </span>
                   )}
                   {product.source === "stock" && product.description && (

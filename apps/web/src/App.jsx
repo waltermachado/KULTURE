@@ -15,6 +15,7 @@ import Footer from "./components/Footer.jsx";
 import AuthModal from "./components/AuthModal.jsx";
 import CartDrawer from "./components/CartDrawer.jsx";
 import Toast from "./components/Toast.jsx";
+import WhatsappFab from "./components/WhatsappFab.jsx";
 import { SizePicker } from "./components/SizePicker.jsx";
 import { useCart } from "./hooks/useCart.js";
 import { useAuth } from "./hooks/useAuth.js";
@@ -217,6 +218,7 @@ export default function App() {
       </Routes>
       </div>
       {!isAdminArea && <Footer onOpenModal={openModal} onCategory={pickCategory} onSearch={(q) => { search(q); navigate('/'); }} />}
+      {!isAdminArea && <WhatsappFab />}
 
       <div className={`overlay${overlayOpen ? " open" : ""}`} onClick={closeAll} />
       <AuthModal open={modal.open} view={modal.view} onSwitch={(view) => setModal({ open: true, view })} onClose={closeAll} notify={notify} auth={auth} />

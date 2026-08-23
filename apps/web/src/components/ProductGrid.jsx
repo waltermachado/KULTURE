@@ -35,7 +35,9 @@ function Card({ p, i, onAdd }) {
         {p.installmentsLabel && <span className="card-installments">ou {p.installmentsLabel}</span>}
         <span className="card-foot">
           {p.stock
-            ? (soldOut ? "Esgotado · " : p.stockQty === 1 ? "Último par · " : "Em estoque no Brasil · ") + "envio imediato · frete grátis"
+            ? p.section === "hypados"
+              ? (soldOut ? "Esgotado · " : p.stockQty === 1 ? "Último par · " : "Garimpado nos EUA · ") + "importamos pra você · frete grátis"
+              : (soldOut ? "Esgotado · " : p.stockQty === 1 ? "Último par · " : "Em estoque no Brasil · ") + "envio imediato · frete grátis"
             : `${p.launch?.comingSoon ? "Pré-venda · " : ""}Frete grátis · numeração BR`}
         </span>
         <div className="card-actions">

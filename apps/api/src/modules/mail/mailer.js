@@ -11,6 +11,7 @@
  */
 import nodemailer from "nodemailer";
 import { sizeLabelBr } from "@kulture/shared/sizes";
+import { isInternationalOrder } from "../orders/status.js";
 
 /** `transport` (só testes): um transporter do nodemailer já pronto (ex. jsonTransport) no lugar do SMTP real. */
 export function createMailer(env, log, { transport = null } = {}) {
@@ -305,10 +306,12 @@ export function buildOrderCancelledEmail(order, { siteUrl, refunded = false } = 
  *   in_transit → Em trânsito internacional
  *   arrived_br → Chegou no Brasil
  */
+const hasHypados = (order) => (order?.items || []).some((i) => i?.breakdown?.section === "hypados");
 const STAGE_COPY = {
   sourcing: {
     subject: (n) => `Pedido ${n}: compramos o seu par 🛒 — Kulture`,
     title: "Seu par foi comprado na loja oficial nos EUA. 🛒",
+    titleHypados: "Seu par foi garimpado nos EUA pelos contatos Kulture. 🛒",
     body: "Agora ele segue para o trânsito internacional até o Brasil. Te avisamos assim que embarcar.",
     next: "Próxima etapa: em trânsito internacional."
   },
@@ -327,10 +330,11 @@ const STAGE_COPY = {
 };
 export function buildOrderStageEmail(order, stage, { siteUrl } = {}) {
   const c = STAGE_COPY[stage] || STAGE_COPY.sourcing;
+  const title = c.titleHypados && hasHypados(order) ? c.titleHypados : c.title;
   const text = lines([
     `Olá, ${order.customerName}!`,
     "",
-    `${c.title} (pedido ${order.number})`,
+    `${title} (pedido ${order.number})`,
     "",
     c.body,
     "",
@@ -365,7 +369,9 @@ export function buildOrderPaidEmail(order, { siteUrl } = {}) {
     `Pagamento: ${method}`,
     order.receiptUrl ? `Comprovante: ${order.receiptUrl}` : null,
     "",
-    "Agora vamos comprar seu par na loja oficial nos EUA e te avisamos a cada etapa.",
+    isInternationalOrder(order)
+      ? "Agora vamos buscar seu par nos EUA e te avisamos a cada etapa."
+      : "Seu par já está separado no nosso estoque e sai pro seu endereço em breve.",
     siteUrl ? `Acompanhe em: ${siteUrl}` : null,
     "",
     "— Equipe Kulture"

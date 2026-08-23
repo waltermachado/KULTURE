@@ -24,13 +24,13 @@ const COPY = {
   hypados: {
     title: <>HYPA<em>DOS</em></>,
     catTitle: (label) => <>Hypados <em>· {label}</em></>,
-    kicker: "Os drops mais quentes · no Brasil",
+    kicker: "Difíceis de achar · a gente importa",
     catKicker: (label) => `Hypados · ${label}`,
-    subOk: (n, label) => `// ${n} par(es) hypado(s)${label ? ` de ${label.toLowerCase()}` : ""} em estoque no Brasil · envio imediato`,
-    subEmpty: (label) => (label ? `// nenhum ${label.toLowerCase()} hypado agora` : "// novos drops chegando"),
+    subOk: (n, label) => `// ${n} par(es) hypado(s)${label ? ` de ${label.toLowerCase()}` : ""} garimpados nos EUA · importamos pra você`,
+    subEmpty: (label) => (label ? `// nenhum ${label.toLowerCase()} hypado agora` : "// novos garimpos chegando"),
     loading: "Carregando os hypados…",
-    emptyCat: (label) => `Nenhum hypado de ${label.toLowerCase()} agora — veja "Todos" acima, ou chame no WhatsApp que a gente caça o seu grail.`,
-    empty: "Nenhum hypado em estoque neste momento — novos drops chegando. Chame no WhatsApp que a gente caça o seu grail.",
+    emptyCat: (label) => `Nenhum hypado de ${label.toLowerCase()} agora — veja "Todos" acima, ou chame no WhatsApp que a gente garimpa o seu grail.`,
+    empty: "Nenhum hypado disponível neste momento — novos garimpos chegando. Chame no WhatsApp que a gente caça o seu grail.",
     error: "Não foi possível carregar os hypados agora. Tente de novo em instantes."
   }
 };

@@ -358,6 +358,20 @@ O e-mail de "esqueci minha senha" saiu com `https://kulture-api-production.up.ra
   motivo se não valer); `usedCount` só sobe quando o pedido é PAGO (settle; idempotente). Desconto aparece no checkout,
   na visão pública, no admin (Pagamento) e nos e-mails (pago/registrado). Módulo `modules/coupons`; teste `coupons.test.js`.
 
+### 5.6e Hypados = garimpo nos EUA, não estoque no Brasil (23/08, noite)
+
+Abas na ordem **Encomenda · Hypados · Pronta entrega** (ModeBar; highlight 100%/200% trocados). Textos de hypados
+reescritos em ModeBar/Hero/Marquee/Stock.jsx/card/StockProduct/SizePicker/OG: difícil de achar, **garimpado nos EUA
+pelos contatos Kulture BR**, importado sob encomenda (nada de "em estoque no Brasil / envio imediato" — só a pronta
+entrega fala isso). Rastreio: `isInternationalOrder` também é true para `breakdown.section === "hypados"` → pedido de
+hypado mostra as etapas internacionais; e-mail "pedido comprado" vira "garimpado nos EUA" quando há hypado; e-mail de
+pagamento de pedido só-pronta-entrega diz "já está separado no nosso estoque" em vez de "vamos comprar nos EUA".
+A mecânica não mudou: hypados seguem sendo `stock_products` (seção HY-) com reserva por tamanho no checkout.
+Também: **WhatsApp flutuante** (`components/WhatsappFab.jsx`) — botão verde fixo no canto inferior direito em todas as
+páginas da loja (menos /admin), com pulso sutil; desktop mostra "Fale com a gente", mobile só a bolinha; z-index 80
+(sacola/modal cobrem quando abertos). Número via `useSiteConfig` (WHATSAPP_CONTACT_PHONE → fallback do rodapé).
+As faixas "não achou?" das vitrines continuam.
+
 ### 5.7 Etapas de rastreio do pedido (23/08)
 
 Status novos `in_transit` e `arrived_br` (migração `order_stages`). Fonte única: `modules/orders/status.js`

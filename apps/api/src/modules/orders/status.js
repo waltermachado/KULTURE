@@ -8,7 +8,8 @@
  *   arrived_br  → Chegou no Brasil
  *   shipped     → Enviado pro seu endereço (com rastreio)
  *   delivered   → Entregue
- * Pronta entrega / hypados (estoque no Brasil): paid → shipped → delivered — as etapas dos EUA não aparecem.
+ * Pronta entrega (estoque no Brasil): paid → shipped → delivered — as etapas dos EUA não aparecem.
+ * Hypados NÃO estão no Brasil: são garimpados nos EUA pelos contatos Kulture, então seguem o fluxo internacional.
  */
 export const ORDER_STATUS_LABELS = {
   pending_payment: "Aguardando pagamento",
@@ -49,9 +50,9 @@ export const ORDER_TRANSITIONS = {
   refunded: []
 };
 
-/** true quando algum item vem da Nike (importado) — define se o rastreio mostra as etapas internacionais. */
+/** true quando algum item vem de fora (Nike importado ou hypado garimpado nos EUA) — o rastreio mostra as etapas internacionais. */
 export function isInternationalOrder(order) {
   const items = order?.items || [];
   if (!items.length) return true;
-  return items.some((i) => i?.breakdown?.source !== "stock");
+  return items.some((i) => i?.breakdown?.source !== "stock" || i?.breakdown?.section === "hypados");
 }

@@ -72,7 +72,9 @@ describe("etapas de rastreio do pedido", { timeout: 90000 }, () => {
     expect(ORDER_TRANSITIONS.paid).toEqual(expect.arrayContaining(["sourcing", "in_transit", "arrived_br", "shipped"]));
     expect(ORDER_TRANSITIONS.in_transit).not.toContain("sourcing");
     expect(ORDER_TRANSITIONS.arrived_br).not.toContain("delivered"); // entregue só depois de enviado
-    expect(isInternationalOrder({ items: [{ breakdown: { source: "stock" } }] })).toBe(false);
+    expect(isInternationalOrder({ items: [{ breakdown: { source: "stock", section: "stock" } }] })).toBe(false);
+    // hypado não está no Brasil (garimpado nos EUA) → rastreio internacional
+    expect(isInternationalOrder({ items: [{ breakdown: { source: "stock", section: "hypados" } }] })).toBe(true);
     expect(isInternationalOrder({ items: [{ breakdown: { source: "stock" } }, { breakdown: { source: "nike" } }] })).toBe(true);
     expect(isInternationalOrder({ items: [{ breakdown: {} }] })).toBe(true);
   });

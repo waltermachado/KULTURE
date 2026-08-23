@@ -20,19 +20,19 @@ export default function Hero({ featured, onPick, variant = "import" }) {
   const drop = p ? (isHypados ? "HYPADOS" : isStock ? "PRONTA ENTREGA" : "DROP 01") : "KULTURE BR";
   const dropSub = p
     ? (isStock ? `${cat} / em estoque no Brasil` : `${cat} / importado dos EUA`)
-    : (isHypados ? "Drops hypados · envio imediato" : isStock ? "Estoque próprio · envio imediato" : "Importados originais dos EUA");
+    : (isHypados ? "Garimpados nos EUA · importados pra você" : isStock ? "Estoque próprio · envio imediato" : "Importados originais dos EUA");
   const desc = p
     ? (isHypados
-        ? "O par mais hypado do momento, original e já no Brasil: sai do nosso estoque assim que o pagamento cai. Numeração BR e preço final fechado."
+        ? "O par mais hypado e difícil de achar — original, garimpado nos EUA pelos contatos Kulture BR e importado pra você. Numeração BR e preço final fechado."
         : isStock
         ? "Par original já no Brasil: sai do nosso estoque assim que o pagamento cai, sem esperar importação. Numeração BR e preço final fechado."
         : "Par original comprado na loja oficial nos EUA e entregue na sua porta, com numeração brasileira e preço final fechado — o que você vê é o que você paga.")
     : (isHypados
-        ? "Os pares mais hypados do momento, originais e em estoque no Brasil — sem espera de importação, numeração BR e frete grátis."
+        ? "Os pares mais hypados e difíceis de encontrar — originais, garimpados nos EUA pelos contatos Kulture BR e importados pra você, com numeração BR, preço final fechado e frete grátis."
         : isStock
         ? "Pares originais em estoque aqui no Brasil, prontos para sair. Sem espera de importação, numeração BR e frete grátis."
         : "Os drops mais quentes de basquete, corrida e casual, importados dos EUA com preço final fechado, numeração BR e frete grátis.");
-  const priceSmall = `${p?.installmentsLabel ? `ou ${p.installmentsLabel} · ` : ""}${isStock ? "envio imediato" : "numeração BR"}`;
+  const priceSmall = `${p?.installmentsLabel ? `ou ${p.installmentsLabel} · ` : ""}${isHypados ? "importado pra você" : isStock ? "envio imediato" : "numeração BR"}`;
 
   return (
     <section className={`hero${isStock ? " hero-stock" : ""}`} id="top">

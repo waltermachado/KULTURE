@@ -185,11 +185,17 @@ export default function StockProduct({ section = "stock", onAdd, onOpenCart, not
           {installments && <span className="pp-inst">ou {installments}</span>}
           <span className="sp-launch sp-stock">
             <b>{sec.label}</b>
-            {soldOut
-              ? " — esgotado no momento. Chama no WhatsApp que a gente avisa quando voltar ou importa pra você."
-              : product.stock?.total === 1
-                ? " — último par! Está no Brasil e sai assim que o pagamento cair."
-                : " — está no Brasil e sai assim que o pagamento cair, sem espera de importação. Frete grátis."}
+            {product.section === "hypados"
+              ? soldOut
+                ? " — esgotado no momento. Chama no WhatsApp que a gente garimpa o seu grail."
+                : product.stock?.total === 1
+                  ? " — último par disponível! Difícil de achar: garimpado nos EUA pelos contatos Kulture BR e importado pra você assim que o pagamento cair."
+                  : " — difícil de achar: garimpado nos EUA pelos contatos Kulture BR e importado pra você assim que o pagamento cair. Frete grátis."
+              : soldOut
+                ? " — esgotado no momento. Chama no WhatsApp que a gente avisa quando voltar ou importa pra você."
+                : product.stock?.total === 1
+                  ? " — último par! Está no Brasil e sai assim que o pagamento cair."
+                  : " — está no Brasil e sai assim que o pagamento cair, sem espera de importação. Frete grátis."}
           </span>
           {product.description && <p className="pp-desc">{product.description}</p>}
 
@@ -234,7 +240,9 @@ export default function StockProduct({ section = "stock", onAdd, onOpenCart, not
           </div>
           <ul className="pp-trust">
             <li>100% original · na caixa</li>
-            <li>Em estoque no Brasil · envio imediato</li>
+            {product.section === "hypados"
+              ? <li>Garimpado nos EUA · contatos Kulture BR</li>
+              : <li>Em estoque no Brasil · envio imediato</li>}
             <li>Frete grátis · Pix ou cartão</li>
           </ul>
         </div>
