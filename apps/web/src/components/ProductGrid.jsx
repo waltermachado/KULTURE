@@ -1,6 +1,6 @@
 import ProductMedia from "./ProductMedia.jsx";
 import WhatsappCta from "./WhatsappCta.jsx";
-import { brl, BY_YOU_DELIVERY_DAYS } from "../lib/format.js";
+import { brl, BY_YOU_DELIVERY_DAYS, HYPADOS_DELIVERY_LABEL } from "../lib/format.js";
 
 function Card({ p, i, onAdd }) {
   const soldOut = p.stock && p.stockQty === 0;
@@ -16,8 +16,9 @@ function Card({ p, i, onAdd }) {
       <div className="card-top">
         <span className="card-brand">{p.brand}</span>
         <span className="card-flags">
-          <span className={`badge${p.badgeRed ? " red" : ""}${p.launch?.comingSoon ? " pre" : ""}${p.stock && !p.badgeRed ? " stock" : ""}`}>{p.badge}</span>
+          <span className={`badge${p.badgeRed ? " red" : ""}${p.launch?.comingSoon ? " pre" : ""}${p.stock && !p.badgeRed ? (p.section === "hypados" ? " hypados" : " stock") : ""}`}>{p.badge}</span>
           {p.byYou && <span className="card-eta">{BY_YOU_DELIVERY_DAYS} dias para entrega</span>}
+          {p.section === "hypados" && <span className="card-eta">{HYPADOS_DELIVERY_LABEL}</span>}
         </span>
       </div>
       <div className="card-ghost">{String(i + 1).padStart(2, "0")}</div>

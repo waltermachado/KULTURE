@@ -19,7 +19,7 @@ export default function Hero({ featured, onPick, variant = "import" }) {
 
   const drop = p ? (isHypados ? "HYPADOS" : isStock ? "PRONTA ENTREGA" : "DROP 01") : "KULTURE BR";
   const dropSub = p
-    ? (isStock ? `${cat} / em estoque no Brasil` : `${cat} / importado dos EUA`)
+    ? (isHypados ? `${cat} / garimpando direto dos EUA` : isStock ? `${cat} / em estoque no Brasil` : `${cat} / importado dos EUA`)
     : (isHypados ? "Garimpados nos EUA · importados pra você" : isStock ? "Estoque próprio · envio imediato" : "Importados originais dos EUA");
   const desc = p
     ? (isHypados
@@ -32,10 +32,10 @@ export default function Hero({ featured, onPick, variant = "import" }) {
         : isStock
         ? "Pares originais em estoque aqui no Brasil, prontos para sair. Sem espera de importação, numeração BR e frete grátis."
         : "Os drops mais quentes de basquete, corrida e casual, importados dos EUA com preço final fechado, numeração BR e frete grátis.");
-  const priceSmall = `${p?.installmentsLabel ? `ou ${p.installmentsLabel} · ` : ""}${isHypados ? "importado pra você" : isStock ? "envio imediato" : "numeração BR"}`;
+  const priceSmall = `${p?.installmentsLabel ? `ou ${p.installmentsLabel} · ` : ""}${isHypados ? "30-35 dias para entrega" : isStock ? "envio imediato" : "numeração BR"}`;
 
   return (
-    <section className={`hero${isStock ? " hero-stock" : ""}`} id="top">
+    <section className={`hero${isStock ? " hero-stock" : ""}${isHypados ? " hero-hypados" : ""}`} id="top">
       <div className="hero-copy">
         <div className="hero-drop">
           <b>{drop}</b>

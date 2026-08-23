@@ -20,6 +20,7 @@
   --hair-3:#2A2A2A;
   --red:#E63946;
   --green:#3DDC84;
+  --purple:#B58CFF; /* cor dos HYPADOS (selos/chips); pronta entrega segue verde */
   /* aliases usados por componentes antigos */
   --amarelo:var(--yellow);
   --amarelo-claro:var(--yellow-2);
@@ -452,12 +453,18 @@ footer a:hover,footer .foot-link:hover{color:var(--yellow)}
 /* ============ PRONTA ENTREGA (cards, sacola, seletor) ============ */
 .badge.stock{background:var(--green);color:var(--ink)}
 .card:hover .badge.stock{background:var(--ink);color:var(--green)}
+.badge.hypados{background:var(--purple);color:var(--ink)}
+.card:hover .badge.hypados{background:var(--ink);color:var(--purple)}
 .tag-pre.tag-stock{color:var(--green);border-color:var(--green)}
+.tag-pre.tag-hypados{color:var(--purple);border-color:var(--purple)}
 .btn-add:disabled{opacity:.45;cursor:not-allowed;text-decoration:none}
 .sp-launch.sp-stock{border-left-color:var(--green)}
 .sp-launch.sp-stock b{color:var(--green)}
+.sp-launch.sp-hypados{border-left-color:var(--purple)}
+.sp-launch.sp-hypados b{color:var(--purple)}
 .sp-desc{margin-top:10px;font-size:13px;line-height:1.6;color:var(--muted-2);white-space:pre-line;max-height:160px;overflow:auto}
 .hero-stock .hero-drop b:first-child{background:var(--green)}
+.hero-hypados .hero-drop b:first-child{background:var(--purple)}
 
 /* ============ SELETOR: Nike By You (o cliente só vê numeração BR — sem abas de modelagem) ============ */
 .sp-byyou-flag{margin:0 22px 8px}

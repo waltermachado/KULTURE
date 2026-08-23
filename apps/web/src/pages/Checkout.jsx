@@ -2,7 +2,7 @@ import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { api } from "../lib/api.js";
 import PasswordInput from "../components/PasswordInput.jsx";
-import { brl, sizeText, customText } from "../lib/format.js";
+import { brl, sizeText, customText, isHypadosItem } from "../lib/format.js";
 
 export default function Checkout({ cart, auth, notify, onOpenLogin }) {
   const navigate = useNavigate();
@@ -247,7 +247,7 @@ export default function Checkout({ cart, auth, notify, onOpenLogin }) {
             <div key={key} style={{ display: "flex", gap: 12, fontSize: 14 }}>
               <img src={item.img} alt={item.name} style={{ width: 50, height: 50, objectFit: "cover", borderRadius: 4, background: "#222" }} />
               <div>
-                <div style={{ fontWeight: 600 }}>{item.name}{item.launch?.comingSoon ? <em className="tag-pre">Pré-venda</em> : null}{item.stock ? <em className="tag-pre tag-stock">Pronta entrega</em> : null}</div>
+                <div style={{ fontWeight: 600 }}>{item.name}{item.launch?.comingSoon ? <em className="tag-pre">Pré-venda</em> : null}{item.stock ? (isHypadosItem(item) ? <em className="tag-pre tag-hypados">Hypados</em> : <em className="tag-pre tag-stock">Pronta entrega</em>) : null}</div>
                 <div style={{ color: "#888", fontSize: 12 }}>Tam: {sizeText(sizeInfo)} × {qty}</div>
                 {customText(sizeInfo?.customization) && <div style={{ color: "#888", fontSize: 12 }}>By You · {customText(sizeInfo.customization)}</div>}
                 <div style={{ color: "var(--k-yellow)", fontWeight: 700 }}>{brl((item.price || 0) * qty)}</div>

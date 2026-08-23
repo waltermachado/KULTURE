@@ -3,7 +3,7 @@ import { Link, useLocation, useNavigate, useParams } from "react-router-dom";
 import ProductMedia from "../components/ProductMedia.jsx";
 import WhatsappCta from "../components/WhatsappCta.jsx";
 import { api } from "../lib/api.js";
-import { brl, toCard, sizeText } from "../lib/format.js";
+import { brl, toCard, sizeText, HYPADOS_DELIVERY_LABEL } from "../lib/format.js";
 
 /** Seções de estoque próprio — caminho, nome e selo (mesmos de STOCK_SECTIONS na api). */
 const SECTION = {
@@ -127,7 +127,7 @@ export default function StockProduct({ section = "stock", onAdd, onOpenCart, not
   }
 
   const badgeLabel = product.badge || sec.badge;
-  const badgeClass = product.badge ? " red" : " stock";
+  const badgeClass = product.badge ? " red" : product.section === "hypados" ? " hypados" : " stock";
 
   return (
     <section className="pp">
@@ -172,7 +172,10 @@ export default function StockProduct({ section = "stock", onAdd, onOpenCart, not
         <div className="pp-info">
           <div className="pp-top">
             <span className="card-brand">{product.brand || "Nike"}</span>
-            <span className={`badge${badgeClass}`}>{badgeLabel}</span>
+            <span className="card-flags">
+              <span className={`badge${badgeClass}`}>{badgeLabel}</span>
+              {product.section === "hypados" && <span className="card-eta">{HYPADOS_DELIVERY_LABEL}</span>}
+            </span>
           </div>
           <h1>{product.name}</h1>
           {(product.categoryLabel || product.colorDescription) && (
@@ -183,14 +186,14 @@ export default function StockProduct({ section = "stock", onAdd, onOpenCart, not
             {product.price?.fullBrl && <span className="price-old">{brl(product.price.fullBrl)}</span>}
           </div>
           {installments && <span className="pp-inst">ou {installments}</span>}
-          <span className="sp-launch sp-stock">
+          <span className={`sp-launch ${product.section === "hypados" ? "sp-hypados" : "sp-stock"}`}>
             <b>{sec.label}</b>
             {product.section === "hypados"
               ? soldOut
                 ? " — esgotado no momento. Chama no WhatsApp que a gente garimpa o seu grail."
                 : product.stock?.total === 1
-                  ? " — último par disponível! Difícil de achar: garimpado nos EUA pelos contatos Kulture BR e importado pra você assim que o pagamento cair."
-                  : " — difícil de achar: garimpado nos EUA pelos contatos Kulture BR e importado pra você assim que o pagamento cair. Frete grátis."
+                  ? ` — último par disponível! Difícil de achar: garimpado nos EUA pelos contatos Kulture BR e importado pra você assim que o pagamento cair. ${HYPADOS_DELIVERY_LABEL}.`
+                  : ` — difícil de achar: garimpado nos EUA pelos contatos Kulture BR e importado pra você assim que o pagamento cair. ${HYPADOS_DELIVERY_LABEL}. Frete grátis.`
               : soldOut
                 ? " — esgotado no momento. Chama no WhatsApp que a gente avisa quando voltar ou importa pra você."
                 : product.stock?.total === 1
