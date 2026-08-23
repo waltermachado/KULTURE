@@ -3,7 +3,7 @@ import PasswordInput from "../components/PasswordInput.jsx";
 import { useNavigate } from "react-router-dom";
 import { brl } from "../lib/format.js";
 import { StatusPill, fmtDateTime, fmtCpf, fmtPhone } from "../admin/ui.jsx";
-import { customText } from "../lib/format.js";
+import { customText, sizeText } from "../lib/format.js";
 
 const EMPTY_ADDR = { cep: "", street: "", number: "", complement: "", neighborhood: "", city: "", state: "" };
 
@@ -30,6 +30,7 @@ export default function Account({ auth, onOpenLogin, notify }) {
     setForm({
       name: auth.user.name || "",
       phone: auth.user.phone || "",
+      marketingOptIn: auth.user.marketingOptIn !== false,
       cpf: auth.user.cpf || "",
       address: { ...EMPTY_ADDR, ...(auth.user.address || {}) }
     });
@@ -73,6 +74,7 @@ export default function Account({ auth, onOpenLogin, notify }) {
     try {
       await auth.updateProfile({
         name: form.name.trim(),
+        marketingOptIn: Boolean(form.marketingOptIn),
         phone: form.phone || null,
         cpf: form.cpf || null,
         address: Object.values(form.address).some(Boolean) ? { ...form.address, cep: form.address.cep.replace(/\D/g, "") } : null
@@ -125,7 +127,7 @@ export default function Account({ auth, onOpenLogin, notify }) {
                     </div>
                     <div className="total">{brl(o.totalBrl)}</div>
                     <div className="items">
-                      {o.items.map((it, i) => <div key={i}>{it.quantity}× {it.name} — {it.sizeLabel || `BR ${it.brLabel ?? "?"}${it.nikeSize && String(it.nikeSize) !== String(it.brLabel) ? ` (US ${it.nikeSize})` : ""}`}{it.customization ? <span style={{ color: "var(--muted)" }}> · By You{customText(it.customization) ? `: ${customText(it.customization)}` : ""}</span> : null}</div>)}
+                      {o.items.map((it, i) => <div key={i}>{it.quantity}× {it.name} — {sizeText(it)}{it.customization ? <span style={{ color: "var(--muted)" }}> · By You{customText(it.customization) ? `: ${customText(it.customization)}` : ""}</span> : null}</div>)}
                     </div>
                     {(o.trackingCode || o.status === "shipped" || o.status === "delivered") && (
                       <div className="track">
@@ -166,6 +168,10 @@ export default function Account({ auth, onOpenLogin, notify }) {
                 <div className="field"><label>Cidade</label><input value={form.address.city} onChange={fa("city")} /></div>
                 <div className="field f04"><label>UF</label><input value={form.address.state} onChange={(e) => setForm((s) => ({ ...s, address: { ...s.address, state: e.target.value.toUpperCase().slice(0, 2) } }))} maxLength={2} /></div>
               </div>
+              <label className="opt-in">
+                <input type="checkbox" checked={Boolean(form.marketingOptIn)} onChange={(e) => setForm((s) => ({ ...s, marketingOptIn: e.target.checked }))} />
+                <span>Quero receber novidades, drops e promoções por e-mail <small>(e-mails sobre os seus pedidos chegam sempre)</small></span>
+              </label>
               <button className="btn-full" type="submit" disabled={saving}>{saving ? "Salvando…" : "Salvar cadastro"}</button>
               {profileMsg && <p className={`msg ${profileMsg.ok ? "ok" : "err"}`}>{profileMsg.text}</p>}
             </form>

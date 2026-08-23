@@ -61,8 +61,9 @@ describe("Nike By You", { timeout: 60000 }, () => {
     const order = await prisma.order.findUnique({ where: { number: orderNumber }, include: { items: true } });
     expect(order.items[0].sizeLabel).toBe("BR 38 (US W 8.5)");
     expect(order.items[0].customization).toEqual({ textLeft: "KULTURE", numberLeft: "8", textRight: "MAMBA", numberRight: "24" });
-    // visão pública do pedido traz o rótulo e a personalização (página de confirmação / minha conta)
+    // visão pública do pedido traz o rótulo SÓ em BR (o US não vaza para o cliente) e a personalização
     const pub = await app.inject({ method: "GET", url: `/api/orders/${orderNumber}` });
-    expect(pub.json().items[0]).toMatchObject({ sizeLabel: "BR 38 (US W 8.5)", customization: { textLeft: "KULTURE" } });
+    expect(pub.json().items[0]).toMatchObject({ sizeLabel: "BR 38", customization: { textLeft: "KULTURE" } });
+    expect(pub.json().items[0].nikeSize).toBeUndefined();
   });
 });

@@ -39,6 +39,8 @@ model User {
   address        Json?
   role           Role                 @default(customer)
   lastLoginAt    DateTime?            @map("last_login_at")
+  /// quer receber novidades/promoções por e-mail (campanhas do backoffice); o link de descadastro desliga
+  marketingOptIn Boolean              @default(true) @map("marketing_opt_in")
   createdAt      DateTime             @default(now()) @map("created_at")
   updatedAt      DateTime             @updatedAt @map("updated_at")
   refreshTokens  RefreshToken[]
@@ -310,4 +312,38 @@ model StockImage {
 
   @@index([productId])
   @@map("stock_images")
+}
+
+/// E-mails que pediram para NÃO receber campanhas (link de descadastro / caixa em /conta). Vale também para quem
+/// comprou como convidado (não tem users.marketing_opt_in). Nunca se apaga: quem voltar a querer marca na conta.
+model MarketingUnsubscribe {
+  email     String   @id
+  reason    String   @default("link") // link | account | admin
+  createdAt DateTime @default(now()) @map("created_at")
+
+  @@map("marketing_unsubscribes")
+}
+
+/// Campanha de e-mail enviada pelo backoffice (/admin/marketing). O envio roda em segundo plano; total/sent/failed
+/// contam o progresso. Sem log por destinatário (v1): o que importa é o resumo e o último erro.
+model MarketingCampaign {
+  id         String    @id @default(cuid())
+  subject    String
+  body       String
+  ctaLabel   String?   @map("cta_label")
+  ctaUrl     String?   @map("cta_url")
+  imageUrl   String?   @map("image_url")
+  audience   String    @default("all") // all | buyers | accounts
+  status     String    @default("draft") // draft | sending | sent | failed
+  total      Int       @default(0)
+  sent       Int       @default(0)
+  failed     Int       @default(0)
+  lastError  String?   @map("last_error")
+  createdBy  String?   @map("created_by")
+  createdAt  DateTime  @default(now()) @map("created_at")
+  startedAt  DateTime? @map("started_at")
+  finishedAt DateTime? @map("finished_at")
+
+  @@index([createdAt])
+  @@map("marketing_campaigns")
 }

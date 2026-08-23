@@ -111,7 +111,7 @@ export default function Checkout({ cart, auth, notify, onOpenLogin }) {
         styleColor: l.item.styleColor,
         nikeSize: l.sizeInfo.nikeSize,
         quantity: l.qty,
-        // modelagem escolhida (Masculino/Feminino/Infantil) e, no Nike By You, a personalização por pé
+        // o cliente escolhe só o BR; o US do pedido a api tira da escala do SKU (sacola antiga pode ainda trazer pickedGender)
         ...(l.sizeInfo.pickedGender ? { sizeGender: l.sizeInfo.pickedGender } : {}),
         ...(l.sizeInfo.customization ? { customization: l.sizeInfo.customization } : {})
       })),

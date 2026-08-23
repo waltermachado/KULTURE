@@ -27,6 +27,8 @@ export const STOCK_SECTIONS = {
   hypados: { label: "Hypados", codePrefix: "HY", path: "/hypados", badge: "HYPADOS" }
 };
 const sectionOf = (v) => (STOCK_SECTIONS[v] ? v : "stock");
+/** Caminho público da página do tênis ("/pronta-entrega/nike-dunk-low-panda") — o link que vai para o Instagram. */
+export const stockProductPath = (p) => `${STOCK_SECTIONS[sectionOf(p?.section)].path}/${p?.slug || p?.code}`;
 
 /** Categorias = as 3 abas da loja. Chave interna igual à do catálogo Nike (inferCategory), rótulo em PT para o site. */
 export const STOCK_CATEGORIES = { basketball: "Basquete", lifestyle: "Casual", running: "Corrida" };
@@ -179,6 +181,7 @@ export function createStockService({ prisma, log = null }) {
       source: "stock",
       section,
       sectionLabel: STOCK_SECTIONS[section].label,
+      path: `${STOCK_SECTIONS[section].path}/${row.slug || row.code}`, // página própria do tênis (link compartilhável)
       readyToShip: true,
       gender,
       genderLabel: STOCK_GENDERS[gender] || null,
@@ -198,6 +201,7 @@ export function createStockService({ prisma, log = null }) {
       slug: row.slug,
       section: sectionOf(row.section),
       sectionLabel: STOCK_SECTIONS[sectionOf(row.section)].label,
+      path: `${STOCK_SECTIONS[sectionOf(row.section)].path}/${row.slug || row.code}`,
       name: row.name,
       subtitle: row.subtitle,
       category: row.category,
@@ -242,6 +246,18 @@ export function createStockService({ prisma, log = null }) {
       where: { code: String(code).trim().toUpperCase(), ...(includeInactive ? {} : { active: true }) },
       include: withSizes
     });
+    return row ? toPublic(row) : null;
+  }
+
+  /**
+   * Produto pela referência da URL pública — slug ("nike-dunk-low-panda") ou code (PE-XXXXXX) —, só ativos.
+   * É o que a página /pronta-entrega/:ref e /hypados/:ref usam; a seção da URL não importa (a resposta traz a certa).
+   */
+  async function getProductByRef(ref) {
+    const v = String(ref ?? "").trim();
+    if (!v || v.length > 120) return null;
+    const where = isStockCode(v) ? { code: v.toUpperCase() } : { slug: v.toLowerCase() };
+    const row = await prisma.stockProduct.findFirst({ where: { ...where, active: true }, include: withSizes });
     return row ? toPublic(row) : null;
   }
 
@@ -333,7 +349,8 @@ export function createStockService({ prisma, log = null }) {
     const { sizes, images, ...fields } = d;
     if (fields.brand === null) fields.brand = "Nike";
     const data = { ...fields };
-    if (fields.name && fields.name !== current.name) data.slug = await uniqueSlug(fields.name, id);
+    // o slug NÃO muda ao renomear: é a URL da página do tênis (link já publicado no Instagram continua valendo)
+    if (!current.slug) data.slug = await uniqueSlug(fields.name || current.name, id);
 
     // fotos: array novo substitui; blobs internos que saíram do array são apagados
     let removedBlobIds = [];
@@ -476,6 +493,7 @@ export function createStockService({ prisma, log = null }) {
     STOCK_SECTIONS,
     listPublic,
     getProductByCode,
+    getProductByRef,
     list,
     get,
     create,

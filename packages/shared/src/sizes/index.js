@@ -11,8 +11,9 @@ const MENS_TABLE = {
   '7': 38, '7.5': 39, '8': 39.5, '8.5': 40, '9': 40.5, '9.5': 41, '10': 42,
   '10.5': 42.5, '11': 43, '11.5': 43.5, '12': 44, '12.5': 45, '13': 46
 };
+// Acima de M 13 (fim da tabela oficial): degrau de 1 BR por 1 US, meios-números no meio do caminho.
 const MENS_APPROX = {
-  '13.5': 46.5, '14': 47, '15': 48, '16': 49, '17': 50, '18': 51
+  '13.5': 46.5, '14': 47, '14.5': 47.5, '15': 48, '15.5': 48.5, '16': 49, '16.5': 49.5, '17': 50, '17.5': 50.5, '18': 51
 };
 
 const WOMENS_TABLE = {
@@ -23,9 +24,12 @@ const WOMENS_TABLE = {
 // (mesmo par: W = M + 1,5 — é o que a própria Nike mostra em "W 12.5 / M 11") mantendo o degrau de +0,5
 // que a tabela feminina oficial tem sobre a masculina no topo (W 12 → 43, enquanto M 10.5 → 42,5).
 // Sequência contínua, sem repetir BR: 43 → 43,5 → 44 → 44,5 → 45,5 → 46,5 → 47 → 47,5 → 48.
+// De W 16,5 em diante (unissex listado na escala feminina, ex. "W 16.5 / M 15"): segue o masculino + 0,5
+// (M 15 → 48 ⇒ W 16,5 → 48,5 … M 18 → 51 ⇒ W 19,5 → 51,5), para nenhum tamanho ficar sem BR no seletor.
 const WOMENS_APPROX = {
   '4': 32.5, '4.5': 33,
-  '12.5': 43.5, '13': 44, '13.5': 44.5, '14': 45.5, '14.5': 46.5, '15': 47, '15.5': 47.5, '16': 48
+  '12.5': 43.5, '13': 44, '13.5': 44.5, '14': 45.5, '14.5': 46.5, '15': 47, '15.5': 47.5, '16': 48,
+  '16.5': 48.5, '17': 49, '17.5': 49.5, '18': 50, '18.5': 50.5, '19': 51, '19.5': 51.5
 };
 
 const KIDS_TABLE = {
@@ -110,6 +114,19 @@ export function sizeLabel(size, group = null) {
   return g === 'K' ? `BR ${br} (US ${usNum})` : `BR ${br} (US ${g} ${usNum})`;
 }
 
+/**
+ * Rótulo que o CLIENTE vê — só a numeração BR ("BR 38"). O US (escala/modelagem) é informação interna: fica no
+ * `size_label` do pedido ("BR 38 (US M 7)") para o backoffice comprar o par certo na Nike, mas não aparece no
+ * seletor, na sacola, no e-mail nem na API pública. Aceita um tamanho do catálogo ({ brLabel }) ou um item de
+ * pedido ({ sizeLabel }) — neste caso tira o "(US …)" do rótulo salvo, o que cobre pedidos antigos.
+ */
+export function sizeLabelBr(size) {
+  if (!size) return '';
+  const br = size.brLabel ?? size.brSize;
+  if (br != null && String(br).trim() !== '') return `BR ${br}`;
+  return String(size.sizeLabel || '').replace(/\s*\(US[^)]*\)/g, '').trim();
+}
+
 export function convertUsToBr(nikeSize, localizedSize, genders = []) {
   if (!nikeSize) return { brSize: null, approximate: false };
 
@@ -145,6 +162,7 @@ export function convertUsToBr(nikeSize, localizedSize, genders = []) {
  */
 export function standardSizes() {
   const rows = [...Object.entries(MENS_TABLE).map(([us, br]) => [us, br, false]), ...Object.entries(MENS_APPROX).map(([us, br]) => [us, br, true])]
+    .filter(([us]) => Number(us) <= 14 || Number.isInteger(Number(us))) // acima de 14 a Nike só faz inteiros (15, 16, 17, 18)
     .sort((a, b) => Number(a[0]) - Number(b[0])); // chaves inteiras de objeto vêm antes das decimais → ordena pelo US
   return rows.map(([us, br, approximate]) => {
     const w = Number(us) + 1.5;

@@ -1,5 +1,5 @@
 import { expect, test, describe } from 'vitest';
-import { convertUsToBr, parseUsSizes, sizeGroupsOf, sizeLabel, standardSizes } from '../src/sizes/index.js';
+import { convertUsToBr, parseUsSizes, sizeGroupsOf, sizeLabel, sizeLabelBr, standardSizes } from '../src/sizes/index.js';
 
 describe("feminino acima de W 12 (bug: tamanho repetido no seletor)", () => {
   test("W 12.5–16 convertem para BR aproximado, sem repetir e sempre crescendo", () => {
@@ -22,6 +22,19 @@ describe("feminino acima de W 12 (bug: tamanho repetido no seletor)", () => {
     expect(convertUsToBr("4", "W 4", ["WOMEN"])).toEqual({ brSize: 32.5, approximate: true });
     expect(convertUsToBr("4.5", "W 4.5", ["WOMEN"])).toEqual({ brSize: 33, approximate: true });
     expect(convertUsToBr("5", "W 5", ["WOMEN"])).toEqual({ brSize: 33.5, approximate: false });
+  });
+
+  test("W 16.5–19.5 (unissex listado na escala feminina, ex. Sabrina 'W 16.5 / M 15') também ganham BR — nenhum chip fica sem número", () => {
+    // antes: M 15 / 17 / 18 apareciam só como "US M 15" no seletor, porque W 16.5 / 18.5 / 19.5 não tinham BR
+    expect(convertUsToBr("16.5", "W 16.5 / M 15", ["MEN", "WOMEN"])).toEqual({ brSize: 48.5, approximate: true });
+    expect(convertUsToBr("18.5", "W 18.5 / M 17", ["MEN", "WOMEN"])).toEqual({ brSize: 50.5, approximate: true });
+    expect(convertUsToBr("19.5", "W 19.5 / M 18", ["MEN", "WOMEN"])).toEqual({ brSize: 51.5, approximate: true });
+    let prev = 0;
+    for (const us of ["16", "16.5", "17", "17.5", "18", "18.5", "19", "19.5"]) {
+      const { brSize } = convertUsToBr(us, `W ${us}`, ["WOMEN"]);
+      expect(brSize, `W ${us}`).toBeGreaterThan(prev);
+      prev = brSize;
+    }
   });
 
   test("rótulo completo para o tamanho grande feminino", () => {
@@ -108,6 +121,20 @@ describe('parseUsSizes / sizeGroupsOf / sizeLabel (masculino × feminino × infa
   });
 });
 
+describe('sizeLabelBr (o que o cliente vê: só o BR)', () => {
+  test('tamanho do catálogo → "BR 38"; item de pedido salvo com US → tira o "(US …)"; pronta entrega sem US → "BR 41"', () => {
+    expect(sizeLabelBr({ brLabel: '38', scale: 'M', us: { M: '7', W: '8.5' } })).toBe('BR 38');
+    expect(sizeLabelBr({ brLabel: '48.5', approximate: true, us: { W: '16.5', M: '15' } })).toBe('BR 48.5');
+    expect(sizeLabelBr({ sizeLabel: 'BR 38 (US M 7)' })).toBe('BR 38');
+    expect(sizeLabelBr({ sizeLabel: 'BR 36 (US 5Y)', nikeSize: '5Y' })).toBe('BR 36');
+    expect(sizeLabelBr({ sizeLabel: 'BR 41 (US 8.5)', nikeSize: '8.5', brLabel: null })).toBe('BR 41'); // pedido antigo
+    expect(sizeLabelBr({ brLabel: '41', nikeSize: '41' })).toBe('BR 41');
+    expect(sizeLabelBr({ sizeLabel: 'BR M', brLabel: 'M' })).toBe('BR M'); // venda externa com tamanho livre
+    expect(sizeLabelBr(null)).toBe('');
+    for (const s of standardSizes()) expect(sizeLabelBr(s)).not.toMatch(/US/);
+  });
+});
+
 describe('standardSizes (Nike By You)', () => {
   test('tabela masculina completa em ordem, com W = M + 1,5 até W 12', () => {
     const list = standardSizes();
@@ -115,5 +142,7 @@ describe('standardSizes (Nike By You)', () => {
     expect(list.at(-1)).toMatchObject({ nikeSize: '18', brLabel: '51', approximate: true });
     expect(list.find((s) => s.brLabel === '38')).toMatchObject({ nikeSize: '7', us: { M: '7', W: '8.5' }, synthetic: true, available: true });
     expect(list.find((s) => s.brLabel === '43').us.W).toBeNull(); // M 11 → W 12.5 não existe na tabela feminina
+    // acima de 14 a Nike só faz inteiros: nada de 14.5 / 15.5 / 16.5 / 17.5 na lista do By You
+    expect(list.map((s) => s.nikeSize).filter((us) => Number(us) > 14)).toEqual(['15', '16', '17', '18']);
   });
 });

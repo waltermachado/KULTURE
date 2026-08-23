@@ -338,7 +338,29 @@ export default function StockForm({ auth, notify, section = "stock" }) {
             {!isNew && (
               <dl className="stk-meta">
                 <dt>Código</dt><dd className="mono">{product?.code}</dd>
-                <dt>Link</dt><dd><a href={ui.page} target="_blank" rel="noreferrer">{ui.page}</a></dd>
+                <dt>Link</dt>
+                <dd>
+                  {product?.path ? (
+                    <>
+                      <a href={product.path} target="_blank" rel="noreferrer">{typeof window !== "undefined" ? `${window.location.origin}${product.path}` : product.path}</a>
+                      <button
+                        type="button"
+                        className="btn"
+                        style={{ marginLeft: 8, padding: "2px 8px", fontSize: 11 }}
+                        onClick={async () => {
+                          const url = `${window.location.origin}${product.path}`;
+                          try { await navigator.clipboard.writeText(url); setMsg({ ok: true, text: "Link do tênis copiado — é só colar no Instagram." }); }
+                          catch { setMsg({ ok: false, text: `Não deu para copiar; o link é ${url}` }); }
+                        }}
+                      >
+                        Copiar
+                      </button>
+                      <div className="sub" style={{ marginTop: 4 }}>Página própria do par (sem modal) — o link que vai no Instagram. Não muda ao renomear.</div>
+                    </>
+                  ) : (
+                    <a href={ui.page} target="_blank" rel="noreferrer">{ui.page}</a>
+                  )}
+                </dd>
                 <dt>Criado</dt><dd>{product?.createdAt ? new Date(product.createdAt).toLocaleString("pt-BR") : "—"}</dd>
                 <dt>Atualizado</dt><dd>{product?.updatedAt ? new Date(product.updatedAt).toLocaleString("pt-BR") : "—"}</dd>
               </dl>

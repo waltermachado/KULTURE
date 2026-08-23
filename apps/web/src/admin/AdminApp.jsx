@@ -15,6 +15,7 @@ import CustomerDetail from "./CustomerDetail.jsx";
 import Stock from "./Stock.jsx";
 import StockForm from "./StockForm.jsx";
 import Featured from "./Featured.jsx";
+import Marketing from "./Marketing.jsx";
 
 export default function AdminApp({ auth, onOpenLogin, notify }) {
   const navigate = useNavigate();
@@ -76,6 +77,7 @@ export default function AdminApp({ auth, onOpenLogin, notify }) {
           <NavLink to="/admin/estoque">Pronta entrega</NavLink>
           <NavLink to="/admin/hypados">Hypados</NavLink>
           <NavLink to="/admin/vitrine">Vitrine</NavLink>
+          <NavLink to="/admin/marketing">Marketing</NavLink>
         </nav>
         <div className="adm-side-foot">
           <b title={auth.user.email}>{auth.user.name}</b>
@@ -103,6 +105,7 @@ export default function AdminApp({ auth, onOpenLogin, notify }) {
           <Route path="hypados/novo" element={<StockForm auth={auth} notify={notify} section="hypados" />} />
           <Route path="hypados/:id" element={<StockForm auth={auth} notify={notify} section="hypados" />} />
           <Route path="vitrine" element={<Featured auth={auth} notify={notify} />} />
+          <Route path="marketing" element={<Marketing auth={auth} notify={notify} />} />
           <Route path="*" element={<Navigate to="/admin" replace />} />
         </Routes>
       </main>

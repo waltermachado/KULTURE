@@ -31,6 +31,8 @@ export const api = {
   health: () => get("/health"),
   /** estoque próprio: pronta entrega (padrão) ou hypados (cadastrados no backoffice; sem Nike) */
   stock: (section = "stock") => get(`/api/stock${section && section !== "stock" ? `?section=${section}` : ""}`),
+  /** um tênis de estoque próprio pelo slug da URL (ou code PE-/HY-) — página própria /pronta-entrega/:ref e /hypados/:ref */
+  stockProduct: (ref) => get(`/api/stock/${encodeURIComponent(ref)}`),
   /** tênis em destaque no hero (configurado no backoffice) por seção × categoria; product null = sem config */
   featured: (section, cat) => get(`/api/featured?section=${encodeURIComponent(section)}${cat ? `&cat=${encodeURIComponent(cat)}` : ""}`),
   /** configuração pública: { whatsapp: { phone, url } | null, installments, stock } */

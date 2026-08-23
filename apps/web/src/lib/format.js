@@ -25,6 +25,10 @@ export function toCard(p, i) {
     badgeRed: isStock ? Boolean(p.badge) : Boolean(p.isTest) || Boolean(p.onSale) || (i === 0 && !p.launch?.comingSoon),
     stock: isStock,
     section: p.section ?? (isStock ? "stock" : "import"),
+    sectionLabel: p.sectionLabel ?? null,
+    slug: p.slug ?? null,
+    // estoque próprio tem página própria (link compartilhável): o card navega para ela em vez de abrir o modal
+    href: isStock ? (p.path || (p.slug ? `${p.section === "hypados" ? "/hypados" : "/pronta-entrega"}/${p.slug}` : null)) : null,
     stockQty: isStock ? (p.stock?.total ?? null) : null,
     description: p.description ?? null,
     byYou: Boolean(p.byYou),
@@ -49,19 +53,20 @@ export function launchDateLabel(iso) {
 export const SIZE_GROUP_LABELS = { M: "Masculino", W: "Feminino", K: "Infantil" };
 
 /**
- * "BR 38 (US M 7)" · "BR 37.5 (US W 8)" · "BR 36 (US 5Y)" · "BR 41" — rótulo do tamanho escolhido.
- * `group` = aba escolhida (M/W/K); sem `us` (carrinho antigo / estoque sem US) cai no formato antigo.
+ * Rótulo do tamanho que o CLIENTE vê: só a numeração BR ("BR 38"). O número US (modelagem) é informação interna —
+ * fica no `size_label` do pedido para o backoffice comprar na Nike, mas não aparece no seletor, na sacola, no
+ * checkout nem em "meus pedidos". Aceita um tamanho do catálogo ({ brLabel }) ou um item de pedido/sacola antiga
+ * ({ sizeLabel: "BR 38 (US M 7)" }) — neste caso tira o "(US …)".
  */
-export function sizeText(size, group = size?.pickedGender ?? null) {
+export function sizeText(size) {
   if (!size) return "";
-  if (size.sizeLabel) return size.sizeLabel;
-  const br = size.brLabel ?? size.brSize ?? "?";
-  const us = size.us && typeof size.us === "object" ? size.us : null;
-  const g = us && group && us[group] ? group : us && size.scale && us[size.scale] ? size.scale : null;
-  if (g) return g === "K" ? `BR ${br} (US ${us[g]})` : `BR ${br} (US ${g} ${us[g]})`;
-  if (size.nikeSize && String(size.nikeSize) !== String(br)) return `BR ${br} (US ${size.nikeSize})`;
-  return `BR ${br}`;
+  const br = size.brLabel ?? size.brSize;
+  if (br != null && String(br).trim() !== "") return `BR ${br}`;
+  return String(size.sizeLabel || "").replace(/\s*\(US[^)]*\)/g, "").trim();
 }
+
+/** Nike By You: prazo de entrega prometido ao cliente (card e seletor). Sob encomenda na Nike → maior que o de linha. */
+export const BY_YOU_DELIVERY_DAYS = 35;
 
 /** Nike By You: "pé E “KULTURE” nº 08 · pé D “MAMBA” nº 24" (só o preenchido); null se não houver personalização. */
 export function customText(c) {

@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
-import { useSearchParams } from "react-router-dom";
+import { useNavigate, useSearchParams } from "react-router-dom";
 import Hero from "../components/Hero.jsx";
 import Marquee from "../components/Marquee.jsx";
 import ProductGrid from "../components/ProductGrid.jsx";
@@ -41,10 +41,14 @@ const COPY = {
  * Filtro por categoria na URL (?cat=basketball|lifestyle|running) — abas do topo, blocos, rodapé e chips trocam
  * o filtro SEM sair da página. O tênis do hero pode ser fixado no backoffice (Vitrine) por seção × categoria;
  * sem configuração, destaca o 1º da lista filtrada.
+ * Clicar num par NÃO abre o modal: vai para a página própria do tênis (/pronta-entrega/:slug ou /hypados/:slug),
+ * que é o link que o dono cola no Instagram. (Sem slug — não deveria acontecer — cai no modal de antes.)
  */
 export default function Stock({ section = "stock", setSelectedProductForSize, onCategory }) {
   const copy = COPY[section] || COPY.stock;
+  const navigate = useNavigate();
   const [params, setParams] = useSearchParams();
+  const openProduct = (p) => (p?.href ? navigate(p.href) : setSelectedProductForSize(p));
   const cat = CATEGORIES.some((c) => c.key === params.get("cat")) ? params.get("cat") : null;
   const [all, setAll] = useState({ status: "loading", products: [] });
   const [pinned, setPinned] = useState(null); // destaque configurado no backoffice (Vitrine)
@@ -109,11 +113,11 @@ export default function Stock({ section = "stock", setSelectedProductForSize, on
 
   return (
     <>
-      <Hero featured={featured} onPick={setSelectedProductForSize} variant={section} />
+      <Hero featured={featured} onPick={openProduct} variant={section} />
       <Marquee variant={section} />
       <ProductGrid
         state={grid}
-        onAdd={setSelectedProductForSize}
+        onAdd={openProduct}
         kicker={catLabel ? copy.catKicker(catLabel) : copy.kicker}
         filters={filters}
         loadingMsg={copy.loading}

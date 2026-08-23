@@ -1,6 +1,7 @@
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { buildApp } from "../src/app.js";
 import { loadEnv } from "../src/config/env.js";
+import { productPageHtml } from "../src/plugins/serve-web.js";
 
 /**
  * Pronta entrega (estoque próprio). Bate no banco de dev (DATABASE_URL), como orders/admin.
@@ -146,6 +147,43 @@ describe("pronta entrega (estoque próprio)", { timeout: 60000 }, () => {
     expect(d.json().product.sizeGroups).toEqual(["M", "W"]);
     expect(d.json().product.sizes[0]).toMatchObject({ nikeSize: "9", brLabel: "41", usSize: "9", available: true, qty: 1, scale: "M", us: { M: "9", W: "10.5" } });
     expect(d.json().product.price.breakdown).toBeUndefined();
+  });
+
+  it("público: GET /api/stock/:ref pelo slug ou code (página própria do tênis); renomear não muda o slug", async () => {
+    const bySlug = await app.inject({ method: "GET", url: `/api/stock/${product.slug}` });
+    expect(bySlug.statusCode).toBe(200);
+    expect(bySlug.json().product).toMatchObject({ code: product.code, slug: product.slug, path: `/pronta-entrega/${product.slug}`, section: "stock" });
+    expect(bySlug.json().product.sizes.map((s) => s.brLabel)).toEqual(["41", "42", "43"]); // todos, inclusive o esgotado (43)
+    expect(bySlug.json().product.sizes.find((s) => s.brLabel === "43")).toMatchObject({ available: false, qty: 0 });
+    expect(bySlug.json().product.price.breakdown).toBeUndefined();
+    expect(bySlug.json().product.stockProductId).toBeUndefined();
+    const byCode = await app.inject({ method: "GET", url: `/api/stock/${product.code.toLowerCase()}` });
+    expect(byCode.statusCode).toBe(200);
+    expect(byCode.json().product.slug).toBe(product.slug);
+    const nope = await app.inject({ method: "GET", url: "/api/stock/nao-existe-este-par" });
+    expect(nope.statusCode).toBe(404);
+
+    // o slug é a URL colada no Instagram: renomear o produto NÃO pode mudar o link
+    const ren = await app.inject({ method: "PATCH", url: `/api/admin/stock/${product.id}`, headers: auth(), payload: { name: `test-stock-Kobe 6 Protro Grinch ${STAMP}` } });
+    expect(ren.statusCode).toBe(200);
+    expect(ren.json().slug).toBe(product.slug);
+    expect(ren.json().path).toBe(`/pronta-entrega/${product.slug}`);
+  });
+
+  it("index.html da página do tênis sai com <title> e Open Graph (nome, preço, foto) para o preview do link", async () => {
+    const index = `<!doctype html><html><head><meta name="description" content="Kulture" /><title>Kulture</title></head><body><div id="root"></div></body></html>`;
+    const req = (url) => ({ raw: { url }, protocol: "https", host: "loja.test", headers: {} });
+    const html = await productPageHtml(app, req(`/pronta-entrega/${product.slug}`), index);
+    const price = (1899).toLocaleString("pt-BR", { style: "currency", currency: "BRL" }); // "R$ 1.899,00" (com NBSP do Intl)
+    expect(html).toContain(`<title>test-stock-Kobe 6 Protro Grinch ${STAMP} — ${price} no Pix | Kulture</title>`);
+    expect(html).toContain(`<meta property="og:url" content="https://loja.test/pronta-entrega/${product.slug}" />`);
+    expect(html).toContain(`<meta property="og:image" content="https://example.com/foto.webp" />`);
+    expect(html).toContain(`<meta property="product:price:amount" content="1899" />`);
+    expect(html).toMatch(/og:description" content="Pronta entrega · em estoque no Brasil/);
+    expect(html).toContain(`<link rel="canonical" href="https://loja.test/pronta-entrega/${product.slug}" />`);
+    // URL que não é de produto / produto inexistente → index puro
+    expect(await productPageHtml(app, req("/pronta-entrega"), index)).toBe(index);
+    expect(await productPageHtml(app, req("/pronta-entrega/nao-existe"), index)).toBe(index);
   });
 
   it("checkout reserva o estoque na transação; segundo pedido do último par é recusado", async () => {

@@ -222,6 +222,28 @@ transação — dois clientes disputando o último par: só um pedido é criado)
 abandonado acabar pago (`settle()`/baixa manual; sem estoque → evento `stock_oversold` + nota interna para conferir). Estorno
 (`refunded`) NÃO devolve sozinho — ajustar a qtd no painel. A frase "em até Nx" segue `MAX_INSTALLMENTS`.
 
+### 5.2b Página própria do tênis de estoque — link para o Instagram (23/08)
+
+Na **pronta entrega e nos hypados** clicar num par não abre mais o modal: vai para uma URL própria,
+`/pronta-entrega/<slug>` ou `/hypados/<slug>` (ex. `lojakulture.com.br/pronta-entrega/nike-dunk-low-panda`). É o link que o
+dono cola no Instagram. Importados continuam no modal (não têm página).
+- **Slug** = coluna `stock_products.slug` (já existia, única). **Não muda ao renomear** o produto (antes mudava) — link publicado
+  continua valendo. O code `PE-XXXXXX`/`HY-XXXXXX` também funciona na mesma posição e é redirecionado (replace) para o slug; se a
+  seção da URL estiver errada (`/pronta-entrega/` num hypado) a URL é corrigida.
+- **API:** `GET /api/stock/:ref` (slug ou code; só ativos; todos os tamanhos com `qty`/`available`; 404 "não está mais
+  disponível"). `toPublic`/`toAdmin` ganharam `path` (`/pronta-entrega/<slug>`); `stockProductPath(p)` no service.
+- **Preview do link (WhatsApp/DM):** `plugins/serve-web.js#productPageHtml` serve o `index.html` com `<title>`, `description`,
+  `canonical` e Open Graph (`og:title` "Nome — R$ X no Pix | Kulture", `og:description`, `og:image` = 1ª foto absoluta,
+  `og:url`, `product:price:*`) para essas URLs — responde HTML mesmo sem `Accept: text/html` (bots). Base da URL =
+  `resolveWebUrl` (host do pedido na allowlist, senão `PUBLIC_WEB_URL`). Erro → index puro.
+- **Front:** `pages/StockProduct.jsx` (rotas em `App.jsx`; a ModeBar some nessa página): breadcrumb, galeria (setas/thumbs),
+  nome, preço Pix + parcelas + "de", descrição, grade de tamanhos só BR com quantidade ("último"/"N un."/"esgotado"),
+  **Comprar agora** (sacola + checkout) e **Adicionar à sacola** (abre a sacola), Compartilhar/Copiar link (Web Share ou
+  clipboard), faixa WhatsApp; esgotado/404 com estado próprio. `toCard` traz `href`; o card da vitrine vira `<a href>` "Ver o
+  par" (Cmd/Ctrl-clique abre em nova aba) e o hero "Ver o par" navega. Admin: `/admin/estoque/:id` mostra a URL completa com
+  botão **Copiar**; a lista tem "página ↗".
+- Teste: `stock.test.js` (endpoint por slug/code, slug estável no rename, metas OG via `productPageHtml`).
+
 ### 5.3 WhatsApp "não achou? chama a gente" (17/08)
 
 `components/WhatsappCta.jsx` — banner grande quando a busca dá vazio/erro e faixa compacta abaixo dos resultados (também na
@@ -245,6 +267,19 @@ Antes o seletor mostrava "38 · US 7" sem dizer de quem era o US (nos unissex da
   `/conta`, confirmação, e-mails, WhatsApp e admin usam o rótulo (pedidos antigos caem no formato antigo "BR 41 (US 8.5)").
 - Pronta entrega: modelagem no cadastro (§5.2); `usMapOf(gender, us)` no `stock/service.js` gera o mesmo formato.
 
+**23/08 — o US não vaza mais para o cliente.** Regra do dono: o cliente só vê **numeração BR**; o US (modelagem) é informação
+interna para comprar na Nike.
+- Seletor: chips só com o BR (sem "US M 7" embaixo, sem selo "Aprox."), **sem abas** Masculino/Feminino (com BR-only as duas
+  mostrariam a mesma grade); cabeçalho "Numeração BR"; confirmar mostra `BR 38`. Tamanho sem BR na tabela não entra na grade.
+  O checkout não manda mais `sizeGender` → a api grava `size_label` pela escala do próprio SKU (`"BR 38 (US W 8.5)"` numa
+  Sabrina, que a Nike lista em W) — continua com US para o backoffice.
+- `sizeLabelBr(item)` (shared) → `"BR 38"`: usado na sacola/checkout/`/conta` (`format.js#sizeText`), nos e-mails ao cliente
+  (`mailer.js`), no WhatsApp ao cliente (`formatMsg`; com `WHATSAPP_TO` = dono continua com US), no job de abandono e em
+  `GET /api/orders/:number` e `/api/orders/mine` para não-admin (`clientOrderItem`: sem `nikeSize`, `sizeLabel` só BR).
+  Admin (`/api/admin/*`, venda externa) segue com o rótulo completo.
+- Tabelas: `WOMENS_APPROX` vai até W 19,5 (48,5–51,5, masculino + 0,5) e `MENS_APPROX` ganha os meios (14,5–17,5) — os
+  "US M 15 / 17 / 18" da Sabrina 4 (W 16,5 / 18,5 / 19,5) agora têm BR. `standardSizes()` (By You) acima de 14 só inteiros.
+
 ### 5.5 Nike By You — customizados (18/08)
 
 Produtos `productSubType: CUSTOMIZED` (URL `/u/custom-…`; "styleColor" = id numérico do design, ex. `1685956779`) não têm
@@ -261,7 +296,27 @@ SKU/tamanhos na API da Nike (`/product/:id` → 404 SIZES_UNAVAILABLE). Tratamen
   texto > 8 → 400) → `order_items.customization` (Json). A sacola separa linhas por personalização (chave inclui os campos).
   E-mail/WhatsApp/admin mostram `By You · pé E “KULTURE” nº 08 · pé D “MAMBA” nº 24`; o admin mostra também o US para
   configurar na Nike.
-- Sem prazo específico no texto (dono não definiu) e sem limite de quantidade.
+- Prazo (23/08): **35 dias para entrega** (`format.js#BY_YOU_DELIVERY_DAYS`) — no card, logo abaixo do balão BY YOU
+  (`.card-eta`), e no seletor (aviso do topo + nota do box de personalização). Sem limite de quantidade.
+
+### 5.6b E-mail por SMTP + Marketing (23/08)
+
+- **SMTP (nodemailer)**: `MAIL_PROVIDER=smtp` + `SMTP_HOST/PORT/SECURE/USER/PASS`, `MAIL_FROM(_NAME)`, `MAIL_REPLY_TO`
+  (`mail/mailer.js#viaSmtp`, pool de 2 conexões, STARTTLS em 587). `mailer.verify()` faz o login real;
+  `mailer.close()` no shutdown. Todos os e-mails (reset de senha, pago/enviado/entregue/cancelado, venda externa, campanhas)
+  saem pelo mesmo `mailer.send`. Moldura HTML única preta/amarela (`emailLayout`), links clicáveis (`asHtml`).
+  Receita em `docs/DEPLOY.md` §6c. A senha SMTP colada no chat em 23/08 deve ser **regenerada** no painel.
+- **Marketing** (`modules/marketing`, tela `/admin/marketing`): campanha = assunto + mensagem em parágrafos + imagem e botão
+  opcionais + público (`all` = contas com opt-in ∪ quem já comprou, incl. convidado · `buyers` · `accounts`) menos
+  `marketing_unsubscribes`. Prévia (HTML real em iframe), "Enviar teste para mim", disparo com confirmação e progresso
+  (`marketing_campaigns`: total/sent/failed/lastError; envio em segundo plano, 2 por vez; erro de autenticação aborta).
+  Todo e-mail leva link de descadastro assinado (HMAC `JWT_SECRET`) `GET/POST /api/marketing/unsubscribe?e&t` (página HTML /
+  one-click RFC 8058, `List-Unsubscribe` no cabeçalho) → grava o descadastro e desliga `users.marketing_opt_in`.
+  `/conta` tem a caixa "quero receber novidades" (`PATCH /api/auth/me { marketingOptIn }`). Padrão: **opt-in ligado**
+  (decisão a confirmar com o dono; LGPD exige o descadastro fácil, que existe).
+  Endpoints admin: `GET /api/admin/mail/status`, `POST /api/admin/mail/test`, `GET /api/admin/marketing/audience`,
+  `GET/POST /api/admin/marketing/campaigns`, `GET /…/campaigns/:id`, `POST /…/campaigns/:id/send`, `POST /…/preview`, `POST /…/test`.
+  Migração `marketing` (users.marketing_opt_in, marketing_unsubscribes, marketing_campaigns). Teste: `marketing.test.js`.
 
 ### 5.6 Filtros por categoria respeitam a seção (18/08)
 
@@ -345,12 +400,12 @@ mostra "HYPADOS" em vez de "PRONTA ENTREGA"; card usa selo padrão "HYPADOS"; Si
 
 ## 6. Banco (Prisma / Postgres)
 
-Tabelas: `cache_entries, users, refresh_tokens, password_reset_tokens, login_events, orders (com carrier/tracking_*/shipped_at/
+Tabelas: `cache_entries, users (+ marketing_opt_in), refresh_tokens, password_reset_tokens, login_events, orders (com carrier/tracking_*/shipped_at/
 delivered_at/cancelled_at/refunded_at/internal_notes/stock_released_at/channel), order_items (+ size_label, customization),
 order_events, notifications, idempotency_keys, stock_products (+ category, gender, section), stock_sizes, stock_images,
-settings (key→JSON; hoje "featured" = vitrine)`.
+settings (key→JSON; hoje "featured" = vitrine), marketing_unsubscribes, marketing_campaigns`.
 Migrações: `init, auth, orders, user_profile, admin_backoffice, login_events, stock_products, stock_category, size_genders,
-by_you_customization, order_channel, stock_section_settings` — aplicadas no boot da api (`migrate deploy`).
+by_you_customization, order_channel, stock_section_settings, marketing` — aplicadas no boot da api (`migrate deploy`).
 Dev local: `apps/api/.env` aponta para Supabase (pooler us-east-2; `DIRECT_URL` para migrar), já migrado; seed de demonstração
 (`*@smoke.kulture.test`, admin `admin@smoke.kulture.test`, pedidos `KLT-2026-9*`). Os produtos de pronta entrega criados para
 teste nesta sessão foram removidos — o estoque de dev está vazio.

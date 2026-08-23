@@ -156,13 +156,14 @@ export async function authRoutes(app) {
           name: { type: "string", minLength: 1 },
           phone: { type: ["string", "null"] },
           cpf: { type: ["string", "null"] },
-          address: { anyOf: [ADDRESS_SCHEMA, { type: "null" }] }
+          address: { anyOf: [ADDRESS_SCHEMA, { type: "null" }] },
+          marketingOptIn: { type: "boolean" } // quer receber novidades/promoções por e-mail
         }
       }
     },
     onRequest: [requireAuth]
   }, async (request) => {
-    const user = await auth.updateProfile(request.user.sub, request.body || {});
+    const user = await auth.updateProfile(request.user.sub, request.body || {}, { marketing: app.marketing });
     return { user };
   });
 

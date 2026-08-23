@@ -1,19 +1,61 @@
 /**
- * E-mail transacional. Provedores por env MAIL_PROVIDER:
+ * E-mail transacional + marketing. Provedores por env MAIL_PROVIDER:
  *   - log        → só registra no log (padrão em dev/test)
  *   - mailersend → API HTTP da MailerSend (POST https://api.mailersend.com/v1/email, Bearer MAILERSEND_API_TOKEN)
+ *   - smtp       → SMTP (MailerSend: smtp.mailersend.net:587 STARTTLS, usuário/senha do painel) via nodemailer.
+ *                  Vale para "esqueci minha senha", atualização de entrega e campanhas de marketing.
  *
  * Nunca lança para o chamador: falha de e-mail não pode derrubar checkout/confirmação.
- * Observação MailerSend: o domínio do MAIL_FROM precisa estar verificado na conta; em trial,
- * só envia para o e-mail do administrador da conta.
+ * Observação MailerSend: o domínio do MAIL_FROM precisa estar verificado na conta; em trial (domínio
+ * test-….mlsender.net) só entrega para o e-mail do administrador da conta.
  */
-export function createMailer(env, log) {
+import nodemailer from "nodemailer";
+import { sizeLabelBr } from "@kulture/shared/sizes";
+
+/** `transport` (só testes): um transporter do nodemailer já pronto (ex. jsonTransport) no lugar do SMTP real. */
+export function createMailer(env, log, { transport = null } = {}) {
   const provider = env.MAIL_PROVIDER || "log";
   const from = { email: env.MAIL_FROM || "no-reply@localhost", name: env.MAIL_FROM_NAME || "Kulture" };
+  const replyTo = env.MAIL_REPLY_TO || null;
 
   async function viaLog(msg) {
     log?.info({ mail: { to: msg.to, subject: msg.subject } }, "mail(log): e-mail simulado");
     return { ok: true, provider: "log" };
+  }
+
+  // SMTP: um pool de conexões, criado na primeira mensagem (campanha manda dezenas de e-mails em sequência)
+  let smtp = transport;
+  function smtpTransport() {
+    if (smtp) return smtp;
+    if (!env.SMTP_USER || !env.SMTP_PASS) throw new Error("SMTP_USER/SMTP_PASS ausentes");
+    smtp = nodemailer.createTransport({
+      host: env.SMTP_HOST,
+      port: env.SMTP_PORT,
+      secure: Boolean(env.SMTP_SECURE), // false em 587 → STARTTLS (requireTLS abaixo); true em 465
+      requireTLS: !env.SMTP_SECURE,
+      auth: { user: env.SMTP_USER, pass: env.SMTP_PASS },
+      pool: true,
+      maxConnections: 2,
+      maxMessages: 200,
+      connectionTimeout: 15_000,
+      greetingTimeout: 15_000,
+      socketTimeout: 30_000
+    });
+    return smtp;
+  }
+
+  async function viaSmtp(msg) {
+    const info = await smtpTransport().sendMail({
+      from: { address: from.email, name: from.name },
+      to: msg.toName ? { address: msg.to, name: msg.toName } : msg.to,
+      replyTo: msg.replyTo || replyTo || undefined,
+      subject: msg.subject,
+      text: msg.text,
+      html: msg.html || undefined,
+      headers: msg.headers || undefined,
+      list: msg.unsubscribeUrl ? { unsubscribe: { url: msg.unsubscribeUrl, comment: "Descadastrar" } } : undefined
+    });
+    return { ok: true, provider: "smtp", messageId: info?.messageId || null, accepted: info?.accepted?.length ?? null };
   }
 
   async function viaMailerSend(msg) {
@@ -37,27 +79,46 @@ export function createMailer(env, log) {
     return { ok: true, provider: "mailersend", messageId: res.headers.get("x-message-id") };
   }
 
-  /** @param {{to:string, toName?:string, subject:string, text:string, html?:string}} msg */
+  /**
+   * @param {{to:string, toName?:string, subject:string, text:string, html?:string, headers?:object, replyTo?:string, unsubscribeUrl?:string}} msg
+   * Nunca lança: devolve { ok:false, error } — quem precisa saber (campanha, reset) lê o resultado.
+   */
   async function send(msg) {
     if (!msg?.to) return { ok: false, skipped: "sem destinatário" };
     try {
-      return provider === "mailersend" ? await viaMailerSend(msg) : await viaLog(msg);
+      if (provider === "mailersend") return await viaMailerSend(msg);
+      if (provider === "smtp") return await viaSmtp(msg);
+      return await viaLog(msg);
     } catch (err) {
       log?.warn({ err: err.message, to: msg.to, subject: msg.subject }, "mail: falha ao enviar (ignorada)");
       return { ok: false, error: err.message };
     }
   }
 
-  return { send, provider };
+  /** Testa a conexão (SMTP: EHLO + login). Para log/mailersend só confirma a configuração presente. */
+  async function verify() {
+    try {
+      if (provider === "smtp") {
+        await smtpTransport().verify();
+        return { ok: true, provider, host: env.SMTP_HOST, port: env.SMTP_PORT, user: env.SMTP_USER, from: from.email };
+      }
+      if (provider === "mailersend") return { ok: Boolean(env.MAILERSEND_API_TOKEN), provider, from: from.email, error: env.MAILERSEND_API_TOKEN ? null : "MAILERSEND_API_TOKEN ausente" };
+      return { ok: true, provider, from: from.email, note: "provedor log: e-mails só aparecem no log" };
+    } catch (err) {
+      return { ok: false, provider, host: env.SMTP_HOST, port: env.SMTP_PORT, user: env.SMTP_USER, from: from.email, error: err.message };
+    }
+  }
+
+  function close() {
+    try { smtp?.close?.(); } catch { /* ok */ }
+  }
+
+  return { send, verify, close, provider, from };
 }
 
 const brl = (v) => Number(v).toLocaleString("pt-BR", { style: "currency", currency: "BRL" });
-/** "BR 41 (US 8.5)" — sem o US quando o item é de pronta entrega sem numeração US (chave = BR). */
-const sizeLabel = (i) => {
-  if (i.sizeLabel) return i.sizeLabel; // "BR 38 (US M 7)" — como o cliente escolheu (masc./fem./infantil)
-  const br = i.brLabel ?? i.brSize ?? "?";
-  return i.nikeSize && String(i.nikeSize) !== String(br) ? `BR ${br} (US ${i.nikeSize})` : `BR ${br}`;
-};
+/** Todos os e-mails daqui vão para o CLIENTE: o tamanho sai só em BR ("BR 38"); o US fica no backoffice. */
+const sizeLabel = (i) => sizeLabelBr(i) || "BR ?";
 /** Nike By You: gravação por pé, quando houver. */
 const customLine = (i) => {
   const c = i.customization;
@@ -67,10 +128,72 @@ const customLine = (i) => {
   return parts.length ? ` — By You: ${parts.join(" · ")}` : " — By You";
 };
 
-const escapeHtml = (s) => String(s).replace(/&/g, "&amp;").replace(/</g, "&lt;");
-const asHtml = (text) =>
-  `<pre style="font-family:Inter,Arial,sans-serif;font-size:15px;line-height:1.5;white-space:pre-wrap">${escapeHtml(text)}</pre>`;
+const escapeHtml = (s) => String(s ?? "").replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
+/** Texto já escapado → links clicáveis (http/https). */
+const linkify = (escaped) =>
+  escaped.replace(/(https?:\/\/[^\s<]+[^\s<.,;:)])/g, (u) => `<a href="${u}" style="color:#F6B234;text-decoration:underline">${u}</a>`);
 const lines = (arr) => arr.filter((l) => l !== null && l !== undefined && l !== false).join("\n");
+
+/**
+ * Moldura com a cara da loja (preto + amarelo) para TODOS os e-mails — transacionais e campanhas.
+ * `contentHtml` já vem escapado/montado. Tabela + estilos inline: é o que funciona em Gmail/Outlook/iOS.
+ */
+export function emailLayout({ contentHtml, preheader = "", footerHtml = "", siteUrl = "" }) {
+  const home = siteUrl ? escapeHtml(siteUrl) : null;
+  return `<!doctype html><html lang="pt-BR"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Kulture</title></head>
+<body style="margin:0;padding:0;background:#0B0B0B;color:#F2EFE9;font-family:Archivo,Inter,Arial,Helvetica,sans-serif">
+${preheader ? `<div style="display:none;max-height:0;overflow:hidden;opacity:0;color:#0B0B0B">${escapeHtml(preheader)}</div>` : ""}
+<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background:#0B0B0B"><tr><td align="center" style="padding:24px 12px">
+<table role="presentation" width="600" cellpadding="0" cellspacing="0" style="max-width:600px;width:100%;background:#0E0E0E;border-top:4px solid #F6B234">
+  <tr><td style="padding:22px 28px;border-bottom:1px solid #1C1C1C">
+    ${home ? `<a href="${home}" style="text-decoration:none">` : ""}<span style="font-size:20px;font-weight:800;letter-spacing:.22em;color:#F6B234;text-transform:uppercase">Kulture</span>${home ? "</a>" : ""}
+    <span style="font-size:11px;letter-spacing:.18em;color:#8A877F;text-transform:uppercase;float:right;padding-top:6px">Sneakers &amp; street culture</span>
+  </td></tr>
+  <tr><td style="padding:28px 28px 8px;font-size:15px;line-height:1.6;color:#F2EFE9">${contentHtml}</td></tr>
+  <tr><td style="padding:18px 28px 26px;border-top:1px solid #1C1C1C;font-size:12px;line-height:1.6;color:#8A877F">
+    ${footerHtml || `— Equipe Kulture${home ? ` · <a href="${home}" style="color:#8A877F">${home.replace(/^https?:\/\//, "")}</a>` : ""}`}
+  </td></tr>
+</table>
+</td></tr></table></body></html>`;
+}
+
+/** Texto corrido (quebras de linha preservadas, links clicáveis) dentro da moldura da loja. */
+const asHtml = (text, { siteUrl = "" } = {}) =>
+  emailLayout({ contentHtml: `<div style="white-space:pre-wrap;font-size:15px;line-height:1.6">${linkify(escapeHtml(text))}</div>`, siteUrl });
+
+/** Botão amarelo (CTA) — tabela para o Outlook respeitar o fundo. */
+const ctaButton = (label, url) =>
+  `<table role="presentation" cellpadding="0" cellspacing="0" style="margin:22px 0 8px"><tr><td style="background:#F6B234;border-radius:2px">
+  <a href="${escapeHtml(url)}" style="display:inline-block;padding:15px 26px;font-size:13px;font-weight:800;letter-spacing:.16em;text-transform:uppercase;color:#0B0B0B;text-decoration:none">${escapeHtml(label)} &rarr;</a>
+  </td></tr></table>`;
+
+/**
+ * Campanha de marketing: mensagem em parágrafos (linha em branco separa), imagem opcional, botão opcional e
+ * rodapé com o motivo + link de descadastro (obrigatório — LGPD e reputação do domínio).
+ */
+export function buildMarketingEmail({ subject, body, ctaLabel, ctaUrl, imageUrl, unsubscribeUrl, siteUrl, name = "" }) {
+  const paragraphs = String(body || "").replace(/\r\n/g, "\n").split(/\n\s*\n/).map((p) => p.trim()).filter(Boolean);
+  const hasCta = Boolean(ctaLabel && ctaUrl);
+  const text = lines([
+    name ? `Olá, ${name}!` : null,
+    name ? "" : null,
+    ...paragraphs.flatMap((p) => [p, ""]),
+    hasCta ? `${ctaLabel}: ${ctaUrl}` : null,
+    hasCta ? "" : null,
+    "— Equipe Kulture",
+    "",
+    "Você recebe este e-mail porque comprou ou se cadastrou na Kulture.",
+    unsubscribeUrl ? `Não quer mais receber novidades? Descadastre-se: ${unsubscribeUrl}` : null
+  ]);
+  const contentHtml = [
+    imageUrl ? `<img src="${escapeHtml(imageUrl)}" alt="" width="544" style="display:block;width:100%;max-width:544px;height:auto;margin:0 0 22px;border:0" />` : "",
+    name ? `<p style="margin:0 0 14px;font-size:15px">Olá, <b>${escapeHtml(name)}</b>!</p>` : "",
+    ...paragraphs.map((p) => `<p style="margin:0 0 14px;font-size:15px;line-height:1.6">${linkify(escapeHtml(p)).replace(/\n/g, "<br>")}</p>`),
+    hasCta ? ctaButton(ctaLabel, ctaUrl) : ""
+  ].join("\n");
+  const footerHtml = `Você recebe este e-mail porque comprou ou se cadastrou na Kulture.${unsubscribeUrl ? ` <a href="${escapeHtml(unsubscribeUrl)}" style="color:#8A877F;text-decoration:underline">Não quero mais receber novidades</a>.` : ""}`;
+  return { subject, text, html: emailLayout({ contentHtml, footerHtml, siteUrl, preheader: paragraphs[0] || subject }) };
+}
 
 /** Link para redefinir a senha (esqueci a senha ou gerado pelo backoffice). */
 export function buildPasswordResetEmail({ name, link, expiresMin = 60 }) {
@@ -107,7 +230,7 @@ export function buildOrderShippedEmail(order, { siteUrl } = {}) {
     "",
     "— Equipe Kulture"
   ]);
-  return { subject: `Pedido ${order.number} enviado — Kulture`, text, html: asHtml(text) };
+  return { subject: `Pedido ${order.number} enviado — Kulture`, text, html: asHtml(text, { siteUrl }) };
 }
 
 /** Pedido entregue. */
@@ -122,7 +245,7 @@ export function buildOrderDeliveredEmail(order, { siteUrl } = {}) {
     "",
     "— Equipe Kulture"
   ]);
-  return { subject: `Pedido ${order.number} entregue — Kulture`, text, html: asHtml(text) };
+  return { subject: `Pedido ${order.number} entregue — Kulture`, text, html: asHtml(text, { siteUrl }) };
 }
 
 /** Pedido cancelado / estornado. */
@@ -139,7 +262,7 @@ export function buildOrderCancelledEmail(order, { siteUrl, refunded = false } = 
     "",
     "— Equipe Kulture"
   ]);
-  return { subject: `Pedido ${order.number} ${refunded ? "estornado" : "cancelado"} — Kulture`, text, html: asHtml(text) };
+  return { subject: `Pedido ${order.number} ${refunded ? "estornado" : "cancelado"} — Kulture`, text, html: asHtml(text, { siteUrl }) };
 }
 
 /** E-mail de confirmação de pagamento para o cliente. */
@@ -168,10 +291,7 @@ export function buildOrderPaidEmail(order, { siteUrl } = {}) {
   ]
     .filter((l) => l !== null)
     .join("\n");
-  const html = `<pre style="font-family:Inter,Arial,sans-serif;font-size:15px;line-height:1.5;white-space:pre-wrap">${text
-    .replace(/&/g, "&amp;")
-    .replace(/</g, "&lt;")}</pre>`;
-  return { subject: `Pedido ${order.number} confirmado — Kulture`, text, html };
+  return { subject: `Pedido ${order.number} confirmado — Kulture`, text, html: asHtml(text, { siteUrl }) };
 }
 
 /** Rótulo da forma de pagamento (inclui as formas de venda fora do site). */
@@ -223,5 +343,5 @@ export function buildOrderRegisteredEmail(order, { siteUrl } = {}) {
     "",
     "— Equipe Kulture"
   ]);
-  return { subject: `Pedido ${order.number} registrado — Kulture`, text, html: asHtml(text) };
+  return { subject: `Pedido ${order.number} registrado — Kulture`, text, html: asHtml(text, { siteUrl }) };
 }

@@ -81,7 +81,15 @@ export default function Stock({ auth, section = "stock" }) {
                       </div>
                     </div>
                   </td>
-                  <td><span className="mono">{p.code}</span>{p.styleColor && <span className="sub">SKU {p.styleColor}</span>}</td>
+                  <td>
+                    <span className="mono">{p.code}</span>
+                    {p.styleColor && <span className="sub">SKU {p.styleColor}</span>}
+                    {p.path && p.active && (
+                      <span className="sub">
+                        <a href={p.path} target="_blank" rel="noreferrer" onClick={(e) => e.stopPropagation()} title="Abrir a página do tênis (link para o Instagram)">página ↗</a>
+                      </span>
+                    )}
+                  </td>
                   <td>
                     <div className="stk-sizes">
                       {p.sizes.length === 0 && <span className="sub">sem tamanhos</span>}

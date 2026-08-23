@@ -1,15 +1,7 @@
 import { useState, useEffect, useMemo } from 'react';
 import { api } from '../lib/api';
-import { launchDateLabel, sizeText, customKey, SIZE_GROUP_LABELS } from '../lib/format.js';
+import { launchDateLabel, sizeText, customKey, BY_YOU_DELIVERY_DAYS } from '../lib/format.js';
 
-/** Grupos (abas) do seletor: o que a API mandou, senão o que der para deduzir dos tamanhos. */
-function groupsOf(product) {
-  if (Array.isArray(product?.sizeGroups) && product.sizeGroups.length) return product.sizeGroups;
-  const set = new Set();
-  for (const s of product?.sizes || []) for (const k of Object.keys(s.us || {})) if (s.us[k]) set.add(k);
-  if (!set.size) for (const s of product?.sizes || []) if (s.scale) set.add(s.scale);
-  return ['M', 'W', 'K'].filter((k) => set.has(k));
-}
 const EMPTY_CUSTOM = { textLeft: '', numberLeft: '', textRight: '', numberRight: '' };
 const CUSTOM_RE = /[^A-Za-z0-9 .,'&!?#-]/g;
 
@@ -19,20 +11,14 @@ export function SizePicker({ item, onClose, onAdd }) {
   const [error, setError] = useState(null);
   const [selectedSize, setSelectedSize] = useState(null);
   const [photo, setPhoto] = useState(0);
-  const [group, setGroup] = useState(null);         // aba: M (masculino) | W (feminino) | K (infantil)
   const [custom, setCustom] = useState(EMPTY_CUSTOM); // Nike By You: gravação por pé
-  const groups = useMemo(() => groupsOf(product), [product]);
-  const activeGroup = group && groups.includes(group) ? group : groups[0] || null;
   const isByYou = Boolean(product?.byYou);
   const textMax = product?.customization?.textMax || 8;
   const setC = (k, v) => setCustom((c) => ({ ...c, [k]: k.startsWith('number') ? v.replace(/\D/g, '').slice(0, 2) : v.replace(CUSTOM_RE, '').slice(0, textMax) }));
-  // tamanhos visíveis na aba: no unissex é a mesma lista com o US do gênero; num só-feminino a lista toda é W
-  const visibleSizes = useMemo(() => {
-    const all = product?.sizes || [];
-    if (!activeGroup) return all;
-    const withUs = all.filter((s) => s.us && s.us[activeGroup]);
-    return withUs.length ? withUs : all;
-  }, [product, activeGroup]);
+  // O cliente só vê numeração BR — o US (modelagem M/W/K) é informação interna, fica no pedido para o backoffice.
+  // Um tamanho sem BR na tabela (não deveria acontecer: as tabelas cobrem até M 18 / W 19,5) não entra na grade,
+  // porque a única forma de mostrá-lo seria pelo US.
+  const visibleSizes = useMemo(() => (product?.sizes || []).filter((s) => s.brLabel != null && String(s.brLabel).trim() !== ''), [product]);
 
   // galeria: fotos espelhadas pela api (vários ângulos); fallback = foto do card
   const gallery = useMemo(() => {
@@ -72,8 +58,7 @@ export function SizePicker({ item, onClose, onAdd }) {
     const customization = isByYou && Object.values(custom).some((v) => String(v).trim()) ? { ...custom } : null;
     const picked = {
       ...selectedSize,
-      pickedGender: activeGroup,                       // aba em que o cliente escolheu (Masculino/Feminino/Infantil)
-      sizeLabel: sizeText(selectedSize, activeGroup), // "BR 38 (US M 7)" — vai para sacola/checkout/pedido
+      sizeLabel: sizeText(selectedSize), // "BR 38" — só o BR na sacola/checkout; o US entra no pedido pela api (escala do SKU)
       ...(customization ? { customization, customKey: customKey(customization) } : {})
     };
     onAdd(item, picked);
@@ -90,7 +75,7 @@ export function SizePicker({ item, onClose, onAdd }) {
         </div>
         <div className="tab-panel active">
           {loading && <div className="sp-loading">Buscando tamanhos...</div>}
-          {product?.byYou && <div className="sp-launch sp-byyou-flag"><b>Nike By You</b> — modelo customizável: a Nike não informa estoque por tamanho; escolha o seu número abaixo.</div>}
+          {product?.byYou && <div className="sp-launch sp-byyou-flag"><b>Nike By You</b> — modelo customizável, feito sob encomenda: até {BY_YOU_DELIVERY_DAYS} dias para entrega. A Nike não informa estoque por tamanho; escolha o seu número abaixo.</div>}
           {error && <div className="sp-error">{error}</div>}
           
           {product && (
@@ -152,59 +137,26 @@ export function SizePicker({ item, onClose, onAdd }) {
               </div>
               <div className="sp-header">
                 <span>Escolha o tamanho</span>
-                <span>{isByYou ? "Numeração BR · você indica o seu número" : product.source === "stock" ? "Numeração BR · estoque por tamanho" : "Numeração BR (US abaixo)"}</span>
+                <span>{isByYou ? "Numeração BR · você indica o seu número" : product.source === "stock" ? "Numeração BR · estoque por tamanho" : "Numeração BR"}</span>
               </div>
-
-              {/* modelagem: abas quando o produto tem mais de uma (unissex = Masculino + Feminino); senão só o rótulo */}
-              {groups.length > 0 && (
-                <div className="sp-groups" role="tablist" aria-label="Modelagem">
-                  {groups.map((g) => (
-                    <button
-                      key={g}
-                      type="button"
-                      role="tab"
-                      aria-selected={activeGroup === g}
-                      className={`sp-group${activeGroup === g ? ' on' : ''}${groups.length === 1 ? ' single' : ''}`}
-                      onClick={() => { setGroup(g); setSelectedSize(null); }}
-                    >
-                      {SIZE_GROUP_LABELS[g] || g}
-                    </button>
-                  ))}
-                  <span className="sp-groups-hint">
-                    {groups.length > 1
-                      ? "O mesmo par, com o número US da modelagem escolhida — o BR não muda."
-                      : `Modelagem ${SIZE_GROUP_LABELS[groups[0]]?.toLowerCase() || ""}: o US mostrado é o dessa numeração.`}
-                  </span>
-                </div>
-              )}
 
               <div className="size-grid">
                 {visibleSizes.length === 0 ? (
                   <div className="sp-error" style={{ gridColumn: '1/-1' }}>Esgotado</div>
                 ) : (
-                  visibleSizes.map((s, i) => {
-                    const usNum = s.us && activeGroup ? s.us[activeGroup] : null;
-                    const usLabel = usNum ? (activeGroup === 'K' ? `US ${usNum}` : `US ${activeGroup} ${usNum}`) : null;
-                    // sem BR na tabela (raro): o número grande vira o US — e o US não repete embaixo
-                    const main = s.brLabel || usLabel || `US ${s.nikeSize}`;
-                    const sub = s.brLabel ? usLabel : null;
-                    return (
-                      <button
-                        key={`${s.nikeSize}-${i}`}
-                        className={`size-btn ${selectedSize?.nikeSize === s.nikeSize ? 'selected' : ''}`}
-                        disabled={!s.available}
-                        onClick={() => setSelectedSize(s)}
-                        aria-label={`${s.brLabel ? `Tamanho BR ${s.brLabel}` : `Tamanho ${main}`}${sub ? `, ${sub}` : ''}${s.approximate ? ' (aproximado)' : ''}`}
-                      >
-                        {main}
-                        {product.source === "stock"
-                          ? <span className="us">{sub || (s.qty === 1 ? "último" : `${s.qty} un.`)}</span>
-                          : sub ? <span className="us">{sub}</span> : s.brLabel ? <span className="us">{`US ${s.nikeSize}`}</span> : null}
-                        {s.approximate && <span className="approx">Aprox.</span>}
-                        {product.source === "stock" && sub && s.qty === 1 && <span className="approx">Último</span>}
-                      </button>
-                    );
-                  })
+                  visibleSizes.map((s, i) => (
+                    // só o BR no chip; na pronta entrega a linha de baixo é a quantidade em estoque
+                    <button
+                      key={`${s.nikeSize}-${i}`}
+                      className={`size-btn ${selectedSize?.nikeSize === s.nikeSize ? 'selected' : ''}`}
+                      disabled={!s.available}
+                      onClick={() => setSelectedSize(s)}
+                      aria-label={`Tamanho BR ${s.brLabel}`}
+                    >
+                      {s.brLabel}
+                      {product.source === "stock" && <span className="us">{s.qty === 1 ? "último" : `${s.qty} un.`}</span>}
+                    </button>
+                  ))
                 )}
               </div>
 
@@ -231,8 +183,9 @@ export function SizePicker({ item, onClose, onAdd }) {
                     ))}
                   </div>
                   <p className="sp-byyou-note">
-                    Produto sob encomenda na Nike By You: prazo maior que o dos importados de linha. A gente confirma com você o
-                    tamanho e a gravação antes de fechar a compra nos EUA. Deixe em branco para o par sem gravação.
+                    Produto sob encomenda na Nike By You: <b>prazo de até {BY_YOU_DELIVERY_DAYS} dias para entrega</b>, maior que o dos
+                    importados de linha. A gente confirma com você o tamanho e a gravação antes de fechar a compra nos EUA. Deixe em
+                    branco para o par sem gravação.
                   </p>
                 </div>
               )}
@@ -244,7 +197,7 @@ export function SizePicker({ item, onClose, onAdd }) {
                   onClick={handleAdd}
                   style={{ marginTop: 0 }}
                 >
-                  {selectedSize ? `Confirmar · ${sizeText(selectedSize, activeGroup)}` : 'Confirmar Tamanho'}
+                  {selectedSize ? `Confirmar · ${sizeText(selectedSize)}` : 'Confirmar Tamanho'}
                 </button>
               </div>
             </div>

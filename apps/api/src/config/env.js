@@ -109,11 +109,18 @@ const schema = z.object({
 
   // ---- notifications ----
   // ---- e-mail transacional (MailerSend via API HTTP) ----
-  MAIL_PROVIDER: z.enum(["log", "mailersend"]).default("log"),
+  // log = só registra · mailersend = API HTTP (token) · smtp = SMTP da MailerSend (ou outro), via nodemailer
+  MAIL_PROVIDER: z.enum(["log", "mailersend", "smtp"]).default("log"),
   MAILERSEND_API_TOKEN: z.string().default(""),
   MAILERSEND_API_BASE: z.string().url().default("https://api.mailersend.com/v1"),
-  MAIL_FROM: z.string().default("no-reply@localhost"),
+  SMTP_HOST: z.string().default("smtp.mailersend.net"),
+  SMTP_PORT: z.coerce.number().int().positive().default(587), // 587 = STARTTLS · 465 = TLS direto (SMTP_SECURE=true)
+  SMTP_SECURE: z.preprocess((v) => (v === undefined || v === "" ? undefined : String(v).toLowerCase() === "true"), z.boolean().default(false)),
+  SMTP_USER: z.string().default(""),
+  SMTP_PASS: z.string().default(""),
+  MAIL_FROM: z.string().default("no-reply@localhost"), // precisa ser do domínio verificado na MailerSend (em trial: @test-….mlsender.net)
   MAIL_FROM_NAME: z.string().default("Kulture"),
+  MAIL_REPLY_TO: z.string().default(""), // opcional: e-mail de resposta (ex. atendimento)
 
   WHATSAPP_PROVIDER: z.enum(["log", "evolution"]).default("log"),
   WHATSAPP_TO: z.string().default(""), // Opcional no mock

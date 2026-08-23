@@ -23,7 +23,7 @@ export default function CartDrawer({ open, onClose, cart, onCheckout }) {
               </div>
               <div className="cart-item-info">
                 <b>{item.name}{item.launch?.comingSoon ? <em className="tag-pre">Pré-venda</em> : null}{item.stock ? <em className="tag-pre tag-stock">Pronta entrega</em> : null}</b>
-                <span>TAM {sizeText(sizeInfo)}{sizeInfo?.approximate ? ' (aprox.)' : ''} · QTD {qty}</span>
+                <span>TAM {sizeText(sizeInfo)} · QTD {qty}</span>
                 {customText(sizeInfo?.customization) && <span className="cart-custom">By You · {customText(sizeInfo.customization)}</span>}
                 <span className="line-price">{brl(item.price * qty)}</span>
               </div>

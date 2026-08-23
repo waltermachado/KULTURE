@@ -28,6 +28,8 @@ import { createMailer } from "./modules/mail/mailer.js";
 import { createOrderService } from "./modules/orders/service.js";
 import { orderRoutes } from "./modules/orders/routes.js";
 import { featuredRoutes } from "./modules/featured/routes.js";
+import { marketingRoutes } from "./modules/marketing/routes.js";
+import { createMarketingService } from "./modules/marketing/service.js";
 import { startAbandonedCheckoutJob } from "./modules/jobs/abandoned-checkout.js";
 import { createStockService } from "./modules/stock/service.js";
 import { stockRoutes } from "./modules/stock/routes.js";
@@ -96,6 +98,8 @@ export async function buildApp(overrides = {}) {
   const mailer = overrides.mailer ?? createMailer(env, app.log);
   const orders = overrides.orders ?? createOrderService(env, prisma, catalog, gateway, notifier, app.log, mailer, stock);
   app.decorate("mailer", mailer);
+  // marketing por e-mail (campanhas do backoffice + descadastro) — só com Postgres
+  app.decorate("marketing", prisma ? createMarketingService({ prisma, env, mailer, log: app.log }) : null);
   app.decorate("orders", orders);
 
   // ---- plugins ----
@@ -158,6 +162,7 @@ export async function buildApp(overrides = {}) {
     await app.register(stockRoutes);
     await app.register(stockAdminRoutes);
     await app.register(featuredRoutes);
+    await app.register(marketingRoutes);
   }
 
   // ---- ciclo de vida ----
@@ -189,6 +194,7 @@ export async function buildApp(overrides = {}) {
   }
 
   app.addHook("onClose", async () => {
+    mailer.close?.(); // fecha o pool SMTP
     if (prisma) await prisma.$disconnect();
   });
 

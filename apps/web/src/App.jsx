@@ -3,6 +3,7 @@ import { Routes, Route, useNavigate, useLocation } from "react-router-dom";
 import Header from "./components/Header.jsx";
 import Home from "./pages/Home.jsx";
 import Stock from "./pages/Stock.jsx";
+import StockProduct from "./pages/StockProduct.jsx";
 import ModeBar from "./components/ModeBar.jsx";
 import Checkout from "./pages/Checkout.jsx";
 import Confirmation from "./pages/Confirmation.jsx";
@@ -31,8 +32,8 @@ export default function App() {
   const navigate = useNavigate();
   const location = useLocation();
   const isAdminArea = location.pathname === "/admin" || location.pathname.startsWith("/admin/");
-  // seletor Importados × Pronta entrega × Hypados só nas páginas de vitrine
-  const showModeBar = location.pathname === "/" || location.pathname.startsWith("/pronta-entrega") || location.pathname.startsWith("/hypados");
+  // seletor Importados × Pronta entrega × Hypados só nas vitrines — a página própria do tênis (/pronta-entrega/:ref) fica limpa
+  const showModeBar = ["/", "/pronta-entrega", "/hypados"].includes(location.pathname.replace(/\/+$/, "") || "/");
   const cart = useCart();
   const auth = useAuth();
   const [grid, setGrid] = useState({ status: "loading", products: [], title: TOP8_TITLE, sub: TOP8_SUB, query: "" });
@@ -203,6 +204,9 @@ export default function App() {
         <Route path="/" element={<Home grid={grid} setSelectedProductForSize={setSelectedProductForSize} onCategory={pickCategory} />} />
         <Route path="/pronta-entrega" element={<Stock section="stock" setSelectedProductForSize={setSelectedProductForSize} onCategory={pickCategory} />} />
         <Route path="/hypados" element={<Stock section="hypados" setSelectedProductForSize={setSelectedProductForSize} onCategory={pickCategory} />} />
+        {/* página própria do tênis de estoque (link do Instagram): sem modal, com tamanhos e compra direta */}
+        <Route path="/pronta-entrega/:ref" element={<StockProduct section="stock" onAdd={addToCart} onOpenCart={() => { setModal((m) => ({ ...m, open: false })); setDrawerOpen(true); }} notify={notify} />} />
+        <Route path="/hypados/:ref" element={<StockProduct section="hypados" onAdd={addToCart} onOpenCart={() => { setModal((m) => ({ ...m, open: false })); setDrawerOpen(true); }} notify={notify} />} />
         <Route path="/checkout" element={<Checkout cart={cart} auth={auth} notify={notify} onOpenLogin={() => openModal("login")} />} />
         <Route path="/pedido/confirmacao" element={<Confirmation auth={auth} />} />
         <Route path="/pedido/confirmacao/:number" element={<Confirmation auth={auth} />} />

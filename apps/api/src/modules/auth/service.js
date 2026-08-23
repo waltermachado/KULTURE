@@ -97,6 +97,7 @@ export function createAuthService({
       name: user.name,
       cpf: user.cpf ?? null,
       phone: user.phone ?? null,
+      marketingOptIn: user.marketingOptIn ?? true,
       address: user.address ?? null,
       role: user.role,
       lastLoginAt: user.lastLoginAt ?? null,
@@ -239,14 +240,21 @@ export function createAuthService({
 
   // ─── perfil (edição de cadastro pelo próprio cliente) ─────────────────
 
-  async function updateProfile(userId, { name, phone, cpf, address } = {}) {
+  /** `marketing` (opcional) = serviço de marketing, para manter a lista de descadastros coerente com o opt-in. */
+  async function updateProfile(userId, { name, phone, cpf, address, marketingOptIn } = {}, { marketing = null } = {}) {
     const data = {};
     if (typeof name === "string" && name.trim()) data.name = name.trim();
     if (phone !== undefined) data.phone = digits(phone);
     if (cpf !== undefined) data.cpf = digits(cpf);
     if (address !== undefined) data.address = cleanAddress(address);
-    if (!Object.keys(data).length) throw httpError(400, "NOTHING_TO_UPDATE", "Nada para atualizar");
-    const user = await prisma.user.update({ where: { id: userId }, data });
+    if (typeof marketingOptIn === "boolean") {
+      if (marketing) await marketing.setOptIn(userId, marketingOptIn);
+      else data.marketingOptIn = marketingOptIn;
+    }
+    if (!Object.keys(data).length && typeof marketingOptIn !== "boolean") throw httpError(400, "NOTHING_TO_UPDATE", "Nada para atualizar");
+    const user = Object.keys(data).length
+      ? await prisma.user.update({ where: { id: userId }, data })
+      : await prisma.user.findUnique({ where: { id: userId } });
     return safeUser(user);
   }
 

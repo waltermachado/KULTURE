@@ -1,4 +1,4 @@
-import { sizeLabelOf } from '../orders/service.js';
+import { sizeLabelBrOf } from '../orders/service.js';
 
 /** `stock` (opcional): pronta entrega — ao abandonar, devolve as unidades reservadas ao estoque. */
 export function startAbandonedCheckoutJob(prisma, notifier, log, stock = null) {
@@ -43,7 +43,7 @@ export function startAbandonedCheckoutJob(prisma, notifier, log, stock = null) {
           const text = '🔴 Notamos que você não finalizou o pagamento do seu pedido.';
           let msg = text + `\n\nPedido: *${order.number}*\nCliente: ${order.customerName}\nLocal: ${order.address?.city || ''}/${order.address?.state || ''}\n\n*Itens:*`;
           for(const item of order.items) {
-            msg += `\n- ${item.name} — tam. ${sizeLabelOf(item)} × ${item.quantity} — R$ ${item.unitPriceBrl}`;
+            msg += `\n- ${item.name} — tam. ${sizeLabelBrOf(item)} × ${item.quantity} — R$ ${item.unitPriceBrl}`;
           }
           msg += `\n\n*Total:* R$ ${order.totalBrl}`;
           

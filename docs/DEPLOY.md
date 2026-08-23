@@ -62,7 +62,10 @@ Arquivos: `deploy/api.Dockerfile`, `deploy/scraper.Dockerfile`, `deploy/api-entr
      | `PASSWORD_RESET_TTL_MIN` | `60` (validade do link "esqueci minha senha") |
      | `PAYMENT_PROVIDER` | `mock` até validar o link real; depois `infinitepay` |
      | `INFINITEPAY_HANDLE` | `kulture-br` |
-     | `MAIL_PROVIDER` / `MAILERSEND_API_TOKEN` / `MAIL_FROM` / `MAIL_FROM_NAME` | `mailersend` + token + remetente do domínio verificado |
+     | `MAIL_PROVIDER` | `smtp` (SMTP da MailerSend — esqueci a senha, atualização de entrega e marketing) · `mailersend` (API HTTP + `MAILERSEND_API_TOKEN`) · `log` |
+     | `SMTP_HOST` / `SMTP_PORT` / `SMTP_SECURE` | `smtp.mailersend.net` / `587` / `false` (STARTTLS). Alternativa: `465` + `true` |
+     | `SMTP_USER` / `SMTP_PASS` | usuário e senha SMTP do painel da MailerSend (Domains → SMTP). **Nunca no git, nunca no chat** — só aqui e no `.env` local |
+     | `MAIL_FROM` / `MAIL_FROM_NAME` / `MAIL_REPLY_TO` | remetente **do domínio verificado** (em trial: `algo@test-….mlsender.net`, que só entrega para o e-mail do dono da conta) / nome / e-mail de resposta (opcional) |
      | `WHATSAPP_PROVIDER` | `log` (WhatsApp adiado) |
      | `WHATSAPP_CONTACT_PHONE` | WhatsApp de **atendimento** mostrado no site ("não achou? chama a gente"): `5585992578888` (DDI+DDD+número, só dígitos). Vazio = usa o número do rodapé |
      | `TRUST_PROXY=true`, `NODE_ENV=production`, `HOST=0.0.0.0` | já vêm do Dockerfile |
@@ -133,6 +136,31 @@ Passos:
 3. Teste de R$1: no site, busque exatamente **`test123test`** (produto virtual de R$ 1,00, só aparece com o nome completo; `TEST_PRODUCT_ENABLED=false` desliga) → escolha o tamanho → checkout → pague Pix, confira: redirect para `/pedido/confirmacao/KLT-…` → "Pagamento confirmado" (payment_check) → e-mail; no `/admin/pedidos/KLT-…` os eventos `payment_confirmed` e/ou `webhook_received`.
 4. Se ficar "aguardando": `/admin` → pedido → **Reconsultar pagamento** (informe o transaction_nsu do painel InfinitePay se faltar). Evento `payment_amount_mismatch` = valor da cobrança ≠ total do pedido (a api não marca pago; baixa manual só depois de conferir).
 5. Voltar para o mock: `PAYMENT_PROVIDER=mock`.
+
+## 6c. E-mail de verdade (SMTP da MailerSend)
+
+1. No painel da MailerSend: **Domains → Add domain → `lojakulture.com.br`** e crie no Cloudflare os registros que ele pede
+   (SPF, DKIM e o CNAME de return-path). Enquanto isso não existir, a conta fica em **trial** com o domínio
+   `test-….mlsender.net`, que **só entrega para o e-mail do administrador da conta** — serve para testar, não para clientes.
+2. Ainda em Domains → (o domínio) → **SMTP**: gere o usuário/senha SMTP. Se a senha já circulou por chat/print, **gere outra**.
+3. Variáveis no `kulture-api` (Railway) e no `apps/api/.env` local:
+
+   ```
+   MAIL_PROVIDER=smtp
+   SMTP_HOST=smtp.mailersend.net
+   SMTP_PORT=587
+   SMTP_SECURE=false
+   SMTP_USER=<usuário SMTP do painel>
+   SMTP_PASS=<senha SMTP do painel>
+   MAIL_FROM=contato@lojakulture.com.br      # em trial: <algo>@test-….mlsender.net
+   MAIL_FROM_NAME=Kulture
+   MAIL_REPLY_TO=contato@lojakulture.com.br  # opcional
+   ```
+
+4. Deploy e confira em **/admin/marketing → “Testar conexão”** (faz o login SMTP de verdade) e
+   **“E-mail de teste para mim”**. `curl …/health` mostra `mailProvider: "smtp"`.
+5. Tudo que já existia passa a sair por SMTP: “esqueci minha senha”, pedido pago/enviado/entregue/cancelado,
+   venda externa registrada — e as campanhas de marketing (com link de descadastro).
 
 ## 7. Pendências conhecidas antes de vender de verdade
 

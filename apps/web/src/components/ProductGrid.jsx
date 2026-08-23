@@ -1,14 +1,24 @@
 import ProductMedia from "./ProductMedia.jsx";
 import WhatsappCta from "./WhatsappCta.jsx";
-import { brl } from "../lib/format.js";
+import { brl, BY_YOU_DELIVERY_DAYS } from "../lib/format.js";
 
 function Card({ p, i, onAdd }) {
   const soldOut = p.stock && p.stockQty === 0;
+  // estoque próprio tem página própria (p.href): o botão vira link de verdade (copiar/abrir em nova aba funciona)
+  // e o clique normal segue pelo router, via onAdd → navigate
+  const go = (e) => {
+    if (p.href && (e.metaKey || e.ctrlKey || e.shiftKey || e.altKey || e.button !== 0)) return; // nova aba: deixa com o navegador
+    if (p.href) e.preventDefault();
+    onAdd(p);
+  };
   return (
     <article className={`card${p.stock ? " card-stock" : ""}`} onClick={() => onAdd(p)}>
       <div className="card-top">
         <span className="card-brand">{p.brand}</span>
-        <span className={`badge${p.badgeRed ? " red" : ""}${p.launch?.comingSoon ? " pre" : ""}${p.stock && !p.badgeRed ? " stock" : ""}`}>{p.badge}</span>
+        <span className="card-flags">
+          <span className={`badge${p.badgeRed ? " red" : ""}${p.launch?.comingSoon ? " pre" : ""}${p.stock && !p.badgeRed ? " stock" : ""}`}>{p.badge}</span>
+          {p.byYou && <span className="card-eta">{BY_YOU_DELIVERY_DAYS} dias para entrega</span>}
+        </span>
       </div>
       <div className="card-ghost">{String(i + 1).padStart(2, "0")}</div>
       <div className="card-img">
@@ -29,9 +39,15 @@ function Card({ p, i, onAdd }) {
             : `${p.launch?.comingSoon ? "Pré-venda · " : ""}Frete grátis · numeração BR`}
         </span>
         <div className="card-actions">
-          <button className="btn-add" onClick={(e) => { e.stopPropagation(); onAdd(p); }} disabled={soldOut}>
-            {soldOut ? "Esgotado" : "Escolher tamanho"} <span>→</span>
-          </button>
+          {p.href && !soldOut ? (
+            <a className="btn-add" href={p.href} onClick={(e) => { e.stopPropagation(); go(e); }}>
+              Ver o par <span>→</span>
+            </a>
+          ) : (
+            <button className="btn-add" onClick={(e) => { e.stopPropagation(); onAdd(p); }} disabled={soldOut}>
+              {soldOut ? "Esgotado" : "Escolher tamanho"} <span>→</span>
+            </button>
+          )}
         </div>
       </div>
     </article>

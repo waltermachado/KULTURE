@@ -1,6 +1,7 @@
 /**
  * Pronta entrega — rotas públicas.
  *   GET /api/stock              lista os produtos ativos (mesmo contrato do catálogo + sizes/description)
+ *   GET /api/stock/:ref         um produto pelo slug ou code (página própria do tênis — link do Instagram)
  *   GET /media/estoque/:id      foto enviada pelo backoffice (guardada no banco)
  * O detalhe com tamanhos continua em GET /api/product/:code (o catálogo intercepta o prefixo PE-).
  */
@@ -24,6 +25,22 @@ export async function stockRoutes(app) {
       const section = req.query.section || "stock";
       const products = (await stock.listPublic({ section })).map(stripStockInternal);
       return { total: products.length, products, source: "stock", section };
+    }
+  );
+
+  app.get(
+    "/api/stock/:ref",
+    {
+      schema: {
+        tags: ["catalog"],
+        summary: "Produto de estoque próprio pelo slug (URL da página) ou code (PE-/HY-), com tamanhos e quantidades",
+        params: { type: "object", properties: { ref: { type: "string", minLength: 1, maxLength: 120 } } }
+      }
+    },
+    async (req) => {
+      const product = await stock.getProductByRef(req.params.ref);
+      if (!product) throw AppError.notFound("Este par não está mais disponível");
+      return { product: stripStockInternal(product), source: "stock" };
     }
   );
 

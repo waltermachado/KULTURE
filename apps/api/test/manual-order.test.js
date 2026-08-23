@@ -160,7 +160,8 @@ describe("venda externa (registrada no painel)", { timeout: 60000 }, () => {
     expect(sentMails.at(-1).to).toBe(CUSTOMER.email);
     expect(sentMails.at(-1).subject).toMatch(/registrado/);
     expect(sentMails.at(-1).text).toContain(o.number);
-    expect(sentMails.at(-1).text).toContain("BR 41 (US W 10.5)");
+    expect(sentMails.at(-1).text).toContain("tam. BR 41 ×"); // cliente vê só o BR — o US fica no backoffice
+    expect(sentMails.at(-1).text).not.toMatch(/US W|US M/);
     expect(sentMails.at(-1).text).toContain("https://loja.test/conta");
   });
 
@@ -170,7 +171,8 @@ describe("venda externa (registrada no painel)", { timeout: 60000 }, () => {
     const o = mine.json().orders.find((x) => x.number === created[0]);
     expect(o).toBeTruthy();
     expect(o.status).toBe("paid");
-    expect(o.items.some((i) => i.sizeLabel === "BR 41 (US W 10.5)")).toBe(true);
+    expect(o.items.some((i) => i.sizeLabel === "BR 41")).toBe(true); // só o BR para o cliente
+    expect(o.items.every((i) => i.nikeSize === undefined && !/US/.test(i.sizeLabel))).toBe(true);
 
     const pub = await app.inject({ method: "GET", url: `/api/orders/${created[0]}` });
     expect(pub.statusCode).toBe(200);

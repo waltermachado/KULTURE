@@ -1,6 +1,6 @@
 import { AppError } from '../../lib/errors.js';
 import { pricingRateOf } from '../catalog/normalize.js';
-import { sizeLabel as buildSizeLabel } from "@kulture/shared/sizes";
+import { sizeLabel as buildSizeLabel, sizeLabelBr } from "@kulture/shared/sizes";
 
 import { buildOrderPaidEmail } from "../mail/mailer.js";
 
@@ -28,11 +28,25 @@ export function resolveWebUrl(env, webOrigin) {
   return env.PUBLIC_WEB_URL;
 }
 
-/** Rótulo do tamanho do item do pedido: o salvo no checkout ("BR 38 (US M 7)") ou, em pedidos antigos, "BR 41 (US 8.5)". */
+/**
+ * Rótulo INTERNO do tamanho (backoffice / aviso ao dono): o salvo no checkout ("BR 38 (US M 7)") ou, em pedidos
+ * antigos, "BR 41 (US 8.5)". O US é o que o dono usa para comprar na Nike — nunca vai para o cliente.
+ */
 export function sizeLabelOf(item) {
   if (item.sizeLabel) return item.sizeLabel;
   const br = item.brLabel ?? item.brSize ?? "?";
   return item.nikeSize && String(item.nikeSize) !== String(br) ? `BR ${br} (US ${item.nikeSize})` : `BR ${br}`;
+}
+
+/** Rótulo que o CLIENTE vê (e-mail, WhatsApp, API pública, "meus pedidos"): só o BR — "BR 38". */
+export function sizeLabelBrOf(item) {
+  return sizeLabelBr(item) || "BR ?";
+}
+
+/** Item do pedido como o cliente pode ver: sem o US (nikeSize) e com o rótulo só em BR. */
+export function clientOrderItem(item) {
+  const { nikeSize, ...rest } = item;
+  return { ...rest, sizeLabel: sizeLabelBrOf(item) };
 }
 
 /** Nike By You: "By You · pé E “KULTURE” nº 08 · pé D “MAMBA” nº 24" (só o que foi preenchido). */
@@ -82,10 +96,11 @@ export function createOrderService(env, prisma, catalog, gateway, notifier, log,
   }
 
 
-  const formatMsg = (order, text) => {
+  // `internal` = mensagem para o dono (WHATSAPP_TO): traz o US para comprar na Nike; para o cliente só o BR
+  const formatMsg = (order, text, { internal = false } = {}) => {
     let msg = text + `\n\nPedido: *${order.number}*\nCliente: ${order.customerName}\nLocal: ${order.address?.city || ''}/${order.address?.state || ''}\n\n*Itens:*`;
     for(const item of order.items) {
-      msg += `\n- ${item.name} — tam. ${sizeLabelOf(item)} × ${item.quantity} — R$ ${item.unitPriceBrl}`;
+      msg += `\n- ${item.name} — tam. ${internal ? sizeLabelOf(item) : sizeLabelBrOf(item)} × ${item.quantity} — R$ ${item.unitPriceBrl}`;
       const cust = customizationLabelOf(item.customization);
       if (cust) msg += `\n  ${cust}`;
     }
@@ -98,6 +113,7 @@ export function createOrderService(env, prisma, catalog, gateway, notifier, log,
   async function notify(order, eventType) {
     const to = env.WHATSAPP_TO || order.customerPhone;
     if (!to) return;
+    const internal = Boolean(env.WHATSAPP_TO); // aviso ao dono, não ao cliente
     
     let text = '';
     let eventName = '';
@@ -118,7 +134,7 @@ export function createOrderService(env, prisma, catalog, gateway, notifier, log,
     try {
       await notifier.sendText({
         to,
-        text: formatMsg(order, text),
+        text: formatMsg(order, text, { internal }),
         event: eventName,
         orderId: order.id
       });
@@ -410,7 +426,7 @@ export function createOrderService(env, prisma, catalog, gateway, notifier, log,
       const { pricingSnapshot, events, id, userId: uid, items, internalNotes, ...rest } = order;
       const publicItems = items.map(i => {
         const { breakdown, orderId, id: iid, ...publicItem } = i;
-        return publicItem;
+        return isAdmin ? publicItem : clientOrderItem(publicItem); // cliente: sem o US, rótulo só em BR
       });
 
       if (full) return { ...rest, items: publicItems, scope: 'full' };
@@ -455,7 +471,8 @@ export function createOrderService(env, prisma, catalog, gateway, notifier, log,
           items: { select: { name: true, image: true, nikeSize: true, brLabel: true, sizeLabel: true, customization: true, quantity: true, unitPriceBrl: true, styleColor: true } }
         }
       });
-      return { orders: rows };
+      // "meus pedidos" é tela do cliente: só o BR
+      return { orders: rows.map((o) => ({ ...o, items: o.items.map(clientOrderItem) })) };
     }
   };
 }

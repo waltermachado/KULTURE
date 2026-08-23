@@ -163,6 +163,9 @@ header.nav{position:sticky;top:0;z-index:60;background:var(--ink);border-bottom:
 .badge.red{background:var(--red);color:#fff}
 .badge.pre{background:transparent;color:var(--yellow);border:1px solid var(--yellow)}
 .card:hover .badge.pre{background:var(--ink);color:var(--yellow);border-color:var(--ink)}
+.card-flags{display:flex;flex-direction:column;align-items:flex-end;gap:6px}
+.card-eta{font-size:9px;letter-spacing:.16em;font-weight:800;text-transform:uppercase;color:var(--yellow);white-space:nowrap}
+.card:hover .card-eta{color:var(--ink)}
 .tag-pre{display:inline-block;margin-left:8px;font-style:normal;font-size:9px;letter-spacing:.16em;text-transform:uppercase;font-weight:800;color:var(--yellow);border:1px solid var(--yellow);padding:2px 6px;vertical-align:middle}
 .card-ghost{position:absolute;left:0;right:0;top:34%;font-size:130px;font-weight:800;letter-spacing:-.06em;text-align:center;opacity:0;color:currentColor;transition:opacity .3s;pointer-events:none;line-height:1}
 .card:hover .card-ghost{opacity:.10}
@@ -252,6 +255,9 @@ footer a:hover,footer .foot-link:hover{color:var(--yellow)}
 .check input{margin-top:3px;accent-color:var(--yellow)}
 .check a{color:var(--yellow)}
 .field{margin-bottom:14px}
+.opt-in{display:flex;align-items:flex-start;gap:10px;margin:4px 0 14px;font-size:13px;line-height:1.5;color:var(--muted-2);cursor:pointer}
+.opt-in input{width:18px;height:18px;margin-top:2px;accent-color:var(--yellow);flex:0 0 auto}
+.opt-in small{display:block;color:var(--muted);font-size:12px}
 .field.f2{flex:2}
 .field.f04{flex:.4}
 .field label{display:block;font-size:11px;letter-spacing:.18em;color:var(--muted);margin-bottom:8px;text-transform:uppercase}
@@ -341,8 +347,6 @@ footer a:hover,footer .foot-link:hover{color:var(--yellow)}
 .size-btn:disabled{opacity:.35;cursor:not-allowed;color:var(--muted)}
 .size-btn .us{display:block;font-size:.62rem;color:var(--muted);font-weight:400;letter-spacing:.06em;margin-top:3px}
 .size-btn.selected .us{color:rgba(11,11,11,.7)}
-.size-btn .approx{display:block;font-size:.6rem;color:var(--muted);font-weight:400;letter-spacing:.06em;text-transform:uppercase}
-.size-btn.selected .approx{color:rgba(11,11,11,.7)}
 .sp-footer{display:flex;gap:12px;margin-top:10px}
 .sp-footer button{flex:1}
 .sp-loading{text-align:center;padding:40px;color:var(--yellow);font-size:12px;letter-spacing:.2em;text-transform:uppercase}
@@ -444,13 +448,7 @@ footer a:hover,footer .foot-link:hover{color:var(--yellow)}
 .sp-desc{margin-top:10px;font-size:13px;line-height:1.6;color:var(--muted-2);white-space:pre-line;max-height:160px;overflow:auto}
 .hero-stock .hero-drop b:first-child{background:var(--green)}
 
-/* ============ SELETOR: modelagem (Masculino / Feminino / Infantil) + Nike By You ============ */
-.sp-groups{display:flex;align-items:center;gap:8px;flex-wrap:wrap;padding:12px 22px 0}
-.sp-group{background:transparent;border:1px solid var(--hair-3);color:var(--muted-2);font-family:inherit;font-size:11px;letter-spacing:.16em;text-transform:uppercase;font-weight:800;padding:0 14px;height:34px;cursor:pointer;transition:.15s}
-.sp-group:hover{border-color:var(--yellow);color:var(--yellow)}
-.sp-group.on{background:var(--yellow);border-color:var(--yellow);color:var(--ink)}
-.sp-group.single{cursor:default}
-.sp-groups-hint{flex-basis:100%;font-size:11px;color:var(--muted);letter-spacing:.04em;margin-top:2px}
+/* ============ SELETOR: Nike By You (o cliente só vê numeração BR — sem abas de modelagem) ============ */
 .sp-byyou-flag{margin:0 22px 8px}
 .sp-byyou{margin:6px 22px 0;border:1px solid var(--hair-2);border-top:2px solid var(--yellow);padding:16px 18px;background:var(--ink-2)}
 .sp-byyou-head b{display:block;font-size:11px;letter-spacing:.22em;text-transform:uppercase;color:var(--yellow);font-weight:800;margin-bottom:6px}
@@ -467,7 +465,6 @@ footer a:hover,footer .foot-link:hover{color:var(--yellow)}
 .sp-byyou-note{margin-top:12px;font-size:12px;line-height:1.55;color:var(--muted)}
 .cart-custom{display:block;font-size:11px;color:var(--yellow);letter-spacing:.04em;margin-top:2px}
 @media(max-width:640px){
-  .sp-groups{padding:10px 16px 0}
   .sp-byyou{margin:6px 16px 0;padding:14px}
   .sp-byyou-grid{grid-template-columns:1fr}
   .sp-foot input{font-size:16px} /* sem zoom no iOS */
@@ -481,3 +478,41 @@ footer a:hover,footer .foot-link:hover{color:var(--yellow)}
 .cat-chip.on{background:var(--yellow);border-color:var(--yellow);color:var(--ink)}
 .cat-chip.on i{background:var(--ink);color:var(--yellow)}
 .cat-chip.zero{opacity:.55}
+
+/* ============ PÁGINA DO TÊNIS — estoque próprio (/pronta-entrega/:slug · /hypados/:slug), link do Instagram ============ */
+.pp{padding:28px 28px 0;max-width:1280px;margin:0 auto}
+.pp-crumbs{display:flex;align-items:center;gap:10px;flex-wrap:wrap;font-size:11px;letter-spacing:.16em;text-transform:uppercase;color:var(--muted);margin-bottom:22px}
+.pp-crumbs a{color:var(--yellow);text-decoration:none;font-weight:800}
+.pp-crumbs a:hover{text-decoration:underline}
+.pp-crumbs .sep{opacity:.5}
+.pp-crumbs .here{display:inline-flex;gap:10px;color:var(--muted-2);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:50vw}
+.pp-grid{display:grid;grid-template-columns:minmax(0,1.15fr) minmax(0,1fr);gap:36px;align-items:start}
+.pp-gallery{display:flex;flex-direction:column;gap:10px;position:sticky;top:96px}
+.pp-gallery .sp-hero-img{height:clamp(300px,44vw,560px);border:1px solid var(--hair)}
+.pp-gallery .sp-thumb{flex:0 0 64px;height:64px}
+.pp-info{display:flex;flex-direction:column;gap:10px;min-width:0}
+.pp-top{display:flex;justify-content:space-between;align-items:center;gap:12px}
+.pp-info h1{font-size:clamp(30px,3.6vw,50px);font-weight:800;text-transform:uppercase;letter-spacing:-.04em;line-height:.92;margin-top:4px}
+.pp-sub{color:var(--muted);font-size:12px;letter-spacing:.12em;text-transform:uppercase}
+.pp-price{display:flex;align-items:baseline;gap:12px;flex-wrap:wrap;margin-top:8px}
+.pp-price .price{font-size:clamp(30px,3.4vw,40px)}
+.pp-inst{font-size:13px;color:var(--muted-2)}
+.pp-desc{font-size:14px;line-height:1.65;color:var(--muted-2);white-space:pre-line;margin-top:6px}
+.pp-sizes-head{margin-top:18px;padding-top:18px;border-top:1px solid var(--hair-2)}
+.pp-actions{display:flex;flex-direction:column;gap:8px;margin-top:16px}
+.pp-actions .btn-full{margin-top:0;padding:20px}
+.btn-ghost{width:100%;background:transparent;color:var(--paper);border:1px solid var(--hair-3);font-weight:800;text-transform:uppercase;padding:16px 20px;cursor:pointer;font-size:12px;letter-spacing:.16em;font-family:inherit;transition:.15s}
+.btn-ghost:hover:not(:disabled){border-color:var(--yellow);color:var(--yellow)}
+.btn-ghost:disabled{opacity:.4;cursor:not-allowed}
+.pp-share{align-self:flex-start;background:transparent;border:0;color:var(--muted);font-family:inherit;font-size:11px;letter-spacing:.16em;text-transform:uppercase;font-weight:800;cursor:pointer;padding:8px 0}
+.pp-share:hover{color:var(--yellow)}
+.pp-trust{list-style:none;display:flex;flex-wrap:wrap;gap:6px 18px;margin-top:14px;padding-top:14px;border-top:1px solid var(--hair-2);font-size:11px;letter-spacing:.12em;text-transform:uppercase;color:var(--muted)}
+.pp-trust li::before{content:"✓ ";color:var(--green)}
+.pp-gone{padding:40px 0 56px;max-width:620px}
+.pp-gone h1{font-size:clamp(32px,4.6vw,56px);font-weight:800;text-transform:uppercase;letter-spacing:-.04em;line-height:.92;margin:12px 0 18px}
+.pp-gone h1 em{font-style:normal;color:var(--yellow)}
+.pp-gone p{color:var(--muted-2);line-height:1.6;margin-bottom:24px}
+.pp-gone .btn-cta{text-decoration:none}
+a.btn-add{text-decoration:none;color:inherit}
+@media(max-width:900px){.pp-grid{grid-template-columns:1fr;gap:24px}.pp-gallery{position:static}.pp-gallery .sp-hero-img{height:clamp(260px,70vw,420px)}}
+@media(max-width:640px){.pp{padding:18px 16px 0}.pp-crumbs{margin-bottom:14px}.pp-crumbs .here{display:none}.pp-actions .btn-full{padding:18px}}
