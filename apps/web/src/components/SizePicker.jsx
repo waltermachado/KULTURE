@@ -2,7 +2,9 @@ import { useState, useEffect, useMemo } from 'react';
 import { api } from '../lib/api';
 import { launchDateLabel, sizeText, customKey, BY_YOU_DELIVERY_DAYS } from '../lib/format.js';
 
-const EMPTY_CUSTOM = { textLeft: '', numberLeft: '', textRight: '', numberRight: '' };
+// A Nike By You hoje tem UM campo por pé (até 8 caracteres, letras e números juntos — ex.: "MAMBA 24");
+// o campo de número separado saiu do site da Nike (pedidos antigos com número continuam sendo exibidos).
+const EMPTY_CUSTOM = { textLeft: '', textRight: '' };
 const CUSTOM_RE = /[^A-Za-z0-9 .,'&!?#-]/g;
 
 export function SizePicker({ item, onClose, onAdd }) {
@@ -14,7 +16,7 @@ export function SizePicker({ item, onClose, onAdd }) {
   const [custom, setCustom] = useState(EMPTY_CUSTOM); // Nike By You: gravação por pé
   const isByYou = Boolean(product?.byYou);
   const textMax = product?.customization?.textMax || 8;
-  const setC = (k, v) => setCustom((c) => ({ ...c, [k]: k.startsWith('number') ? v.replace(/\D/g, '').slice(0, 2) : v.replace(CUSTOM_RE, '').slice(0, textMax) }));
+  const setC = (k, v) => setCustom((c) => ({ ...c, [k]: v.replace(CUSTOM_RE, '').slice(0, textMax) }));
   // O cliente só vê numeração BR — o US (modelagem M/W/K) é informação interna, fica no pedido para o backoffice.
   // Um tamanho sem BR na tabela (não deveria acontecer: as tabelas cobrem até M 18 / W 19,5) não entra na grade,
   // porque a única forma de mostrá-lo seria pelo US.
@@ -167,19 +169,15 @@ export function SizePicker({ item, onClose, onAdd }) {
                 <div className="sp-byyou">
                   <div className="sp-byyou-head">
                     <b>Nike By You · personalize</b>
-                    <span>Opcional. Até {textMax} caracteres e um número de 2 dígitos em cada pé — como você digitar aqui, a gente configura na Nike.</span>
+                    <span>Opcional. Até {textMax} caracteres em cada pé — pode misturar letras e números (ex.: KULTURE, MAMBA 24). Como você digitar aqui, a gente configura na Nike.</span>
                   </div>
                   <div className="sp-byyou-grid">
                     {[["Left", "Pé esquerdo"], ["Right", "Pé direito"]].map(([side, label]) => (
                       <fieldset key={side} className="sp-foot">
                         <legend>{label}</legend>
                         <label>
-                          <span>Texto <small>{custom[`text${side}`].length}/{textMax}</small></span>
-                          <input type="text" value={custom[`text${side}`]} maxLength={textMax} placeholder="Ex.: KULTURE" onChange={(e) => setC(`text${side}`, e.target.value)} autoComplete="off" spellCheck={false} style={{ textTransform: 'uppercase' }} />
-                        </label>
-                        <label className="sp-num">
-                          <span>Número</span>
-                          <input type="text" inputMode="numeric" value={custom[`number${side}`]} maxLength={2} placeholder="00" onChange={(e) => setC(`number${side}`, e.target.value)} autoComplete="off" />
+                          <span>Gravação <small>{custom[`text${side}`].length}/{textMax}</small></span>
+                          <input type="text" value={custom[`text${side}`]} maxLength={textMax} placeholder="Ex.: MAMBA 24" onChange={(e) => setC(`text${side}`, e.target.value)} autoComplete="off" spellCheck={false} style={{ textTransform: 'uppercase' }} />
                         </label>
                       </fieldset>
                     ))}

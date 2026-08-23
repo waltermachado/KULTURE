@@ -127,4 +127,6 @@ export function isByYou(raw) {
 }
 
 /** Limites da personalização Nike By You que o site aceita (texto por pé + número de 2 dígitos por pé). */
-export const BY_YOU_CUSTOMIZATION = { textMax: 8, numberDigits: 2, fields: ["textLeft", "numberLeft", "textRight", "numberRight"] };
+// Nike tirou o campo de número separado do By You: hoje é UMA gravação por pé (≤ 8 caracteres, letras e números
+// juntos). numberLeft/Right seguem aceitos no checkout e exibidos só por compatibilidade com pedidos antigos.
+export const BY_YOU_CUSTOMIZATION = { textMax: 8, fields: ["textLeft", "textRight"] };

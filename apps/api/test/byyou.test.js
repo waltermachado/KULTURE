@@ -42,7 +42,8 @@ describe("Nike By You", { timeout: 60000 }, () => {
     const p = r.json().product;
     expect(p.byYou).toBe(true);
     expect(p.sizesSynthetic).toBe(true);
-    expect(p.customization).toMatchObject({ textMax: 8, numberDigits: 2 });
+    expect(p.customization).toMatchObject({ textMax: 8 }); // Nike tirou o número separado — só a gravação de 8 caracteres
+    expect(p.customization.fields).toEqual(["textLeft", "textRight"]);
     expect(p.sizeGroups).toEqual(["M", "W"]);
     const s38 = p.sizes.find((s) => s.brLabel === "38");
     expect(s38).toMatchObject({ nikeSize: "7", scale: "M", us: { M: "7", W: "8.5" }, available: true, synthetic: true });
@@ -55,12 +56,13 @@ describe("Nike By You", { timeout: 60000 }, () => {
     const bad = await app.inject({ method: "POST", url: "/api/checkout", headers: { "idempotency-key": `test-byyou-${STAMP}-bad` }, payload: { ...base, items: [{ styleColor: DESIGN, nikeSize: "7", quantity: 1, customization: { textLeft: "MUITOLONGO9" } }] } });
     expect(bad.statusCode).toBe(400);
 
-    const ok = await app.inject({ method: "POST", url: "/api/checkout", headers: { "idempotency-key": `test-byyou-${STAMP}-ok` }, payload: { ...base, items: [{ styleColor: DESIGN, nikeSize: "7", quantity: 1, sizeGender: "W", customization: { textLeft: "KULTURE", numberLeft: "8", textRight: "MAMBA", numberRight: "24" } }] } });
+    // formato atual: uma gravação por pé (letras e números juntos); numberLeft/Right antigos seguem aceitos por compatibilidade
+    const ok = await app.inject({ method: "POST", url: "/api/checkout", headers: { "idempotency-key": `test-byyou-${STAMP}-ok` }, payload: { ...base, items: [{ styleColor: DESIGN, nikeSize: "7", quantity: 1, sizeGender: "W", customization: { textLeft: "KULTURE", textRight: "MAMBA 24" } }] } });
     expect(ok.statusCode).toBe(200);
     orderNumber = ok.json().orderNumber;
     const order = await prisma.order.findUnique({ where: { number: orderNumber }, include: { items: true } });
     expect(order.items[0].sizeLabel).toBe("BR 38 (US W 8.5)");
-    expect(order.items[0].customization).toEqual({ textLeft: "KULTURE", numberLeft: "8", textRight: "MAMBA", numberRight: "24" });
+    expect(order.items[0].customization).toEqual({ textLeft: "KULTURE", numberLeft: "", textRight: "MAMBA 24", numberRight: "" });
     // visão pública do pedido traz o rótulo SÓ em BR (o US não vaza para o cliente) e a personalização
     const pub = await app.inject({ method: "GET", url: `/api/orders/${orderNumber}` });
     expect(pub.json().items[0]).toMatchObject({ sizeLabel: "BR 38", customization: { textLeft: "KULTURE" } });
