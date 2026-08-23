@@ -57,13 +57,14 @@ export default function Bling({ auth, notify }) {
         {!st ? <Loading /> : (
           <div className="mkt-status">
             <span className={`pill ${st.connected ? (st.ok === false ? "pending_payment" : "paid") : "cancelled"}`}>
-              {st.connected ? (st.ok === false ? "conectado, com aviso" : "conectado") : "não conectado"}
+              {st.connected ? (st.ok === false ? "conectado · sem acesso a NF-e" : st.nfe ? "conectado · NF-e ok" : "conectado") : "não conectado"}
             </span>
             {!st.configured && <span className="mkt-err">Faltam BLING_CLIENT_ID e BLING_CLIENT_SECRET nas variáveis do servidor (Railway) — sem elas o botão não funciona.</span>}
             {st.company && <span>Empresa: <b>{st.company}</b></span>}
             {st.clientId && <span className="mono">app {st.clientId}</span>}
             {st.connectedAt && <span>Conectado em {fmtDateTime(st.connectedAt)}{st.refreshedAt ? ` · renovado ${fmtDateTime(st.refreshedAt)}` : ""}</span>}
             {st.error && <span className="mkt-err">{st.error}</span>}
+            {(st.warnings || []).map((w, i) => <span key={i} className="sub" style={{ flexBasis: "100%" }}>⚠ {w}</span>)}
             <span className="sub" style={{ flexBasis: "100%" }}>
               Link de redirecionamento que PRECISA estar no app do Bling (Cadastros → Aplicativos): <b className="mono">{st.callbackUrl}</b>
             </span>

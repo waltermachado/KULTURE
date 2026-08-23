@@ -24,6 +24,8 @@ const fakeScraper = {
 // fetch falso do Bling: registra as chamadas e devolve tokens/da empresa
 const calls = [];
 let tokenCount = 0;
+let empresasForbidden = false;
+let nfeForbidden = false;
 const fakeBlingFetch = async (url, opts = {}) => {
   calls.push({ url: String(url), opts });
   const body = (data, status = 200) => ({ ok: status < 400, status, text: async () => JSON.stringify(data) });
@@ -36,7 +38,12 @@ const fakeBlingFetch = async (url, opts = {}) => {
   }
   if (String(url).includes("/empresas/me/dados-basicos")) {
     if (String(opts.headers?.Authorization || "") !== `Bearer AT-${tokenCount}`) return body({ error: { description: "token inválido" } }, 401);
+    if (empresasForbidden) return body({ error: { description: "The request requires higher privileges than provided by the access token" } }, 403);
     return body({ data: { nome: "Kulture BR LTDA" } });
+  }
+  if (String(url).includes("/nfe?")) {
+    if (nfeForbidden) return body({ error: { description: "The request requires higher privileges than provided by the access token" } }, 403);
+    return body({ data: [] });
   }
   return body({ error: { description: "endpoint desconhecido" } }, 404);
 };
@@ -106,7 +113,21 @@ describe("bling: conexão OAuth", { timeout: 60000 }, () => {
     expect(saved.value.refreshToken).toBe(`RT-${tokenCount}`);
 
     const st = await bling.status();
-    expect(st).toMatchObject({ connected: true, ok: true, company: "Kulture BR LTDA" });
+    expect(st).toMatchObject({ connected: true, ok: true, nfe: true, company: "Kulture BR LTDA" });
+
+    // sem o módulo Empresas (403): vira AVISO, não erro — o que vale é o acesso a NF-e
+    empresasForbidden = true;
+    const st2 = await bling.status();
+    expect(st2).toMatchObject({ connected: true, ok: true, nfe: true });
+    expect(st2.company).toBeUndefined();
+    expect(st2.warnings.join(" ")).toMatch(/módulo Empresas.*opcional/);
+    // sem NF-e: erro com instrução de marcar o escopo e reconectar
+    nfeForbidden = true;
+    const st3 = await bling.status();
+    expect(st3).toMatchObject({ connected: true, ok: false, nfe: false });
+    expect(st3.error).toMatch(/Notas Fiscais Eletrônicas.*Desconectar/);
+    empresasForbidden = false;
+    nfeForbidden = false;
   });
 
   it("token vencendo → renova com o refresh (rotaciona) antes da chamada; desconectar apaga tudo", async () => {

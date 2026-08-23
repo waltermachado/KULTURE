@@ -127,7 +127,11 @@ export function createBlingService({ prisma, env, log, fetchImpl = fetch }) {
     return json;
   }
 
-  /** Estado da conexão para o painel (tenta um dado real da conta; erro não derruba o status). */
+  /**
+   * Estado da conexão para o painel. O que importa é o acesso a NF-e (é o que a emissão usa);
+   * "Empresas" é só para mostrar o nome — sem esse escopo vira aviso, não erro.
+   * Escopo é definido no APP do Bling (Cadastros → Aplicativos): mudou lá → desconectar e conectar de novo.
+   */
   async function status() {
     const base = { configured: configured(), callbackUrl: callbackUrl(), clientId: env.BLING_CLIENT_ID ? `${env.BLING_CLIENT_ID.slice(0, 8)}…` : null };
     const t = await loadTokens().catch(() => null);
@@ -138,15 +142,27 @@ export function createBlingService({ prisma, env, log, fetchImpl = fetch }) {
       connectedAt: t.connectedAt ?? null,
       refreshedAt: t.refreshedAt ?? null,
       expiresAt: t.expiresAt ? new Date(Number(t.expiresAt)).toISOString() : null,
-      scope: t.scope ?? null
+      scope: t.scope ?? null,
+      warnings: []
     };
+    const missingScope = (msg) => /403|higher privileges|privilégios|permission/i.test(String(msg));
     try {
       const company = await apiFetch("/empresas/me/dados-basicos");
       out.company = company?.data?.nome || company?.data?.razaoSocial || null;
+    } catch (err) {
+      if (missingScope(err.message)) out.warnings.push("Sem o módulo Empresas no app do Bling (opcional — só usamos para mostrar o nome).");
+      else out.warnings.push(err.message);
+    }
+    try {
+      await apiFetch("/nfe?pagina=1&limite=1");
+      out.nfe = true;
       out.ok = true;
     } catch (err) {
+      out.nfe = false;
       out.ok = false;
-      out.error = err.message; // token pode estar ok e só faltar escopo do endpoint — o painel mostra o texto cru
+      out.error = missingScope(err.message)
+        ? "O token NÃO tem acesso a NF-e. No app do Bling (Cadastros → Aplicativos), marque o módulo Notas Fiscais Eletrônicas nos escopos, salve, e aqui: Desconectar → Conectar ao Bling de novo (o escopo novo só entra num token novo)."
+        : err.message;
     }
     return out;
   }
