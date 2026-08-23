@@ -81,7 +81,10 @@ export default function ProductGrid({
             <div className="kicker">{kicker || (query ? "Resultado da busca" : "Em estoque agora")}</div>
             <h2 style={{ marginTop: 10 }}>{title}</h2>
           </div>
-          <span className="sub">{sub}</span>
+          <div className="section-title-right">
+            <span className="sub">{sub}</span>
+            {whatsapp && <WhatsappCta variant="pill" query={query} context={context} />}
+          </div>
         </div>
         {filters}
       </section>

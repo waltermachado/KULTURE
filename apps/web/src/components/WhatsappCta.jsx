@@ -15,6 +15,15 @@ export default function WhatsappCta({ variant = "banner", query = "", context = 
       : "Oi, Kulture! Estou procurando um tênis que não achei no site. Vocês conseguem? Meu tamanho é BR ___.";
   const href = whatsappLink(cfg, msg);
 
+  // Botão compacto no cabeçalho da seção, ao lado do título (versão escolhida pelo dono em 23/08)
+  if (variant === "pill") {
+    return (
+      <a className="wa-pill" href={href} target="_blank" rel="noreferrer">
+        <WaIcon /> Não achou? Chama no WhatsApp
+      </a>
+    );
+  }
+
   if (variant === "strip") {
     return (
       <div className="wa-strip" role="note">

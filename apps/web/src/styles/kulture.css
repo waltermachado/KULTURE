@@ -562,3 +562,12 @@ a.btn-add{text-decoration:none;color:inherit}
   .wa-fab .wa-fab-label{display:none} /* no celular só a bolinha, para não cobrir conteúdo */
 }
 @media(prefers-reduced-motion:reduce){.wa-fab{animation:none}}
+
+/* ============ CTA WHATSAPP no cabeçalho da seção (versão B, escolhida em 23/08) ============ */
+.section-title-right{display:flex;flex-direction:column;align-items:flex-end;gap:10px;max-width:440px}
+.wa-pill{display:inline-flex;align-items:center;gap:8px;border:1px solid var(--green);color:var(--green);background:rgba(61,220,132,.06);padding:9px 14px;font-size:11px;font-weight:800;letter-spacing:.14em;text-transform:uppercase;text-decoration:none;white-space:nowrap;transition:.15s}
+.wa-pill:hover{background:var(--green);color:var(--ink)}
+.wa-pill .wa-ico{width:16px;height:16px}
+@media(max-width:640px){
+  .section-title-right{align-items:flex-start;max-width:none}
+}
