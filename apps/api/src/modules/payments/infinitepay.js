@@ -22,12 +22,23 @@ export function createInfinitePayGateway(env, log) {
   return {
     async createCheckoutLink(order, { webUrl } = {}) {
       const siteUrl = webUrl || canonicalWebUrl(env);
-      // 100 centavos = R$ 1,00
-      const items = order.items.map(item => ({
-        description: `${item.name} — tam. BR ${item.brLabel || item.nikeSize} (US ${item.nikeSize})`,
-        price: Math.round(Number(item.unitPriceBrl) * 100),
-        quantity: item.quantity
-      }));
+      // 100 centavos = R$ 1,00. A soma dos itens é o que a InfinitePay COBRA — precisa bater com order.totalBrl
+      // (o settle recusa valor divergente). Com cupom, o desconto não se distribui exato por item em centavos,
+      // então o link vira UMA linha com o total do pedido; sem cupom, segue item a item (só BR — o US não vaza).
+      const discountCents = Math.round(Number(order.discountBrl || 0) * 100);
+      const totalCents = Math.round(Number(order.totalBrl) * 100);
+      const itemCount = order.items.reduce((a, i) => a + (Number(i.quantity) || 1), 0);
+      const items = discountCents > 0
+        ? [{
+            description: `Pedido ${order.number} — ${itemCount} item(ns)${order.couponCode ? ` · cupom ${order.couponCode}` : ""} (desconto de R$ ${(discountCents / 100).toFixed(2).replace(".", ",")} já aplicado)`,
+            price: totalCents,
+            quantity: 1
+          }]
+        : order.items.map(item => ({
+            description: `${item.name} — tam. BR ${item.brLabel || item.nikeSize}`,
+            price: Math.round(Number(item.unitPriceBrl) * 100),
+            quantity: item.quantity
+          }));
 
       const payload = {
         handle,
