@@ -49,7 +49,7 @@ export default function StockProduct({ section = "stock", onAdd, onOpenCart, not
   // título da aba (o preview do link — Open Graph — é montado pela api ao servir o index.html)
   useEffect(() => {
     const prev = document.title;
-    if (product) document.title = `${product.name} — ${brl(product.price?.brl)} no Pix | Kulture`;
+    if (product) document.title = `${product.name} — ${brl(product.price?.brl)} | Kulture`;
     return () => { document.title = prev; };
   }, [product]);
 
@@ -87,7 +87,7 @@ export default function StockProduct({ section = "stock", onAdd, onOpenCart, not
     const url = `${window.location.origin}${product.path}`;
     try {
       if (navigator.share) {
-        await navigator.share({ title: product.name, text: `${product.name} — ${brl(product.price?.brl)} no Pix · Kulture`, url });
+        await navigator.share({ title: product.name, text: `${product.name} — ${brl(product.price?.brl)} · Kulture`, url });
         return;
       }
       await navigator.clipboard.writeText(url);
@@ -179,7 +179,7 @@ export default function StockProduct({ section = "stock", onAdd, onOpenCart, not
             <span className="pp-sub">{[product.categoryLabel, product.colorDescription].filter(Boolean).join(" · ")}</span>
           )}
           <div className="pp-price">
-            <span className="price">{brl(product.price?.brl)}<span className="pix-tag">no Pix</span></span>
+            <span className="price">{brl(product.price?.brl)}</span>
             {product.price?.fullBrl && <span className="price-old">{brl(product.price.fullBrl)}</span>}
           </div>
           {installments && <span className="pp-inst">ou {installments}</span>}

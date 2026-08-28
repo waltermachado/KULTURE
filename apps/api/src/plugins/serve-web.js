@@ -35,7 +35,7 @@ export async function productPageHtml(app, request, indexHtml) {
     const url = new URL(product.path, base).href;
     const image = product.images?.[0] ? new URL(product.images[0], base).href : null;
     const price = product.price?.brl != null ? brl(product.price.brl) : null;
-    const title = `${product.name}${price ? ` — ${price} no Pix` : ""} | Kulture`;
+    const title = `${product.name}${price ? ` — ${price}` : ""} | Kulture`;
     const soldOut = !(product.stock?.total > 0);
     const availability = soldOut
       ? " · esgotado"

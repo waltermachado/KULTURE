@@ -51,7 +51,7 @@ export default function Hero({ featured, onPick, variant = "import" }) {
         <div className="hero-cta">
           {p && (
             <div className="hero-price">
-              <div className="label">Preço final no Pix · frete grátis</div>
+              <div className="label">Preço final · frete grátis</div>
               <strong>{brl(p.price)}</strong>
               <small>{priceSmall}</small>
             </div>

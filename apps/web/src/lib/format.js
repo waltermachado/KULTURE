@@ -36,7 +36,6 @@ export function toCard(p, i) {
     byYou: Boolean(p.byYou),
     category: p.category ?? null, // basketball | lifestyle | running (filtro da pronta entrega)
     launch: p.launch ?? null,
-    pix: p.price?.pix !== false,
     installmentsLabel: p.price?.installments?.label || null,
     color: PALETTE[i % PALETTE.length],
     img: p.images?.[0] || "",

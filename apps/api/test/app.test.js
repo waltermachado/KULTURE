@@ -108,7 +108,7 @@ describe("apps/api", () => {
     expect(p.price.exchange.usdToBrl).toBe(5.25);
     expect(p.price.exchange.kind).toMatch(/turismo/);
     expect(p.price.pix).toBe(true);
-    expect(p.price.installments.label).toMatch(/^em até \d+x no cartão$/);
+    expect(p.price.installments.label).toMatch(/^em até \d+x no cartão com juros$/);
 
     const second = await app.inject({ method: "GET", url: "/api/search?q=kobe%206" });
     expect(second.json().cached).toBe(true);

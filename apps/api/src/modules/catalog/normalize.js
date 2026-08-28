@@ -73,7 +73,7 @@ export function pricingRateOf(rate) {
 
 /** Texto do parcelamento mostrado no site (o juro é configurado na conta InfinitePay, não aqui). */
 export const MAX_INSTALLMENTS = Math.max(1, Number(process.env.MAX_INSTALLMENTS || 12));
-export const installmentsInfo = () => ({ max: MAX_INSTALLMENTS, label: `em até ${MAX_INSTALLMENTS}x no cartão` });
+export const installmentsInfo = () => ({ max: MAX_INSTALLMENTS, label: `em até ${MAX_INSTALLMENTS}x no cartão com juros` });
 
 export function toProduct(raw, { rate, rules = DEFAULT_PRICING_RULES, images = [], imageSource = [] }) {
   const brand = inferBrand(raw.name);

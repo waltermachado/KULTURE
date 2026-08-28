@@ -13,7 +13,7 @@ export async function configRoutes(app) {
       const max = Math.max(1, Number(app.env.MAX_INSTALLMENTS || 12));
       return {
         whatsapp: phone ? { phone, url: `https://wa.me/${phone}` } : null,
-        installments: { max, label: `em até ${max}x no cartão` },
+        installments: { max, label: `em até ${max}x no cartão com juros` },
         stock: { enabled: Boolean(app.stock) },
         testProduct: Boolean(app.env.TEST_PRODUCT_ENABLED)
       };

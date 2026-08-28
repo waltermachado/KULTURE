@@ -175,7 +175,7 @@ describe("pronta entrega (estoque próprio)", { timeout: 60000 }, () => {
     const req = (url) => ({ raw: { url }, protocol: "https", host: "loja.test", headers: {} });
     const html = await productPageHtml(app, req(`/pronta-entrega/${product.slug}`), index);
     const price = (1899).toLocaleString("pt-BR", { style: "currency", currency: "BRL" }); // "R$ 1.899,00" (com NBSP do Intl)
-    expect(html).toContain(`<title>test-stock-Kobe 6 Protro Grinch ${STAMP} — ${price} no Pix | Kulture</title>`);
+    expect(html).toContain(`<title>test-stock-Kobe 6 Protro Grinch ${STAMP} — ${price} | Kulture</title>`);
     expect(html).toContain(`<meta property="og:url" content="https://loja.test/pronta-entrega/${product.slug}" />`);
     expect(html).toContain(`<meta property="og:image" content="https://example.com/foto.webp" />`);
     expect(html).toContain(`<meta property="product:price:amount" content="1899" />`);

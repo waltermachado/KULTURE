@@ -102,7 +102,7 @@ export default function CartDrawer({ open, onClose, cart, onCheckout }) {
           <span>Total no Pix</span>
           <b>{brl(Math.max(0, total - discount))}</b>
         </div>
-        {installmentsLabel && <div className="total-row" style={{ color: '#888', fontSize: '0.8rem', marginTop: -6, marginBottom: 12, textTransform: 'none', letterSpacing: 0 }}><span>ou {installmentsLabel}</span></div>}
+        {installmentsLabel && <div className="total-row" style={{ color: '#999', fontSize: '0.95rem', fontWeight: 600, marginTop: -6, marginBottom: 12, textTransform: 'none', letterSpacing: 0 }}><span>ou {installmentsLabel}</span></div>}
         <button className="btn-pay" onClick={onCheckout} disabled={list.length === 0}>
           <span>Finalizar compra</span><small>Pix ou cartão · frete grátis</small>
         </button>

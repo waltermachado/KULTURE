@@ -29,10 +29,9 @@ function Card({ p, i, onAdd }) {
         {(p.colorDescription || p.subtitle) && <span className="card-meta">{p.colorDescription || p.subtitle}</span>}
         <div className="card-price">
           <span className="price">{brl(p.price)}</span>
-          {p.pix && <span className="pix-tag">no Pix</span>}
           {p.old && <span className="price-old">{brl(p.old)}</span>}
         </div>
-        {p.installmentsLabel && <span className="card-installments">ou {p.installmentsLabel}</span>}
+        {p.installmentsLabel && <span className="card-installments">Ou {p.installmentsLabel}</span>}
         <span className="card-foot">
           {p.stock
             ? p.section === "hypados"

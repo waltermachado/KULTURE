@@ -112,11 +112,10 @@ export function SizePicker({ item, onClose, onAdd }) {
                   {item.price != null && (
                     <span className="price">
                       {Number(item.price).toLocaleString("pt-BR", { style: "currency", currency: "BRL" })}
-                      {(item.pix ?? product.price?.pix) && <span className="pix-tag">no Pix</span>}
                     </span>
                   )}
                   {(item.installmentsLabel || product.price?.installments?.label) && (
-                    <span className="sp-sub" style={{ textTransform: "none", letterSpacing: 0 }}>ou {item.installmentsLabel || product.price.installments.label}</span>
+                    <span className="sp-inst">ou {item.installmentsLabel || product.price.installments.label}</span>
                   )}
                   {product.source === "stock" && (
                     <span className={`sp-launch ${product.section === "hypados" ? "sp-hypados" : "sp-stock"}`}>
