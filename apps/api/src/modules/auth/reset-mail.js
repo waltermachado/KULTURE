@@ -10,8 +10,9 @@ export function createResetMailer({ env, mailer, log }) {
   /** `webOrigin` = origem do request (site que o cliente estava usando); só vale se estiver na allowlist. */
   return async function sendPasswordResetEmail(reset, { webOrigin = null } = {}) {
     // NUNCA o domínio do Railway: resolveWebUrl cai em canonicalWebUrl (lojakulture.com.br) quando PUBLIC_WEB_URL estiver errada
-    const link = `${resolveWebUrl(env, webOrigin)}/redefinir-senha?token=${encodeURIComponent(reset.token)}`;
-    const mail = buildPasswordResetEmail({ name: reset.user.name, link, expiresMin: env.PASSWORD_RESET_TTL_MIN });
+    const siteUrl = resolveWebUrl(env, webOrigin);
+    const link = `${siteUrl}/redefinir-senha?token=${encodeURIComponent(reset.token)}`;
+    const mail = buildPasswordResetEmail({ name: reset.user.name, link, expiresMin: env.PASSWORD_RESET_TTL_MIN, email: reset.user.email, requestedAt: new Date(), siteUrl });
     let result = null;
     try {
       result = await mailer.send({ to: reset.user.email, toName: reset.user.name, ...mail });

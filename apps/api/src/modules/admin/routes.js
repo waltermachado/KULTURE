@@ -182,7 +182,7 @@ export async function adminRoutes(app) {
   }, async (request) => admin.recheckPayment(request.params.number, request.body || {}));
 
   app.post("/api/admin/orders/:number/resend-email", {
-    schema: { tags, body: { type: "object", properties: { kind: { type: "string", enum: ["paid", "registered", "sourcing", "in_transit", "arrived_br", "shipped", "delivered"] } } } }
+    schema: { tags, body: { type: "object", properties: { kind: { type: "string", enum: ["paid", "receipt", "registered", "sourcing", "in_transit", "arrived_br", "shipped", "delivered"] } } } }
   }, async (request) => admin.resendOrderEmail(request.params.number, request.body?.kind || "paid"));
 
   // ─── clientes ──────────────────────────────────────────────────────────

@@ -1,8 +1,9 @@
 const PROMISES = [
   { n: "01", t: "Comprado na loja oficial nos EUA", d: "Cada par é adquirido direto da Nike US — sem intermediário, sem réplica." },
-  { n: "02", t: "Preço final fechado", d: "Frete internacional já embutido. O valor do card é o valor que você paga." },
+  { n: "02", t: "Preço final fechado", d: "Frete internacional incluso, sem taxas extras." },
   { n: "03", t: "Numeração brasileira", d: "Você escolhe no BR; convertemos pela tabela oficial da Nike Brasil." },
-  { n: "04", t: "Compra protegida", d: "Pagamento via InfinitePay (Pix ou cartão) e acompanhamento por e-mail." }
+  { n: "04", t: "Compra protegida", d: "Pagamento via InfinitePay (Pix ou cartão) e acompanhamento por e-mail." },
+  { n: "05", t: "Devolução", d: "O tênis chegou e não serviu? Você tem até 7 dias após o recebimento para devolução. Sujeito a análise do suporte via WhatsApp." }
 ];
 
 import { CATEGORIES } from "../lib/format.js";

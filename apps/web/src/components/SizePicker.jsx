@@ -10,6 +10,13 @@ const CUSTOM_RE = /[^A-Za-z0-9 .,'&!?#-]/g;
 export function SizePicker({ item, onClose, onAdd }) {
   const [product, setProduct] = useState(null);
   const [loading, setLoading] = useState(true);
+  // lupa: com o mouse sobre a foto, amplia seguindo o cursor (desktop; no touch nada muda)
+  const [zoom, setZoom] = useState(false);
+  const zoomMove = (e) => {
+    const r = e.currentTarget.getBoundingClientRect();
+    e.currentTarget.style.setProperty('--zx', `${((e.clientX - r.left) / r.width) * 100}%`);
+    e.currentTarget.style.setProperty('--zy', `${((e.clientY - r.top) / r.height) * 100}%`);
+  };
   const [error, setError] = useState(null);
   const [selectedSize, setSelectedSize] = useState(null);
   const [photo, setPhoto] = useState(0);
@@ -85,8 +92,16 @@ export function SizePicker({ item, onClose, onAdd }) {
               {/* foto do tênis escolhido no topo */}
               <div className="sp-hero">
                 <div className="sp-gallery">
-                  <div className="sp-hero-img">
+                  <div
+                    className={`sp-hero-img${zoom ? ' sp-zoom' : ''}`}
+                    onMouseEnter={() => setZoom(true)}
+                    onMouseLeave={() => setZoom(false)}
+                    onMouseMove={zoomMove}
+                  >
                     {gallery[photo] ? <img key={gallery[photo]} src={gallery[photo]} alt={`${product.name} — foto ${photo + 1} de ${gallery.length}`} /> : null}
+                    <span className="sp-lupa" aria-hidden="true">
+                      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round"><circle cx="10.5" cy="10.5" r="7" /><path d="m21 21-5.2-5.2" /><path d="M7.5 10.5h6M10.5 7.5v6" /></svg>
+                    </span>
                     {gallery.length > 1 && (
                       <>
                         <button type="button" className="sp-arrow prev" onClick={prevPhoto} aria-label="Foto anterior">‹</button>

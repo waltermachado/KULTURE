@@ -375,6 +375,7 @@ export default function OrderDetail({ auth, notify }) {
             {paidLike && (
               <div className="adm-toolbar" style={{ marginTop: 14, marginBottom: 0 }}>
                 <button className="btn sm" disabled={busy} onClick={() => resend("paid")}>{manual ? "Reenviar e-mail de pedido registrado" : "Reenviar e-mail de confirmação"}</button>
+                {!manual && <button className="btn sm" disabled={busy} onClick={() => resend("receipt")}>Enviar comprovante de pagamento</button>}
                 {["sourcing", "in_transit", "arrived_br"].includes(order.status) && <button className="btn sm" disabled={busy} onClick={() => resend(order.status)}>Reenviar e-mail “{STATUS_LABELS[order.status]}”</button>}
                 {order.trackingCode && <button className="btn sm" disabled={busy} onClick={() => resend("shipped")}>Reenviar e-mail de envio</button>}
               </div>

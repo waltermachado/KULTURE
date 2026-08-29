@@ -1,5 +1,6 @@
-import { requestOrigin } from "../../lib/site-url.js";
+import { requestOrigin, resolveWebUrl } from "../../lib/site-url.js";
 import { requireAuth } from "../../lib/guards.js";
+import { buildWelcomeEmail } from "../mail/mailer.js";
 
 const COOKIE_NAME = "kulture_refresh";
 
@@ -72,6 +73,12 @@ export async function authRoutes(app) {
   }, async (request, reply) => {
     const result = await auth.register(request.body, meta(request));
     setRefreshCookie(reply, result.refreshToken, result.refreshExpiresAt);
+    // boas-vindas (modelo 02) — nunca bloqueia o cadastro; mailer.send já não lança
+    if (app.mailer) {
+      const siteUrl = resolveWebUrl(env, requestOrigin(request));
+      const mail = buildWelcomeEmail({ name: result.user.name, email: result.user.email, createdAt: new Date(), siteUrl });
+      app.mailer.send({ to: result.user.email, toName: result.user.name, ...mail }).catch(() => {});
+    }
     return reply.status(201).send({
       user: result.user,
       accessToken: result.accessToken

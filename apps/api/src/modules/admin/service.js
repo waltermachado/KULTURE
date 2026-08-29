@@ -9,7 +9,7 @@ import { pricingRateOf } from "../catalog/normalize.js";
 import { newOrderNumber } from "../orders/service.js";
 import { isStockCode } from "../stock/service.js";
 import {
-  buildOrderPaidEmail, buildOrderShippedEmail, buildOrderDeliveredEmail, buildOrderCancelledEmail, buildOrderRegisteredEmail, buildOrderStageEmail, PAYMENT_METHOD_LABELS
+  buildOrderPaidEmail, buildOrderShippedEmail, buildOrderDeliveredEmail, buildOrderCancelledEmail, buildOrderRegisteredEmail, buildOrderStageEmail, buildPaymentReceiptEmail, PAYMENT_METHOD_LABELS
 } from "../mail/mailer.js";
 
 import { ORDER_STATUS_LABELS, ORDER_TRANSITIONS, PAID_STATUSES, TO_SHIP_STATUSES } from "../orders/status.js";
@@ -405,6 +405,7 @@ export function createAdminService({ prisma, env, mailer, gateway, orders, stock
       kind === "shipped" ? buildOrderShippedEmail
       : kind === "delivered" ? buildOrderDeliveredEmail
       : ["sourcing", "in_transit", "arrived_br"].includes(kind) ? (o, opts) => buildOrderStageEmail(o, kind, opts)
+      : kind === "receipt" ? buildPaymentReceiptEmail
       : kind === "registered" || order.paymentProvider === "manual" ? buildOrderRegisteredEmail
       : buildOrderPaidEmail;
     const result = await sendMail(order, build);

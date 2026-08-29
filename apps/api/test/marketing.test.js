@@ -174,7 +174,7 @@ describe("marketing (campanhas do backoffice)", { timeout: 90000 }, () => {
     const prev = await asAdmin({ method: "POST", url: "/api/admin/marketing/preview", payload: base });
     expect(prev.statusCode).toBe(200);
     expect(prev.json().html).toContain("Chegou o Kobe 6 Protro.");
-    expect(prev.json().html).toContain("Olá, <b>Dona</b>!");
+    expect(prev.json().html).toContain(">Dona</strong>"); // moldura nova: "Olá <strong>Nome</strong>, tudo bem?"
 
     const before = sentMails.length;
     const test = await asAdmin({ method: "POST", url: "/api/admin/marketing/test", payload: base });
@@ -208,7 +208,7 @@ describe("marketing (campanhas do backoffice)", { timeout: 90000 }, () => {
     expect(sentMails.length - start).toBe(c.total);
     const toCustomer = sentMails.slice(start).find((m) => m.to === CUSTOMER.email);
     expect(toCustomer.subject).toBe(base.subject);
-    expect(toCustomer.html).toContain("Olá, <b>Cliente</b>!");
+    expect(toCustomer.html).toContain(">Cliente</strong>"); // moldura nova
     expect(toCustomer.headers["X-Kulture-Campaign"]).toBe(id);
     // não dispara duas vezes
     const again = await asAdmin({ method: "POST", url: `/api/admin/marketing/campaigns/${id}/send` });

@@ -233,7 +233,7 @@ footer a:hover,footer .foot-link:hover{color:var(--yellow)}
 .overlay.open{display:block}
 .modal{position:fixed;top:50%;left:50%;transform:translate(-50%,-50%);z-index:100;display:none;width:min(460px,92vw);max-height:90vh;overflow-y:auto;background:var(--ink);border:1px solid var(--hair-3);border-top:3px solid var(--yellow)}
 .modal.open{display:block}
-.modal.modal-wide{width:min(860px,94vw);max-height:92vh}
+.modal.modal-wide{width:min(1030px,96vw);max-height:92vh} /* ~20% maior a pedido do dono (era 860px) */
 .modal-header{display:flex;justify-content:space-between;align-items:center;padding:16px 22px;border-bottom:1px solid var(--hair);background:var(--ink-2);position:sticky;top:0;z-index:2}
 .modal-header .logo{font-size:12px;font-weight:800;letter-spacing:.24em;text-transform:uppercase;color:var(--yellow)}
 .modal-header .logo img{height:26px;display:block}
@@ -330,6 +330,15 @@ footer a:hover,footer .foot-link:hover{color:var(--yellow)}
 .sp-arrow.prev{left:8px}.sp-arrow.next{right:8px}
 .sp-arrow:hover{background:var(--yellow);color:var(--ink);border-color:var(--yellow)}
 .sp-count{position:absolute;right:10px;bottom:8px;font-size:10px;letter-spacing:.16em;color:var(--muted-2);background:rgba(11,11,11,.72);padding:3px 7px}
+/* lupa do seletor: no desktop, o mouse sobre a foto amplia (2.2×) seguindo o cursor; badge indica o recurso */
+.sp-lupa{display:none}
+@media (hover:hover) and (pointer:fine){
+  .sp-hero-img{cursor:zoom-in}
+  .sp-hero-img img{transition:transform .18s ease}
+  .sp-hero-img.sp-zoom img{animation:none;transform:scale(2.2);transform-origin:var(--zx,50%) var(--zy,50%)}
+  .sp-lupa{position:absolute;left:10px;bottom:8px;width:30px;height:30px;display:flex;align-items:center;justify-content:center;background:rgba(11,11,11,.72);border:1px solid var(--hair-3);color:var(--muted-2);pointer-events:none;opacity:0;transition:.15s}
+  .sp-hero-img:hover .sp-lupa{opacity:1;color:var(--yellow);border-color:var(--yellow)}
+}
 .sp-thumbs{display:flex;gap:6px;overflow-x:auto;padding-bottom:2px;scrollbar-width:thin}
 .sp-thumb{flex:0 0 52px;height:52px;background:var(--ink-3);border:1px solid var(--hair-2);padding:4px;cursor:pointer;opacity:.6;transition:.15s}
 .sp-thumb img{width:100%;height:100%;object-fit:contain;display:block}
