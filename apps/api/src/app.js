@@ -34,6 +34,7 @@ import { createMailer } from "./modules/mail/mailer.js";
 import { createOrderService } from "./modules/orders/service.js";
 import { orderRoutes } from "./modules/orders/routes.js";
 import { featuredRoutes } from "./modules/featured/routes.js";
+import { restrictedRoutes, createRestrictedFilter } from "./modules/restricted/routes.js";
 import { marketingRoutes } from "./modules/marketing/routes.js";
 import { canonicalWebUrl, publicWebUrlMisconfigured } from "./lib/site-url.js";
 import { createMarketingService } from "./modules/marketing/service.js";
@@ -95,7 +96,9 @@ export async function buildApp(overrides = {}) {
   const rules = overrides.pricingRules ?? pricing ?? DEFAULT_PRICING_RULES;
   // pronta entrega (estoque próprio no banco) — só existe com Postgres
   const stock = prisma ? createStockService({ prisma, log: app.log }) : null;
-  const catalog = createCatalogService({ scraper, cache, sizesCache, images, rules, top8Terms: env.TOP8_TERMS, testProduct: env.TEST_PRODUCT_ENABLED, stock, log: app.log });
+  // modelos restritos (/admin/restritos): nunca aparecem na busca/top8/vitrine nem vendem
+  const restricted = createRestrictedFilter({ prisma, log: app.log });
+  const catalog = createCatalogService({ scraper, cache, sizesCache, images, rules, top8Terms: env.TOP8_TERMS, testProduct: env.TEST_PRODUCT_ENABLED, stock, restricted, log: app.log });
 
   app.decorate("prisma", prisma);
   app.decorate("cache", cache);
@@ -104,6 +107,7 @@ export async function buildApp(overrides = {}) {
   app.decorate("catalog", catalog);
   app.decorate("pricing", pricing);
   app.decorate("stock", stock);
+  app.decorate("restricted", restricted);
 
   const gateway = overrides.gateway ?? createPaymentGateway(env, app.log);
   const notifier = overrides.notifier ?? createNotifier(env, app.log, prisma);
@@ -180,6 +184,7 @@ export async function buildApp(overrides = {}) {
     await app.register(stockRoutes);
     await app.register(stockAdminRoutes);
     await app.register(featuredRoutes);
+    await app.register(restrictedRoutes);
     await app.register(marketingRoutes);
     await app.register(invoiceRoutes);
     await app.register(pricingRoutes);

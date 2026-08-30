@@ -21,7 +21,11 @@ const BASE_NS = "v8";
  * getProductSizes() — é o único ponto que o seletor de tamanho e o checkout usam, então o produto de
  * estoque passa pelo mesmo fluxo (preço validado no servidor, snapshot no pedido) sem tocar em orders/.
  */
-export function createCatalogService({ scraper, cache, sizesCache, images, rules, top8Terms = [], testProduct = false, stock = null, log = null }) {
+/**
+ * `restricted` (opcional) = filtro de modelos restritos (/admin/restritos): aplicado DEPOIS do cache em
+ * search/top8/findOne/getProductSizes, então salvar no painel vale na hora (o cache guarda a lista cheia).
+ */
+export function createCatalogService({ scraper, cache, sizesCache, images, rules, top8Terms = [], testProduct = false, stock = null, restricted = null, log = null }) {
   const validRate = (r) => r && typeof r === "object" && Number.isFinite(Number(r.ask)) && Number(r.ask) > 0;
   // `rules` = lista fixa (testes/fallback) ou o serviço de preços ({ runtime() → { rules, version } }) com os
   // acréscimos editáveis em /admin/precos
@@ -72,7 +76,8 @@ export function createCatalogService({ scraper, cache, sizesCache, images, rules
       cached = false;
       stale = false;
     }
-    return { term, cached, stale, total: value.products.length, products: value.products };
+    const products = restricted ? await restricted.filter(value.products) : value.products;
+    return { term, cached, stale, total: products.length, products };
   }
 
   async function findOne(termOrStyleColor) {
@@ -91,6 +96,7 @@ export function createCatalogService({ scraper, cache, sizesCache, images, rules
       cached = false;
       stale = false;
     }
+    if (value && restricted && (await restricted.isBlocked(value))) value = null; // restrito = não existe para a loja
     return { cached, stale, product: value };
   }
 
@@ -121,12 +127,16 @@ export function createCatalogService({ scraper, cache, sizesCache, images, rules
   async function top8() {
     const key = `top8:${await ns()}`;
     const { value, cached, stale } = await cache.getOrFetch(key, buildTop8);
-    if (Array.isArray(value) && value.length) return { cached, stale, total: value.length, products: value };
+    if (Array.isArray(value) && value.length) {
+      const products = restricted ? await restricted.filter(value) : value;
+      return { cached, stale, total: products.length, products };
+    }
     // top8 vazio em cache (scraper/Nike estavam fora quando foi montado): tenta de novo agora,
     // e só grava se vier algo — um vazio nunca deve "colar" por 60 min.
     const fresh = await buildTop8();
     if (fresh.length) await cache.set(key, fresh);
-    return { cached: false, stale: false, total: fresh.length, products: fresh };
+    const products = restricted ? await restricted.filter(fresh) : fresh;
+    return { cached: false, stale: false, total: products.length, products };
   }
 
   async function warmTop8() {
@@ -188,6 +198,7 @@ export function createCatalogService({ scraper, cache, sizesCache, images, rules
       });
       return { ...enriched, sizes, sizeGroups: sizeGroupsOf(sizes) };
     });
+    if (value && restricted && (await restricted.isBlocked(value))) return { cached, stale, product: null }; // restrito: página/checkout respondem 404
     return { cached, stale, product: value };
   }
 

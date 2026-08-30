@@ -18,6 +18,7 @@ import Featured from "./Featured.jsx";
 import Marketing from "./Marketing.jsx";
 import Pricing from "./Pricing.jsx";
 import Coupons from "./Coupons.jsx";
+import Restricted from "./Restricted.jsx";
 import Bling from "./Bling.jsx";
 
 export default function AdminApp({ auth, onOpenLogin, notify }) {
@@ -80,6 +81,7 @@ export default function AdminApp({ auth, onOpenLogin, notify }) {
           <NavLink to="/admin/estoque">Pronta entrega</NavLink>
           <NavLink to="/admin/hypados">Hypados</NavLink>
           <NavLink to="/admin/vitrine">Vitrine</NavLink>
+          <NavLink to="/admin/restritos">Restritos</NavLink>
           <NavLink to="/admin/marketing">Marketing</NavLink>
           <NavLink to="/admin/precos">Preços</NavLink>
           <NavLink to="/admin/cupons">Cupons</NavLink>
@@ -111,6 +113,7 @@ export default function AdminApp({ auth, onOpenLogin, notify }) {
           <Route path="hypados/novo" element={<StockForm auth={auth} notify={notify} section="hypados" />} />
           <Route path="hypados/:id" element={<StockForm auth={auth} notify={notify} section="hypados" />} />
           <Route path="vitrine" element={<Featured auth={auth} notify={notify} />} />
+          <Route path="restritos" element={<Restricted auth={auth} notify={notify} />} />
           <Route path="marketing" element={<Marketing auth={auth} notify={notify} />} />
           <Route path="precos" element={<Pricing auth={auth} notify={notify} />} />
           <Route path="cupons" element={<Coupons auth={auth} notify={notify} />} />
