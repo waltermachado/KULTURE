@@ -808,14 +808,6 @@ export function buildOrderPaidEmail(order, { siteUrl } = {}) {
     ),
     section([kicker("Os pares"), itemRows(order.items, { siteUrl: base })].join("\n"), { padBottom: 24 }),
     section(totalsBlock(order), { padBottom: 24 }),
-    section(
-      callout(
-        intl
-          ? "Este é o valor final: imposto de importação e qualquer taxação já estão inclusos. Nada chega depois."
-          : "Este é o valor final — sem nenhum custo extra na entrega."
-      ),
-      { padBottom: 28 }
-    ),
     section(dataCard([
       ["Entregar em", { html: addressHtml(order.address) }],
       ["Pagamento", `${method}${inst}`],
@@ -827,7 +819,6 @@ export function buildOrderPaidEmail(order, { siteUrl } = {}) {
   const html = emailLayout({
     sections,
     siteUrl,
-    ribbon: "Preço fechado na compra &nbsp;&middot;&nbsp; nada chega depois",
     title: "Pedido confirmado - Kulture",
     preheader: `Recebemos seu pedido ${order.number}. Aqui estão todos os detalhes.`
   });
@@ -958,7 +949,6 @@ export function buildOrderRegisteredEmail(order, { siteUrl } = {}) {
   const html = emailLayout({
     sections,
     siteUrl,
-    ribbon: "Preço fechado na compra &nbsp;&middot;&nbsp; nada chega depois",
     title: "Pedido registrado - Kulture",
     preheader: `Registramos sua compra como o pedido ${order.number}.`
   });
