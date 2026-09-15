@@ -10,6 +10,7 @@
  * test-….mlsender.net) só entrega para o e-mail do administrador da conta.
  */
 import nodemailer from "nodemailer";
+import { preserveEmailColors } from "./dark-mode.js";
 import { sizeLabelBr } from "@kulture/shared/sizes";
 import { isInternationalOrder } from "../orders/status.js";
 
@@ -194,7 +195,7 @@ const lines = (arr) => arr.filter((l) => l !== null && l !== undefined && l !== 
 // Moldura Kulture — padrão visual definido pelos modelos 01–06 do dono (29/08):
 // e-mail escuro (#0B0B0B) com amarelo #FFD31F (o mesmo --yellow do site), logo
 // no topo sobre borda amarela, cartões de detalhe, rodapé completo e
-// color-scheme "dark" declarado (evita o Gmail/Outlook inverterem as cores).
+// color-scheme "dark" + proteção de cores na moldura; suporte varia por app de e-mail.
 // Tabelas + estilos inline: é o que funciona em Gmail/Outlook/iOS.
 // ════════════════════════════════════════════════════════════════════════════
 const YELLOW = "#FFD31F";
@@ -346,7 +347,7 @@ export function emailLayout({ contentHtml, sections = "", title = "Kulture", pre
   const helpLine = marketingFooter
     ? `Dúvida sobre um par? Chama no WhatsApp <a href="${escapeHtml(b.whatsappUrl)}" style="color:${YELLOW};text-decoration:none;">${escapeHtml(b.whatsappLabel)}</a>.`
     : `Enviado automaticamente por <a href="mailto:${escapeHtml(b.fromEmail)}" style="color:${YELLOW};text-decoration:none;">${escapeHtml(b.fromEmail)}</a> &mdash; este endereço não recebe respostas. Precisa de ajuda? ${b.replyEmail ? `<a href="mailto:${escapeHtml(b.replyEmail)}" style="color:${YELLOW};text-decoration:none;">${escapeHtml(b.replyEmail)}</a> ou ` : ""}WhatsApp <a href="${escapeHtml(b.whatsappUrl)}" style="color:${YELLOW};text-decoration:none;">${escapeHtml(b.whatsappLabel)}</a>.`;
-  return `<!DOCTYPE html>
+  return preserveEmailColors(`<!DOCTYPE html>
 <html lang="pt-BR" xmlns:v="urn:schemas-microsoft-com:vml" xmlns:o="urn:schemas-microsoft-com:office:office">
 <head>
 <meta charset="utf-8" />
@@ -359,6 +360,7 @@ export function emailLayout({ contentHtml, sections = "", title = "Kulture", pre
 <xml><o:OfficeDocumentSettings><o:PixelsPerInch>96</o:PixelsPerInch></o:OfficeDocumentSettings></xml>
 <![endif]-->
 <style type="text/css">
+  :root{color-scheme:dark;supported-color-schemes:dark;}
   body,table,td,a{-webkit-text-size-adjust:100%;-ms-text-size-adjust:100%;}
   table,td{mso-table-lspace:0pt;mso-table-rspace:0pt;}
   img{-ms-interpolation-mode:bicubic;border:0;outline:none;text-decoration:none;}
@@ -373,7 +375,7 @@ export function emailLayout({ contentHtml, sections = "", title = "Kulture", pre
   }
 </style>
 </head>
-<body style="margin:0;padding:0;background-color:#0B0B0B;">
+<body class="body" style="margin:0;padding:0;background-color:#0B0B0B;color:#F4F2ED;">
 ${preheader ? `<span style="display:none!important;visibility:hidden;opacity:0;color:transparent;height:0;width:0;max-height:0;max-width:0;overflow:hidden;mso-hide:all;font-size:1px;line-height:1px;">${escapeHtml(preheader)}</span>` : ""}
 <table role="presentation" cellpadding="0" cellspacing="0" border="0" width="100%" bgcolor="#0B0B0B" style="width:100%;background-color:#0B0B0B;">
 <tr><td align="center" style="padding:0 0 40px 0;">
@@ -397,7 +399,7 @@ ${body}
 </table>
 </td></tr></table>
 </body>
-</html>`;
+</html>`);
 }
 
 /** Texto corrido (quebras preservadas, links clicáveis) dentro da moldura — fallback para e-mails futuros sem modelo próprio. */

@@ -15,7 +15,7 @@ import { NavLink, useLocation } from "react-router-dom";
  */
 export const MODES = [
   { to: "/", key: "import", flag: "EUA", label: "Importados", sub: "direto dos EUA" },
-  { to: "/hypados", key: "hypados", flag: "ball", label: "Hypados", sub: "drops mais quentes dos EUA 🇺🇸" },
+  { to: "/hypados", key: "hypados", flag: "ball", label: "Hypados", sub: "Pares fora do óbvio" },
   { to: "/pronta-entrega", key: "stock", flag: "BR", label: "Pronta entrega", sub: "estoque no Brasil" }
 ];
 const ORDER = { import: 0, hypados: 1, stock: 2 };
@@ -133,15 +133,17 @@ export default function ModeBar({ onSwitch }) {
   }
 
   function pick(e, m) {
+    if (e.metaKey || e.ctrlKey || e.shiftKey || e.altKey || e.button !== 0) return;
     e.preventDefault();
     const current = pending ?? active;
     if (m.key === current) {
       // já está aqui: só sobe ao topo
-      window.scrollTo({ top: 0, behavior: "smooth" });
+      window.scrollTo({ top: 0, behavior: reduceMotion() ? "instant" : "smooth" });
       return;
     }
     const dir = ORDER[m.key] > ORDER[current] ? "east" : "west";
-    if (reduceMotion()) {
+    if (reduceMotion() || e.detail === 0) {
+      cancelAll();
       onSwitch?.(m.to, dir, { animate: false });
       return;
     }

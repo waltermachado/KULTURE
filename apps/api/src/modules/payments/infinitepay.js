@@ -1,3 +1,4 @@
+import { paymentError } from "./errors.js";
 import { canonicalWebUrl } from "../../lib/site-url.js";
 // usa o fetch global do Node ≥18 (node-fetch não é dependência do projeto)
 
@@ -6,16 +7,34 @@ export function createInfinitePayGateway(env, log) {
   const handle = env.INFINITEPAY_HANDLE;
   const timeoutMs = 10000;
 
-  async function fetchWithTimeout(url, options) {
+  async function request(operation, payload) {
     const controller = new AbortController();
-    const id = setTimeout(() => controller.abort(), timeoutMs);
+    const timer = setTimeout(() => controller.abort(), timeoutMs);
     try {
-      const response = await fetch(url, { ...options, signal: controller.signal });
-      clearTimeout(id);
-      return response;
+      const res = await fetch(`${BASE_URL}/${operation}`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload),
+        signal: controller.signal
+      });
+      // Classifica HTTP mesmo se a resposta for HTML ou vazia.
+      if (!res.ok) throw paymentError({ status: res.status, operation });
+      let data;
+      try { data = JSON.parse(await res.text()); }
+      catch (err) {
+        if (controller.signal.aborted) throw err;
+        throw paymentError({ operation, reason: "invalid_response" });
+      }
+      if (!data || typeof data !== "object" || Array.isArray(data) || data.success === false) {
+        throw paymentError({ operation, reason: "invalid_response" });
+      }
+      return data;
     } catch (err) {
-      clearTimeout(id);
-      throw err;
+      const failure = err.paymentFailure ? err : paymentError({ operation, reason: controller.signal.aborted || err.name === "AbortError" ? "timeout" : "network" });
+      log?.error({ order: payload.order_nsu, ...failure.paymentFailure }, "InfinitePay: falha na solicitação");
+      throw failure;
+    } finally {
+      clearTimeout(timer);
     }
   }
 
@@ -71,42 +90,16 @@ export function createInfinitePayGateway(env, log) {
         };
       }
 
-      let attempt = 0;
-      let lastErr;
-      while (attempt < 2) {
-        try {
-          const res = await fetchWithTimeout(`${BASE_URL}/links`, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify(payload)
-          });
-          const rawResponse = await res.text();
-          let data;
-          try {
-            data = JSON.parse(rawResponse);
-          } catch(e) {
-            log?.error({ rawResponse }, 'Failed to parse InfinitePay /links response as JSON');
-            throw new Error('Invalid JSON from InfinitePay');
-          }
-          if (!res.ok) {
-            log?.error({ status: res.status, data }, 'InfinitePay /links failed');
-            throw new Error(`InfinitePay error: ${data.message || 'Unknown'}`);
-          }
-          log?.info({ rawResponse }, 'InfinitePay /links RAW response');
-          
-          const url = data.url;
-          if (!url) throw new Error('InfinitePay /links sem "url" na resposta');
-          let providerRef = data.slug || data.id || null;
-          if (!providerRef) {
-            try { providerRef = new URL(url).searchParams.get('lenc') || null; } catch { providerRef = null; }
-          }
-          return { url, providerRef: providerRef || 'link' };
-        } catch (err) {
-          lastErr = err;
-          attempt++;
-        }
+      const data = await request("links", payload);
+      const url = data.url;
+      try {
+        if (typeof url !== "string" || new URL(url).protocol !== "https:") throw new Error();
+      } catch {
+        throw paymentError({ reason: "invalid_response" });
       }
-      throw lastErr;
+      let providerRef = data.slug || data.id || new URL(url).searchParams.get("lenc") || "link";
+      return { url, providerRef };
+
     },
 
     async confirmPayment({ orderNsu, transactionNsu, slug }) {
@@ -117,20 +110,12 @@ export function createInfinitePayGateway(env, log) {
         slug
       };
 
-      const res = await fetchWithTimeout(`${BASE_URL}/payment_check`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(payload)
-      });
-      const data = await res.json();
-      if (!res.ok) {
-        log?.error({ status: res.status, data }, 'InfinitePay /payment_check failed');
-        throw new Error(`InfinitePay payment_check error`);
-      }
+      const data = await request("payment_check", payload);
+      if (typeof data.paid !== "boolean") throw paymentError({ operation: "payment_check", reason: "invalid_response" });
       // `success` = a consulta deu certo; `paid` = o cliente pagou. Nunca confundir os dois.
       return {
         paid: data.paid === true,
-        amountCents: Number.isFinite(Number(data.amount)) ? Number(data.amount) : null,
+        amountCents: data.amount != null && Number.isFinite(Number(data.amount)) ? Number(data.amount) : null,
         paidAmountCents: Number(data.paid_amount ?? data.amount ?? 0) || 0,
         installments: Number(data.installments) || 1,
         captureMethod: data.capture_method || 'unknown',

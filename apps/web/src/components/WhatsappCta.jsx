@@ -41,9 +41,9 @@ export default function WhatsappCta({ variant = "banner", query = "", context = 
     <section className="wa-banner" aria-label="Fale com a gente no WhatsApp">
       <div className="wa-banner-copy">
         <div className="kicker">Não achou?</div>
-        <h3>
+        <h2>
           {query ? <>Não encontramos <em>"{query}"</em>, mas a gente corre atrás.</> : <>Não encontrou o tênis que <em>procurava?</em></>}
-        </h3>
+        </h2>
         <p>
           Manda o modelo (e o tamanho) no WhatsApp: a gente procura direto na Nike US e responde com preço final e prazo — sem compromisso.
         </p>

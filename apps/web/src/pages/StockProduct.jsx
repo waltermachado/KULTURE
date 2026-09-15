@@ -46,13 +46,6 @@ export default function StockProduct({ section = "stock", onAdd, onOpenCart, not
     if (product?.path && product.path !== location.pathname) navigate({ pathname: product.path, search: location.search }, { replace: true });
   }, [product?.path, location.pathname, location.search, navigate]);
 
-  // título da aba (o preview do link — Open Graph — é montado pela api ao servir o index.html)
-  useEffect(() => {
-    const prev = document.title;
-    if (product) document.title = `${product.name} — ${brl(product.price?.brl)} | Kulture`;
-    return () => { document.title = prev; };
-  }, [product]);
-
   const card = useMemo(() => (product ? toCard(product, 0) : null), [product]);
   const gallery = useMemo(() => (Array.isArray(product?.images) ? product.images.filter(Boolean) : []), [product]);
   const sizes = product?.sizes || [];
@@ -147,7 +140,7 @@ export default function StockProduct({ section = "stock", onAdd, onOpenCart, not
         <div className="pp-gallery">
           <div className="sp-hero-img">
             {gallery[photo]
-              ? <img key={gallery[photo]} src={gallery[photo]} alt={`${product.name} — foto ${photo + 1} de ${gallery.length}`} />
+              ? <img key={gallery[photo]} src={gallery[photo]} width="800" height="800" fetchPriority="high" decoding="async" alt={`${product.name} — foto ${photo + 1} de ${gallery.length}`} />
               : <ProductMedia src="" alt={product.name} color="#F6B234" />}
             {gallery.length > 1 && (
               <>
@@ -161,7 +154,7 @@ export default function StockProduct({ section = "stock", onAdd, onOpenCart, not
             <div className="sp-thumbs" role="tablist" aria-label="Fotos do produto">
               {gallery.map((src, i) => (
                 <button key={src} type="button" role="tab" aria-selected={i === photo} className={`sp-thumb${i === photo ? " active" : ""}`} onClick={() => setPhoto(i)} aria-label={`Foto ${i + 1}`}>
-                  <img src={src} alt="" loading="lazy" />
+                  <img src={src} alt="" width="80" height="80" decoding="async" loading="lazy" />
                 </button>
               ))}
             </div>

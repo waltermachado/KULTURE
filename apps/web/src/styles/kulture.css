@@ -219,7 +219,7 @@ footer{padding:60px 28px 28px}
 .footer-tag-wrap{display:flex;gap:12px;margin-top:22px;flex-wrap:wrap}
 .pay-tag,.footer-btn{border:1px solid var(--hair-3);padding:11px 16px;font-size:12px;letter-spacing:.14em;font-weight:800;text-transform:uppercase;color:var(--yellow);display:inline-block}
 .pay-tag:hover,.footer-btn:hover{border-color:var(--yellow)}
-footer h4{font-size:11px;letter-spacing:.22em;color:var(--yellow);margin-bottom:18px;text-transform:uppercase}
+footer h2{font-size:11px;letter-spacing:.22em;color:var(--yellow);margin-bottom:18px;text-transform:uppercase}
 footer a,footer .foot-link{display:block;color:var(--muted-2);text-decoration:none;font-size:14px;margin-bottom:11px;background:none;border:0;padding:0;cursor:pointer;font-family:inherit;text-align:left}
 footer a:hover,footer .foot-link:hover{color:var(--yellow)}
 .pays{margin-top:22px;display:flex;gap:8px;flex-wrap:wrap}
@@ -370,8 +370,8 @@ footer a:hover,footer .foot-link:hover{color:var(--yellow)}
 /* ============ CHECKOUT / CONFIRMAÇÃO ============ */
 .checkout-page{padding:44px 28px 80px;display:grid;grid-template-columns:1fr 420px;gap:0;align-items:start}
 .checkout-page>section{padding-right:34px}
-.checkout-page h2{font-size:clamp(40px,5vw,62px);font-weight:800;letter-spacing:-.045em;line-height:.9;text-transform:uppercase}
-.checkout-page h3{font-size:11px;letter-spacing:.22em;text-transform:uppercase;color:var(--yellow);font-weight:800}
+.checkout-page h1{font-size:clamp(40px,5vw,62px);font-weight:800;letter-spacing:-.045em;line-height:.9;text-transform:uppercase}
+.checkout-page h2{font-size:11px;letter-spacing:.22em;text-transform:uppercase;color:var(--yellow);font-weight:800}
 .checkout-page .form-section{display:flex;flex-direction:column;gap:12px}
 /* criar conta no checkout (convidado) */
 .co-account{border:1px solid var(--hair-2);border-left:3px solid var(--yellow);background:var(--ink-2);padding:16px}
@@ -445,8 +445,8 @@ footer a:hover,footer .foot-link:hover{color:var(--yellow)}
 .wa-btn.sm{height:44px;padding:0 18px;font-size:11px;gap:10px}
 .wa-ico{flex:none}
 .wa-banner{margin:0 28px;border:1px solid var(--hair);border-top:0;display:grid;grid-template-columns:1fr auto;gap:28px;align-items:center;padding:36px 32px;background:linear-gradient(90deg,var(--ink-3),var(--ink))}
-.wa-banner h3{font-size:clamp(24px,3.4vw,40px);font-weight:800;letter-spacing:-.035em;line-height:.95;text-transform:uppercase;margin-top:10px}
-.wa-banner h3 em{font-style:normal;color:var(--yellow)}
+.wa-banner h2{font-size:clamp(24px,3.4vw,40px);font-weight:800;letter-spacing:-.035em;line-height:.95;text-transform:uppercase;margin-top:10px}
+.wa-banner h2 em{font-style:normal;color:var(--yellow)}
 .wa-banner p{max-width:560px;margin-top:14px;font-size:15px;line-height:1.6;color:var(--muted-2)}
 .wa-strip{margin:0 28px;border:1px solid var(--hair);border-top:0;display:flex;align-items:center;justify-content:space-between;gap:20px;padding:16px 26px;background:var(--ink-2)}
 .wa-strip-text{font-size:13px;line-height:1.5;color:var(--muted-2)}
@@ -578,4 +578,28 @@ a.btn-add{text-decoration:none;color:inherit}
 .wa-pill .wa-ico{width:16px;height:16px}
 @media(max-width:640px){
   .section-title-right{align-items:flex-start;max-width:none}
+}
+
+.form-error{color:#ffb4ab;background:#271816;padding:14px 16px;font-size:14px;line-height:1.5;overflow-wrap:anywhere}
+.form-error p{margin:6px 0}
+input[aria-invalid="true"]{outline:2px solid #ffb4ab;outline-offset:2px}
+
+/* SEO and narrow-screen stability; preserve the established brand. */
+h1,h2,h3{text-wrap:balance;overflow-wrap:anywhere}
+.hero-copy,.pp-info,.footer-inner>div{min-width:0}
+.hero h1{letter-spacing:-.04em}
+.hero-stage .shoe img{height:auto;aspect-ratio:1;object-fit:contain}
+.card-img img{object-fit:contain}
+.pp-crumbs{flex-wrap:wrap;overflow-wrap:anywhere}
+@media(max-width:480px){
+  .hero h1{font-size:clamp(32px,10vw,44px);line-height:1}
+  .hero-drop{flex-wrap:wrap;gap:10px}
+  .hero-price strong{font-size:clamp(28px,9vw,44px)}
+  .pp-actions{min-width:0}
+  input,select,textarea{max-width:100%;font-size:16px}
+}
+@media(max-width:480px){
+  .section-title-right,.wa-banner-copy{min-width:0;max-width:100%}
+  .wa-pill,.wa-btn{max-width:100%;white-space:normal;overflow-wrap:anywhere}
+  .wa-banner{min-width:0}
 }

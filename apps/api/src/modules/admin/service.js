@@ -1,3 +1,4 @@
+import { validatedCpf } from "../../lib/cpf.js";
 /**
  * Serviço do backoffice (admin). Só é chamado por rotas protegidas por requireAdmin.
  * Aqui o breakdown interno PODE aparecer — é o painel do dono, não a API pública.
@@ -463,8 +464,7 @@ export function createAdminService({ prisma, env, mailer, gateway, orders, stock
     if (name.length < 2) throw AppError.badRequest("Informe o nome do cliente");
     if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) throw AppError.badRequest("Informe um e-mail válido do cliente — é por ele que o pedido aparece na conta dele");
     const phone = digits(customer.phone);
-    const cpf = digits(customer.cpf);
-    if (cpf && cpf.length !== 11) throw AppError.badRequest("CPF inválido (11 dígitos) — ou deixe em branco");
+    const cpf = validatedCpf(customer.cpf);
     const address = cleanAddress(body.address);
     const channel = MANUAL_CHANNELS.includes(body.channel) ? body.channel : "outro";
     const status = MANUAL_INITIAL_STATUSES.includes(body.status) ? body.status : "paid";
@@ -772,7 +772,7 @@ export function createAdminService({ prisma, env, mailer, gateway, orders, stock
       }
     }
     if (patch.phone !== undefined) data.phone = patch.phone == null ? null : String(patch.phone).replace(/\D/g, "") || null;
-    if (patch.cpf !== undefined) data.cpf = patch.cpf == null ? null : String(patch.cpf).replace(/\D/g, "") || null;
+    if (patch.cpf !== undefined) data.cpf = validatedCpf(patch.cpf);
     if (patch.address !== undefined) {
       data.address = patch.address && typeof patch.address === "object" && Object.values(patch.address).some(Boolean) ? patch.address : null;
     }

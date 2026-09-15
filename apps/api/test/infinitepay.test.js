@@ -71,3 +71,39 @@ describe("infinitepay: link de pagamento", () => {
     expect(sentPayload.items[0].price).toBe(539730);
   });
 });
+
+describe("infinitepay: erros seguros (sem rede ou cobranças)", () => {
+  it.each([[400, "PAYMENT_DATA_REJECTED"], [422, "PAYMENT_DATA_REJECTED"], [401, "PAYMENT_CONFIGURATION_ERROR"], [403, "PAYMENT_CONFIGURATION_ERROR"], [404, "PAYMENT_CONFIGURATION_ERROR"], [429, "PAYMENT_BUSY"], [500, "PAYMENT_UNAVAILABLE"], [503, "PAYMENT_UNAVAILABLE"]])("traduz HTTP %s sem expor corpo nem repetir POST", async (status, code) => {
+    const readBody = vi.fn(async () => '<html>secret customer details</html>');
+    fetch.mockResolvedValue({ok:false, status, text:readBody});
+    const gw = createInfinitePayGateway(env);
+    await expect(gw.createCheckoutLink({...baseOrder,totalBrl:3598})).rejects.toMatchObject({code});
+    expect(fetch).toHaveBeenCalledTimes(1);
+    expect(readBody).not.toHaveBeenCalled();
+  });
+  it.each(["not-json", "null", "[]", '{"success":false}', '{"url":"javascript:alert(1)"}', '{}'])("resposta inválida não vaza: %s", async body => {
+    fetch.mockResolvedValue({ok:true,text:async()=>body});
+    await expect(createInfinitePayGateway(env).createCheckoutLink({...baseOrder,totalBrl:3598})).rejects.toMatchObject({code:"PAYMENT_INVALID_RESPONSE"});
+  });
+  it("rede indisponível usa mensagem segura", async () => {
+    fetch.mockRejectedValue(new TypeError("sensitive internal URL"));
+    await expect(createInfinitePayGateway(env).createCheckoutLink({...baseOrder,totalBrl:3598})).rejects.toMatchObject({code:"PAYMENT_UNAVAILABLE"});
+  });
+  it("timeout cobre leitura do corpo também", async () => {
+    vi.useFakeTimers();
+    try {
+      fetch.mockImplementation(async (_url, {signal}) => ({ok:true,text:()=>new Promise((_resolve,reject)=>signal.addEventListener("abort",()=>reject(new DOMException("aborted","AbortError"))))}));
+      const pending = expect(createInfinitePayGateway(env).createCheckoutLink({...baseOrder,totalBrl:3598})).rejects.toMatchObject({code:"PAYMENT_TIMEOUT"});
+      await vi.advanceTimersByTimeAsync(10001);
+      await pending;
+    } finally { vi.useRealTimers(); }
+  });
+  it("falha de confirmação nunca sugere pagar outra vez", async () => {
+    fetch.mockResolvedValue({ok:false,status:422});
+    await expect(createInfinitePayGateway(env).confirmPayment({orderNsu:"test"})).rejects.toMatchObject({code:"PAYMENT_CHECK_UNAVAILABLE",message:expect.stringContaining("não pague novamente")});
+  });
+  it("consulta bem-sucedida não implica pagamento aprovado", async () => {
+    fetch.mockResolvedValue({ok:true,text:async()=>JSON.stringify({success:true,paid:false,amount:null})});
+    expect(await createInfinitePayGateway(env).confirmPayment({orderNsu:"test"})).toMatchObject({paid:false,amountCents:null});
+  });
+});

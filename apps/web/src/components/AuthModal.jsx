@@ -1,3 +1,4 @@
+import { isValidCpf, CPF_ERROR } from "@kulture/shared/cpf";
 import OrderTimeline from "./OrderTimeline.jsx";
 import { useId, useState } from "react";
 import PasswordInput from "./PasswordInput.jsx";
@@ -61,6 +62,7 @@ export default function AuthModal({ open, view, onSwitch, onClose, notify, auth 
   const [signupEmail, setSignupEmail] = useState("");
   const [signupPhone, setSignupPhone] = useState("");
   const [signupCpf, setSignupCpf] = useState("");
+  const [signupCpfError, setSignupCpfError] = useState(null);
   const [signupPw, setSignupPw] = useState("");
   const [signupPw2, setSignupPw2] = useState("");
   const [signupTerms, setSignupTerms] = useState(false);
@@ -139,6 +141,12 @@ export default function AuthModal({ open, view, onSwitch, onClose, notify, auth 
 
   async function handleSignup(e) {
     e.preventDefault();
+    if (signupCpf && !isValidCpf(signupCpf)) {
+      setSignupCpfError(CPF_ERROR);
+      e.currentTarget.elements.cpf.focus();
+      return;
+    }
+    setSignupCpfError(null);
     if (!signupName || !signupEmail || !signupPw) return notify("Preencha nome, email e senha");
     if (signupPw.length < 8) return notify("Senha deve ter no mínimo 8 caracteres");
     if (signupPw !== signupPw2) return notify("As senhas não coincidem");
@@ -229,8 +237,9 @@ export default function AuthModal({ open, view, onSwitch, onClose, notify, auth 
           <Field label="E-mail" type="email" placeholder="voce@email.com" value={signupEmail} onChange={(e) => setSignupEmail(e.target.value)} />
           <div className="row">
             <Field label="Telefone / WhatsApp" type="tel" placeholder="(11) 90000-0000" value={signupPhone} onChange={(e) => setSignupPhone(e.target.value)} />
-            <Field label="CPF" type="text" placeholder="000.000.000-00" value={signupCpf} onChange={(e) => setSignupCpf(e.target.value)} />
+            <Field label="CPF" name="cpf" type="text" placeholder="000.000.000-00" value={signupCpf} inputMode="numeric" maxLength={14} aria-invalid={Boolean(signupCpfError)} aria-describedby={signupCpfError ? "signup-cpf-error" : undefined} onBlur={() => setSignupCpfError(signupCpf && !isValidCpf(signupCpf) ? CPF_ERROR : null)} onChange={(e) => { setSignupCpf(e.target.value); setSignupCpfError(null); }} />
           </div>
+          {signupCpfError && <p id="signup-cpf-error" className="form-error" role="alert">{signupCpfError}</p>}
           <div className="row">
             <Field label="CEP" type="text" placeholder="00000-000" maxLength={9} value={cep} onChange={(e) => setCep(maskCep(e.target.value))} onBlur={buscaCEP} />
             <Field className="f2" label="Endereço" type="text" placeholder="Preenchido pelo CEP" value={addr.endereco} onChange={(e) => setAddr({ ...addr, endereco: e.target.value })} />

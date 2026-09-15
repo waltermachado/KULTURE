@@ -1,3 +1,4 @@
+import { validatedCpf } from "../../lib/cpf.js";
 import { AppError } from '../../lib/errors.js';
 import { pricingRateOf } from '../catalog/normalize.js';
 import { sizeLabel as buildSizeLabel, sizeLabelBr } from "@kulture/shared/sizes";
@@ -186,6 +187,7 @@ export function createOrderService(env, prisma, catalog, gateway, notifier, log,
 
   return {
     async checkout({ items, customer, address, coupon = null }, idempotencyKey, userId = null, { webOrigin = null } = {}) {
+      const normalizedCpf = validatedCpf(customer?.cpf, { required: true });
       if (idempotencyKey) {
         const existing = await prisma.idempotencyKey.findUnique({ where: { key: idempotencyKey } });
         if (existing) {
@@ -278,7 +280,7 @@ export function createOrderService(env, prisma, catalog, gateway, notifier, log,
               customerName: customer.name,
               customerEmail: customer.email,
               customerPhone: customer.phone || '',
-              customerCpf: customer.cpf,
+              customerCpf: normalizedCpf,
               address: address || {},
               subtotalBrl,
               shippingBrl,
@@ -317,7 +319,18 @@ export function createOrderService(env, prisma, catalog, gateway, notifier, log,
           }
         }
 
-        const checkoutLink = await gateway.createCheckoutLink(order, { webUrl: resolveWebUrl(env, webOrigin) });
+        let checkoutLink;
+        try {
+          checkoutLink = await gateway.createCheckoutLink(order, { webUrl: resolveWebUrl(env, webOrigin) });
+        } catch (err) {
+          await prisma.orderEvent.create({ data: {
+            orderId: order.id,
+            type: "payment_link_failed",
+            payload: err.paymentFailure || { code: "PAYMENT_UNAVAILABLE" }
+          } }).catch(() => {});
+          if (err instanceof AppError) err.details = { ...err.details, orderNumber: order.number };
+          throw err;
+        }
 
         const updatedOrder = await prisma.order.update({
           where: { id: order.id },

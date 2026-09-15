@@ -1,4 +1,5 @@
-import { useEffect, useState } from "react";
+import { isValidCpf, CPF_ERROR } from "@kulture/shared/cpf";
+import { useEffect, useState, useRef } from "react";
 import { useNavigate } from "react-router-dom";
 import { api } from "../lib/api.js";
 import PasswordInput from "../components/PasswordInput.jsx";
@@ -7,6 +8,15 @@ import { brl, sizeText, customText, isHypadosItem } from "../lib/format.js";
 export default function Checkout({ cart, auth, notify, onOpenLogin }) {
   const navigate = useNavigate();
   const [loading, setLoading] = useState(false);
+  const [cpfError, setCpfError] = useState(null);
+  const [checkoutError, setCheckoutError] = useState(null);
+  const checkoutErrorRef = useRef(null);
+  useEffect(() => {
+    if (checkoutError) {
+      checkoutErrorRef.current?.focus();
+      checkoutErrorRef.current?.scrollIntoView({ block: "nearest" });
+    }
+  }, [checkoutError]);
   // convidado pode criar a conta AQUI mesmo (opcional, marcado por padrão): registra com os dados do
   // formulário + senha e o pedido já nasce vinculado; desmarcado, segue como convidado (comportamento antigo).
   const [account, setAccount] = useState({ create: true, password: "", confirm: "" });
@@ -76,6 +86,13 @@ export default function Checkout({ cart, auth, notify, onOpenLogin }) {
   const handleSubmit = async (e) => {
     e.preventDefault();
     if (lines.length === 0) return notify("Seu carrinho está vazio");
+    setCheckoutError(null);
+    if (!isValidCpf(form.cpf)) {
+      setCpfError(CPF_ERROR);
+      e.currentTarget.elements.cpf.focus();
+      return;
+    }
+    setCpfError(null);
     setAccountErr(null);
 
     const addressPayload = {
@@ -145,14 +162,21 @@ export default function Checkout({ cart, auth, notify, onOpenLogin }) {
         body: JSON.stringify(payload)
       });
       
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.message || "Erro no checkout");
+      const data = await res.json().catch(() => null);
+      if (!res.ok) {
+        const message = data?.message || "Não conseguimos abrir o pagamento agora. Tente novamente em instantes.";
+        setCheckoutError({ message, orderNumber: data?.details?.orderNumber });
+        if (data?.code === "INVALID_CPF") setCpfError(CPF_ERROR);
+        setLoading(false);
+        return;
+      }
+      if (!data?.checkoutUrl || !/^https?:\/\//.test(data.checkoutUrl)) throw new Error("invalid checkout response");
       
       cart.clear();
       // Redireciona para o gateway
       window.location.href = data.checkoutUrl;
     } catch (err) {
-      notify(err.message);
+      setCheckoutError({ message: "Não conseguimos conectar ao pagamento. Confira sua conexão e tente novamente." });
       setLoading(false);
     }
   };
@@ -160,7 +184,7 @@ export default function Checkout({ cart, auth, notify, onOpenLogin }) {
   if (lines.length === 0) {
     return (
       <main style={{ padding: "100px 20px", textAlign: "center", minHeight: "60vh" }}>
-        <h2>Seu carrinho está vazio.</h2>
+        <h1>Seu carrinho está vazio.</h1>
         <button className="btn btn-primary" onClick={() => navigate("/")} style={{ marginTop: 20 }}>Voltar às compras</button>
       </main>
     );
@@ -169,18 +193,21 @@ export default function Checkout({ cart, auth, notify, onOpenLogin }) {
   return (
     <main className="checkout-page">
       <section>
-        <h2 style={{ marginBottom: 24, fontSize: 24 }}>Finalizar Compra</h2>
+        <h1 style={{ marginBottom: 24, fontSize: 24 }}>Finalizar Compra</h1>
         <form id="checkout-form" onSubmit={handleSubmit} style={{ display: "flex", flexDirection: "column", gap: 20 }}>
           
           <div className="form-section">
-            <h3 style={{ marginBottom: 12, fontSize: 18, color: "var(--k-yellow)" }}>Dados Pessoais</h3>
+            <h2 style={{ marginBottom: 12, fontSize: 18, color: "var(--k-yellow)" }}>Dados Pessoais</h2>
             <input name="name" placeholder="Nome Completo" value={form.name} onChange={handleChange} required />
             <input name="email" type="email" placeholder="E-mail" value={form.email} onChange={handleChange} required />
             <div style={{ display: "flex", gap: 10 }}>
-              <input name="cpf" placeholder="CPF (Apenas números)" value={form.cpf} onChange={handleChange} maxLength="14" required />
+              <input name="cpf" placeholder="CPF (Apenas números)" value={form.cpf} aria-label="CPF" inputMode="numeric" aria-invalid={Boolean(cpfError)} aria-describedby={cpfError ? "checkout-cpf-error" : undefined} onBlur={() => setCpfError(!isValidCpf(form.cpf) ? CPF_ERROR : null)} onChange={(e) => { handleChange(e); setCpfError(null); }} maxLength="14" required />
               <input name="phone" placeholder="WhatsApp (DDD + Número)" value={form.phone} onChange={handleChange} required />
             </div>
           </div>
+
+          {cpfError && <p id="checkout-cpf-error" className="form-error" role="alert">{cpfError}</p>}
+          {checkoutError && <div ref={checkoutErrorRef} tabIndex={-1} className="form-error" role="alert"><strong>Não foi possível continuar</strong><p>{checkoutError.message}</p>{checkoutError.orderNumber && <small>Referência para atendimento: {checkoutError.orderNumber}</small>}</div>}
 
           {!auth.user && (
             <div className="form-section co-account">
@@ -223,7 +250,7 @@ export default function Checkout({ cart, auth, notify, onOpenLogin }) {
           )}
 
           <div className="form-section">
-            <h3 style={{ marginBottom: 12, fontSize: 18, color: "var(--k-yellow)" }}>Entrega</h3>
+            <h2 style={{ marginBottom: 12, fontSize: 18, color: "var(--k-yellow)" }}>Entrega</h2>
             <div style={{ display: "flex", gap: 10 }}>
               <input name="cep" placeholder="CEP" value={form.cep} onChange={handleChange} onBlur={handleCepBlur} maxLength="9" required />
               <input name="city" placeholder="Cidade" value={form.city} onChange={handleChange} readOnly style={{ flex: 1, backgroundColor: "#222" }} />
@@ -241,7 +268,7 @@ export default function Checkout({ cart, auth, notify, onOpenLogin }) {
       </section>
 
       <aside className="checkout-summary">
-        <h3 style={{ marginBottom: 20 }}>Resumo do Pedido</h3>
+        <h2 style={{ marginBottom: 20 }}>Resumo do Pedido</h2>
         <div style={{ display: "flex", flexDirection: "column", gap: 16, marginBottom: 24 }}>
           {lines.map(({ key, item, sizeInfo, qty }) => (
             <div key={key} style={{ display: "flex", gap: 12, fontSize: 14 }}>

@@ -20,7 +20,9 @@ export default function Footer({ onOpenModal, onSearch, onCategory }) {
           </div>
         </div>
         <div>
-          <h4>Loja</h4>
+          <h2>Loja</h2>
+          <Link className="foot-link" to="/">Tênis importados</Link>
+          <Link className="foot-link" to="/hypados">Sneakers hypados</Link>
           <Link className="foot-link" to="/pronta-entrega">Pronta entrega (no Brasil)</Link>
           {cat("basketball shoes", "Basquete", "basketball")}
           {cat("lifestyle shoes", "Casual", "lifestyle")}
@@ -28,13 +30,13 @@ export default function Footer({ onOpenModal, onSearch, onCategory }) {
           {cat("air jordan", "Jordan")}
         </div>
         <div>
-          <h4>Conta</h4>
+          <h2>Conta</h2>
           {link("login", "Entrar")}
           {link("signup", "Criar cadastro")}
           {link("track", "Rastrear pedido")}
         </div>
         <div>
-          <h4>Contato</h4>
+          <h2>Contato</h2>
           <a href="tel:+5585992578888">(85) 99257-8888</a>
           <a href="mailto:contato@kulturebr.com">contato@kulturebr.com</a>
           <span className="foot-link" style={{ cursor: "default" }}>Seg a Sex · 9h às 18h</span>

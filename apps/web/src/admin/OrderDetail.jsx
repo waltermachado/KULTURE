@@ -6,6 +6,7 @@ import { customText } from "../lib/format.js";
 const EVENT_LABELS = {
   created: "Pedido criado",
   link_created: "Link de pagamento gerado",
+  payment_link_failed: "Não foi possível gerar o link de pagamento",
   payment_confirmed: "Pagamento confirmado (payment_check)",
   webhook_received: "Webhook do gateway",
   abandoned: "Marcado como abandonado (timeout)",

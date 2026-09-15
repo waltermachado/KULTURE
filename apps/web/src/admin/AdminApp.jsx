@@ -1,3 +1,4 @@
+import "../styles/admin.css";
 /**
  * Backoffice — /admin/*
  * Layout próprio (sidebar) — o Header/Footer da loja não aparecem aqui (ver App.jsx).

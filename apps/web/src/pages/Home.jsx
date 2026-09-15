@@ -25,7 +25,7 @@ export default function Home({ grid, setSelectedProductForSize, onCategory }) {
   const featured = !isFreeSearch && pinned ? pinned : grid.status === "ok" && !grid.query ? grid.products[0] : null;
   return (
     <>
-      <Hero featured={featured} onPick={setSelectedProductForSize} />
+      <Hero featured={featured} onPick={setSelectedProductForSize} variant={heroCat || "import"} />
       <Marquee />
       <ProductGrid state={grid} onAdd={setSelectedProductForSize} />
       <Features onCategory={onCategory} />

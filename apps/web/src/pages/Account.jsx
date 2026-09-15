@@ -1,3 +1,4 @@
+import { isValidCpf, CPF_ERROR } from "@kulture/shared/cpf";
 import OrderTimeline from "../components/OrderTimeline.jsx";
 import { useEffect, useState } from "react";
 import PasswordInput from "../components/PasswordInput.jsx";
@@ -46,7 +47,7 @@ export default function Account({ auth, onOpenLogin, notify }) {
   if (!auth.user) {
     return (
       <main className="account">
-        <h2>Minha <em>conta</em></h2>
+        <h1>Minha <em>conta</em></h1>
         <p className="lead">Entre para ver seus pedidos e editar seu cadastro.</p>
         <button className="btn-full" style={{ maxWidth: 320 }} onClick={onOpenLogin}>Entrar</button>
       </main>
@@ -81,6 +82,7 @@ export default function Account({ auth, onOpenLogin, notify }) {
 
   async function saveProfile(e) {
     e.preventDefault();
+    if (form.cpf && !isValidCpf(form.cpf)) return setProfileMsg({ ok: false, text: CPF_ERROR });
     setSaving(true);
     setProfileMsg(null);
     try {
@@ -119,13 +121,13 @@ export default function Account({ auth, onOpenLogin, notify }) {
 
   return (
     <main className="account">
-      <h2>Olá, <em>{auth.user.name.split(" ")[0]}</em></h2>
+      <h1>Olá, <em>{auth.user.name.split(" ")[0]}</em></h1>
       <p className="lead">{auth.user.email} · {auth.isAdmin && <a href="/admin" onClick={(e) => { e.preventDefault(); navigate("/admin"); }}>ir para o backoffice →</a>}</p>
 
       <div className="account-grid">
         <div>
           <section className="panel">
-            <h3>Meus pedidos</h3>
+            <h2>Meus pedidos</h2>
             {ordersErr && <p className="msg err">{ordersErr.message}</p>}
             {!orders && !ordersErr && <p className="msg">Carregando…</p>}
             {orders && !orders.length && <p className="msg">Você ainda não fez pedidos. <a href="/" onClick={(e) => { e.preventDefault(); navigate("/"); }}>Ver drops →</a></p>}
@@ -167,7 +169,7 @@ export default function Account({ auth, onOpenLogin, notify }) {
 
         <div>
           <section className="panel">
-            <h3>Meu cadastro</h3>
+            <h2>Meu cadastro</h2>
             <form onSubmit={saveProfile}>
               <div className="field"><label>Nome completo</label><input value={form.name} onChange={f("name")} required /></div>
               <div className="row">
@@ -198,7 +200,7 @@ export default function Account({ auth, onOpenLogin, notify }) {
           </section>
 
           <section className="panel" style={{ marginTop: 20 }}>
-            <h3>Trocar senha</h3>
+            <h2>Trocar senha</h2>
             <form onSubmit={savePassword}>
               <PasswordInput label="Senha atual" value={pw.current} onChange={(e) => setPw({ ...pw, current: e.target.value })} required autoComplete="current-password" />
               <div className="row">

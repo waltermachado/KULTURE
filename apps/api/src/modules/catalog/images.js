@@ -9,6 +9,7 @@
  */
 import { promises as fs } from "node:fs";
 import path from "node:path";
+import { optimizeImage } from "../../lib/optimize-image.js";
 import { fileURLToPath } from "node:url";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
@@ -32,7 +33,7 @@ function safeId(id) {
  * (v2 = recorte transparente via nike-image.js) → nova versão, e os arquivos antigos ficam só
  * para pedidos que gravaram a URL antiga.
  */
-export const IMAGE_VERSION = "v2";
+export const IMAGE_VERSION = "v3";
 
 export function createImageMirror({ publicBase = "/media/produtos", storageDir = STORAGE_DIR, log = null, fetchImpl = fetch } = {}) {
   // Estado de gravabilidade do storage. No Railway o volume é montado como root e o container roda
@@ -109,8 +110,10 @@ export function createImageMirror({ publicBase = "/media/produtos", storageDir =
             signal: AbortSignal.timeout(12_000)
           });
           if (!res.ok) throw new Error(`HTTP ${res.status}`);
-          const buf = Buffer.from(await res.arrayBuffer());
-          const ct = res.headers.get("content-type") || "";
+          let buf = Buffer.from(await res.arrayBuffer());
+          let ct = res.headers.get("content-type") || "";
+          const optimized = await optimizeImage(buf, ct);
+          buf = optimized.data; ct = optimized.mime;
           const ext = ct.includes("webp") ? "webp" : ct.includes("avif") ? "avif" : ct.includes("jpeg") ? "jpg" : "png";
           await fs.writeFile(path.join(dir, `${base}.${ext}`), buf);
           await fs.writeFile(meta, JSON.stringify({ ext, origem: src, savedAt: new Date().toISOString() }));

@@ -1,3 +1,4 @@
+import { optimizeImage } from "../../lib/optimize-image.js";
 /**
  * Pronta entrega — estoque próprio (no Brasil), cadastrado no backoffice. Não consulta a Nike.
  *
@@ -413,6 +414,10 @@ export function createStockService({ prisma, log = null }) {
     const images = Array.isArray(product.images) ? product.images : [];
     if (images.length >= MAX_IMAGES) throw AppError.badRequest(`Máximo de ${MAX_IMAGES} fotos por produto`);
 
+    try {
+      const optimized = await optimizeImage(buf, type);
+      buf = optimized.data; type = optimized.mime;
+    } catch { throw AppError.badRequest("Imagem inválida ou resolução muito alta"); }
     const blob = await prisma.stockImage.create({
       data: { productId: id, mime: String(type).toLowerCase(), bytes: buf.length, data: buf },
       select: { id: true }
@@ -423,9 +428,26 @@ export function createStockService({ prisma, log = null }) {
     return { id: blob.id, url, images: next };
   }
 
+  // Existing uploads are optimized on read without modifying stored originals.
+  const imageCache = new Map();
+  let imageCacheBytes = 0;
   async function getImage(imageId) {
     const row = await prisma.stockImage.findUnique({ where: { id: imageId }, select: { mime: true, data: true, bytes: true } });
-    return row;
+    if (!row) {
+      if (imageCache.has(imageId)) { imageCacheBytes -= imageCache.get(imageId).bytes; imageCache.delete(imageId); }
+      return row;
+    }
+    if (imageCache.has(imageId)) return imageCache.get(imageId);
+    let result = row;
+    try { result = await optimizeImage(row.data, row.mime); } catch { /* preserve legacy images */ }
+    while (imageCache.size && imageCacheBytes + result.bytes > 24 * 1024 * 1024) {
+      const key = imageCache.keys().next().value;
+      imageCacheBytes -= imageCache.get(key).bytes;
+      imageCache.delete(key);
+    }
+    if (imageCache.has(imageId)) return imageCache.get(imageId);
+    if (result.bytes <= 24 * 1024 * 1024) { imageCache.set(imageId, result); imageCacheBytes += result.bytes; }
+    return result;
   }
 
   // ---- reserva de estoque (pedidos) ----

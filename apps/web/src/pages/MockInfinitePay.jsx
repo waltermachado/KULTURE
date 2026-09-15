@@ -26,9 +26,9 @@ export default function MockInfinitePay() {
   return (
     <main className="section" style={{ maxWidth: 560, minHeight: "70vh" }}>
       <div className="section-title">
-        <h2>
+        <h1>
           Simulador <em>InfinitePay</em>
-        </h2>
+        </h1>
         <span className="sub">// modo mock — nenhum pagamento real é feito</span>
       </div>
       <div className="track-result show" style={{ marginTop: 0 }}>

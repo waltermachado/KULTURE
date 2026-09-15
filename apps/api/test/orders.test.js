@@ -49,7 +49,7 @@ describe("Orders & Checkout (Fase 4)", { timeout: 30000 }, () => {
       headers: { "idempotency-key": mockIdempotencyKey },
       payload: {
         items: [{ styleColor: "FV5029-141", nikeSize: "10.5", quantity: 1 }],
-        customer: { name: "Test User", email: "test@kulture.br", cpf: "11122233344" },
+        customer: { name: "Test User", email: "test@kulture.br", cpf: "12345678909" },
         address: { cep: "01000-000", city: "São Paulo", state: "SP" }
       }
     });
@@ -73,7 +73,7 @@ describe("Orders & Checkout (Fase 4)", { timeout: 30000 }, () => {
       headers: { "idempotency-key": mockIdempotencyKey },
       payload: {
         items: [{ styleColor: "FV5029-141", nikeSize: "10.5", quantity: 1 }],
-        customer: { name: "Test User", email: "test@kulture.br", cpf: "11122233344" }
+        customer: { name: "Test User", email: "test@kulture.br", cpf: "12345678909" }
       }
     });
     

@@ -1,3 +1,4 @@
+import { validatedCpf } from "../../lib/cpf.js";
 import * as argon2 from "argon2";
 import { randomBytes, createHash } from "node:crypto";
 
@@ -108,6 +109,7 @@ export function createAuthService({
   // ─── public API ───────────────────────────────────────────────────────
 
   async function register({ email: rawEmail, password, name, cpf, phone, address }, meta = {}) {
+    const normalizedCpf = validatedCpf(cpf);
     const email = rawEmail.trim().toLowerCase();
     const exists = await prisma.user.findUnique({ where: { email } });
     if (exists) {
@@ -123,7 +125,7 @@ export function createAuthService({
         email,
         passwordHash,
         name,
-        cpf: cpf ? String(cpf).replace(/\D/g, "") || null : null,
+        cpf: normalizedCpf,
         phone: phone ? String(phone).replace(/\D/g, "") || null : null,
         address: address && typeof address === "object" && Object.values(address).some(Boolean) ? address : null
       }
@@ -245,7 +247,7 @@ export function createAuthService({
     const data = {};
     if (typeof name === "string" && name.trim()) data.name = name.trim();
     if (phone !== undefined) data.phone = digits(phone);
-    if (cpf !== undefined) data.cpf = digits(cpf);
+    if (cpf !== undefined) data.cpf = validatedCpf(cpf);
     if (address !== undefined) data.address = cleanAddress(address);
     if (typeof marketingOptIn === "boolean") {
       if (marketing) await marketing.setOptIn(userId, marketingOptIn);

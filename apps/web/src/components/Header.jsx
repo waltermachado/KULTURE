@@ -14,7 +14,7 @@ export default function Header({ cartCount, onOpenCart, onOpenLogin, onSearch, o
   const [active, setActive] = useState("Início");
   const navigate = useNavigate();
   const location = useLocation();
-  const onStock = location.pathname.startsWith("/pronta-entrega");
+  const onStock = location.pathname.startsWith("/pronta-entrega") || location.pathname.startsWith("/hypados");
   const stockCat = onStock ? new URLSearchParams(location.search).get("cat") : null;
 
   function submit(e) {
@@ -34,7 +34,7 @@ export default function Header({ cartCount, onOpenCart, onOpenLogin, onSearch, o
     <header className="nav">
       <div className="nav-inner">
         <a className="nav-logo" href="/" aria-label="Kulture BR — início" onClick={(e) => { e.preventDefault(); tab(TABS[0]); }}>
-          <img src="/logo.png" alt="Kulture BR" />
+          <img src="/logo.png" alt="Kulture BR" width="140" height="60" />
         </a>
         <nav className="nav-tabs" aria-label="Categorias">
           {TABS.map((t) => (
@@ -45,11 +45,12 @@ export default function Header({ cartCount, onOpenCart, onOpenLogin, onSearch, o
         </nav>
         {/* filho direto da grade: no desktop fica entre as abas e as ações; no mobile (≤640px) desce para uma 2ª linha, largura total */}
         <form className="search-box" onSubmit={submit} role="search">
+          <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" strokeWidth="1.7" aria-hidden="true"><circle cx="10.5" cy="10.5" r="6.5" /><path d="m16 16 4 4" /></svg>
           <input
             type="search"
             value={q}
             onChange={(e) => setQ(e.target.value)}
-            placeholder="Buscar modelo"
+            placeholder="Qual é o seu próximo par?"
             autoComplete="off"
             enterKeyHint="search"
             aria-label="Buscar modelo"

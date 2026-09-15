@@ -14,6 +14,7 @@ export default function Confirmation() {
   const captureMethod = searchParams.get("capture_method");
   const receiptUrl = searchParams.get("receipt_url");
   
+  const [confirmationError, setConfirmationError] = useState(null);
   const [status, setStatus] = useState("loading"); // loading, paid, unpaid, error
   const pollTimer = useRef(null);
   
@@ -29,13 +30,19 @@ export default function Confirmation() {
     const confirmFromRedirect = async () => {
       if (!transactionNsu || !slug) return;
       try {
-        await fetch(`/api/orders/${encodeURIComponent(orderNumber)}/confirm`, {
+        const res = await fetch(`/api/orders/${encodeURIComponent(orderNumber)}/confirm`, {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ transaction_nsu: transactionNsu, slug, capture_method: captureMethod, receipt_url: receiptUrl })
         });
+        const data = await res.json().catch(() => null);
+        if (!res.ok || !data) {
+          setConfirmationError(data?.message || "Ainda não conseguimos confirmar seu pagamento. Se já pagou, não pague novamente. Aguarde e consulte seu pedido ou fale com a Kulture.");
+        } else if (data.mismatch) {
+          setConfirmationError("O valor recebido precisa ser conferido pela Kulture. Não pague novamente. Fale com a gente e informe o número do pedido.");
+        }
       } catch {
-        /* o polling abaixo continua tentando */
+        setConfirmationError("Não conseguimos consultar o pagamento agora. Confira sua conexão. Se já pagou, não pague novamente.");
       }
     };
 
@@ -46,7 +53,7 @@ export default function Confirmation() {
         if (!res.ok) throw new Error("Pedido não encontrado");
         const order = await res.json();
         
-        if (order.status === "paid") {
+        if (["paid", "sourcing", "in_transit", "arrived_br", "shipped", "delivered"].includes(order.status)) {
           setStatus("paid");
           if (pollTimer.current) clearInterval(pollTimer.current);
         } else if (order.status === "abandoned" || order.status === "cancelled") {
@@ -70,22 +77,24 @@ export default function Confirmation() {
   return (
     <main style={{ padding: "120px 20px", textAlign: "center", minHeight: "70vh" }}>
       <div style={{ maxWidth: 600, margin: "0 auto", background: "#111", padding: 40, borderRadius: 16 }}>
-        {status === "loading" && <h2>Verificando pedido...</h2>}
+        {status === "loading" && <h1>Verificando pedido...</h1>}
         
         {status === "pending" && (
           <>
-            <h2 style={{ color: "var(--k-yellow)" }}>Aguardando confirmação de pagamento</h2>
+            <h1 style={{ color: "var(--k-yellow)" }}>Aguardando confirmação de pagamento</h1>
             <p style={{ marginTop: 16, color: "#aaa" }}>
               Se você pagou via Pix, pode levar até 1 minuto para o sistema reconhecer.
               <br/>Pedido: <strong>{orderNumber}</strong>
             </p>
+            {confirmationError && <div className="form-error" role="alert" style={{ marginTop: 20 }}>{confirmationError}</div>}
+            {confirmationError && <button className="btn btn-primary" style={{ marginTop: 20 }} onClick={() => window.location.reload()}>Consultar novamente</button>}
             <div style={{ marginTop: 24 }} className="loader" />
           </>
         )}
         
         {status === "paid" && (
           <>
-            <h2 style={{ color: "var(--k-green)" }}>Pagamento Confirmado! 🎉</h2>
+            <h1 style={{ color: "var(--k-green)" }}>Pagamento Confirmado! 🎉</h1>
             <p style={{ marginTop: 16, color: "#ddd" }}>
               Recebemos o seu pagamento referente ao pedido <strong>{orderNumber}</strong>.
               <br/><br/>
@@ -97,7 +106,7 @@ export default function Confirmation() {
 
         {status === "unpaid" && (
           <>
-            <h2 style={{ color: "var(--k-red)" }}>Pedido Cancelado/Expirado</h2>
+            <h1 style={{ color: "var(--k-red)" }}>Pedido Cancelado/Expirado</h1>
             <p style={{ marginTop: 16, color: "#aaa" }}>
               O tempo para pagamento do pedido <strong>{orderNumber}</strong> expirou.
             </p>
@@ -107,7 +116,7 @@ export default function Confirmation() {
 
         {status === "error" && (
           <>
-            <h2>Erro ao buscar pedido</h2>
+            <h1>Erro ao buscar pedido</h1>
             <p style={{ marginTop: 16, color: "#aaa" }}>Não foi possível carregar as informações.</p>
             <button className="btn btn-primary" onClick={() => navigate("/")} style={{ marginTop: 32 }}>Início</button>
           </>

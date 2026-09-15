@@ -4,6 +4,7 @@ import { brl, BY_YOU_DELIVERY_DAYS } from "../lib/format.js";
 
 function Card({ p, i, onAdd }) {
   const soldOut = p.stock && p.stockQty === 0;
+  const tone = p.stock ? (p.section === "hypados" ? "hypados" : "stock") : "import";
   // estoque próprio tem página própria (p.href): o botão vira link de verdade (copiar/abrir em nova aba funciona)
   // e o clique normal segue pelo router, via onAdd → navigate
   const go = (e) => {
@@ -12,7 +13,7 @@ function Card({ p, i, onAdd }) {
     onAdd(p);
   };
   return (
-    <article className={`card${p.stock ? " card-stock" : ""}`} onClick={() => onAdd(p)}>
+    <article className={`card card-${tone}${p.stock ? " card-stock" : ""}`} onClick={() => onAdd(p)}>
       <div className="card-top">
         <span className="card-brand">{p.brand}</span>
         <span className="card-flags">
@@ -20,12 +21,19 @@ function Card({ p, i, onAdd }) {
           {p.byYou && <span className="card-eta">{BY_YOU_DELIVERY_DAYS} dias para entrega</span>}
         </span>
       </div>
-      <div className="card-ghost">{String(i + 1).padStart(2, "0")}</div>
+
       <div className="card-img">
         <ProductMedia src={p.img} alt={p.name} color={p.color} />
       </div>
       <div className="card-body">
-        <span className="card-name">{p.name}</span>
+        <span className="card-kicker">
+          {p.stock
+            ? p.section === "hypados"
+              ? (soldOut ? "Drop esgotado" : "Seleção rara em destaque")
+              : (soldOut ? "Par indisponível" : "Disponível para envio imediato")
+            : (p.launch?.comingSoon ? "Pré-venda ativa" : "Importado sob curadoria")}
+        </span>
+        <h3 className="card-name">{p.name}</h3>
         {(p.colorDescription || p.subtitle) && <span className="card-meta">{p.colorDescription || p.subtitle}</span>}
         <div className="card-price">
           <span className="price">{brl(p.price)}</span>
@@ -72,23 +80,46 @@ export default function ProductGrid({
   context = "importados"
 }) {
   const { status, products, title, sub, query } = state;
+  const count = status === "ok" ? products.length : 0;
+  const countLabel =
+    status === "loading"
+      ? "Carregando seleção"
+      : status === "ok"
+        ? `${count} ${count === 1 ? "modelo na seleção" : "modelos na seleção"}`
+        : status === "empty"
+          ? "Busca sem resultado"
+          : status === "error"
+            ? "Catálogo temporariamente indisponível"
+            : query
+              ? "Busca ativa"
+              : "Curadoria Kulture";
   return (
     <>
-      <section className="section" id="drops">
+      <section className="section" id="drops" tabIndex={-1} aria-label="Seleção de produtos">
         <div className="section-title">
-          <div>
-            <div className="kicker">{kicker || (query ? "Resultado da busca" : "Em estoque agora")}</div>
+          <div className="section-title-main">
+            <div className="section-kicker-row">
+              <div className="kicker">{kicker || (query ? "Resultado da busca" : "Em estoque agora")}</div>
+              <span className="section-live">{query ? "Busca ativa" : "Seleção Kulture"}</span>
+            </div>
             <h2 style={{ marginTop: 10 }}>{title}</h2>
           </div>
           <div className="section-title-right">
-            <span className="sub">{sub}</span>
+            <div className="section-stats" aria-live="polite">
+              <strong>{status === "ok" ? String(count).padStart(2, "0") : status === "loading" ? "..." : "--"}</strong>
+              <span>{countLabel}</span>
+            </div>
+            <span className="sub">{typeof sub === "string" ? sub.replace(/^\/\/\s*/, "") : sub}</span>
             {whatsapp && <WhatsappCta variant="pill" query={query} context={context} />}
           </div>
         </div>
         {filters}
       </section>
-      <div className="grid">
-        {status === "loading" && <p className="grid-msg">{loadingMsg}</p>}
+      <div className="grid" aria-busy={status === "loading"} data-state={status}>
+        {status === "loading" && <>
+          <p className="sr-only" role="status">{loadingMsg}</p>
+          {Array.from({ length: 6 }, (_, i) => <div className="product-skeleton" key={i} aria-hidden="true"><div /><span /><span /><span /></div>)}
+        </>}
         {status === "empty" && <p className="grid-msg">{emptyMsg || `Nada encontrado para "${query}".`}</p>}
         {status === "error" && <p className="grid-msg err">{errorMsg}</p>}
         {status === "ok" && products.map((p, i) => <Card key={p.key} p={p} i={i} onAdd={onAdd} />)}

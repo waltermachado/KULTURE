@@ -16,58 +16,23 @@ import fs from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import fastifyStatic from "@fastify/static";
-import { resolveWebUrl } from "../lib/site-url.js";
+import { canonicalWebUrl } from "../lib/site-url.js";
+import { pageSeo, seoHtml, PUBLIC_PAGES, escapeHtml } from "@kulture/shared/seo";
 
 const PRODUCT_PAGE_RE = /^\/(?:pronta-entrega|hypados)\/([^/?#]+)\/?(?:[?#].*)?$/;
-const esc = (v) => String(v ?? "").replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
-const brl = (v) => Number(v).toLocaleString("pt-BR", { style: "currency", currency: "BRL" });
-
-/** index.html com as metas do tênis (ou o index puro se a URL não for de produto / o produto não existir). */
-export async function productPageHtml(app, request, indexHtml) {
-  const m = PRODUCT_PAGE_RE.exec(request.raw.url || "");
-  if (!m || !app.stock?.getProductByRef) return indexHtml;
-  try {
-    let ref = m[1];
-    try { ref = decodeURIComponent(ref); } catch { /* mantém cru */ }
-    const product = await app.stock.getProductByRef(ref);
-    if (!product) return indexHtml;
-    const base = resolveWebUrl(app.env, `${request.protocol}://${request.host}`);
-    const url = new URL(product.path, base).href;
-    const image = product.images?.[0] ? new URL(product.images[0], base).href : null;
-    const price = product.price?.brl != null ? brl(product.price.brl) : null;
-    const title = `${product.name}${price ? ` — ${price}` : ""} | Kulture`;
-    const soldOut = !(product.stock?.total > 0);
-    const availability = soldOut
-      ? " · esgotado"
-      : product.section === "hypados"
-        ? " · garimpado nos EUA · importamos pra você · frete grátis"
-        : " · em estoque no Brasil · envio imediato · frete grátis";
-    const description = [
-      `${product.sectionLabel || "Pronta entrega"}${availability}`,
-      product.description
-    ].filter(Boolean).join(" — ").replace(/\s+/g, " ").slice(0, 300);
-    const tags = [
-      ["property", "og:type", "product"],
-      ["property", "og:site_name", "Kulture"],
-      ["property", "og:title", title],
-      ["property", "og:description", description],
-      ["property", "og:url", url],
-      image ? ["property", "og:image", image] : null,
-      ["name", "twitter:card", image ? "summary_large_image" : "summary"],
-      ["name", "twitter:title", title],
-      ["name", "twitter:description", description],
-      image ? ["name", "twitter:image", image] : null,
-      product.price?.brl != null ? ["property", "product:price:amount", String(product.price.brl)] : null,
-      product.price?.brl != null ? ["property", "product:price:currency", "BRL"] : null
-    ].filter(Boolean).map(([k, name, content]) => `<meta ${k}="${esc(name)}" content="${esc(content)}" />`);
-    return indexHtml
-      .replace(/<title>[^<]*<\/title>/, `<title>${esc(title)}</title>`)
-      .replace(/<meta\s+name="description"\s+content="[^"]*"\s*\/?>/, `<meta name="description" content="${esc(description)}" />`)
-      .replace("</head>", `    <link rel="canonical" href="${esc(url)}" />\n    ${tags.join("\n    ")}\n  </head>`);
-  } catch (err) {
-    app.log?.warn({ err: err.message, url: request.raw.url }, "serve-web: falha ao montar metas do produto");
-    return indexHtml;
+const baseUrl = app => {
+  const url = new URL(canonicalWebUrl(app.env));
+  if (app.env.NODE_ENV === "production") url.protocol = "https:";
+  return url.origin;
+};
+export async function productPageHtml(app, request, indexHtml, knownProduct) {
+  const pathname = new URL(request.raw.url, baseUrl(app)).pathname;
+  const match = PRODUCT_PAGE_RE.exec(pathname);
+  let product = knownProduct;
+  if (product === undefined && match && app.stock?.getProductByRef) {
+    product = await app.stock.getProductByRef(decodeURIComponent(match[1]));
   }
+  return seoHtml(indexHtml, pageSeo(pathname, baseUrl(app), product), process.env.GOOGLE_SITE_VERIFICATION);
 }
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
@@ -81,7 +46,30 @@ export async function serveWeb(app, { dist = process.env.WEB_DIST || DEFAULT_DIS
     return false;
   }
 
-  const indexHtml = fs.readFileSync(indexFile, "utf8");
+  const indexHtml = fs.readFileSync(indexFile, "utf8").replace("</head>", `<meta name="site-origin" content="${escapeHtml(baseUrl(app))}" /></head>`);
+
+  // Trust only Fastify's configured proxy policy; never reflect an arbitrary Host in redirects.
+  app.addHook("onRequest", async (request, reply) => {
+    if (app.env.NODE_ENV === "production" && request.protocol === "http" && !request.url.startsWith("/health")) {
+      return reply.code(308).redirect(`${baseUrl(app)}${request.raw.url.startsWith("/") ? request.raw.url : "/"}`);
+    }
+    if (app.env.NODE_ENV === "production" && request.protocol === "https") reply.header("Strict-Transport-Security", "max-age=31536000");
+  });
+  app.get("/robots.txt", async (_request, reply) => reply.type("text/plain; charset=utf-8").send(`User-agent: *\nAllow: /\nSitemap: ${baseUrl(app)}/sitemap.xml\n`));
+  app.get("/sitemap.xml", async (_request, reply) => {
+    try {
+      const products = (await Promise.all([app.stock.listPublic({ section: "stock" }), app.stock.listPublic({ section: "hypados" })])).flat();
+      const paths = [...new Set([...Object.keys(PUBLIC_PAGES), ...products.map(p => p.path)])];
+      const xml = paths.map(p => `<url><loc>${escapeHtml(new URL(p, baseUrl(app)).href)}</loc></url>`).join("");
+      return reply.header("Cache-Control", "public, max-age=300").type("application/xml; charset=utf-8").send(`<?xml version="1.0" encoding="UTF-8"?><urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">${xml}</urlset>`);
+    } catch (err) {
+      app.log.error({ err }, "sitemap: catálogo indisponível");
+      return reply.code(503).header("Retry-After", "60").send("Sitemap temporariamente indisponível");
+    }
+  });
+  for (const route of Object.keys(PUBLIC_PAGES)) {
+    app.get(route, async (request, reply) => reply.header("Cache-Control", "no-cache").type("text/html").send(await productPageHtml(app, request, indexHtml)));
+  }
 
   await app.register(fastifyStatic, {
     root: dist,
@@ -106,7 +94,17 @@ export async function serveWeb(app, { dist = process.env.WEB_DIST || DEFAULT_DIS
     // bots de preview (WhatsApp/Instagram/Telegram) nem sempre mandam Accept: text/html — página de produto responde HTML mesmo assim
     const isProductPage = PRODUCT_PAGE_RE.test(url);
     if (!isApi && (request.method === "GET" || request.method === "HEAD") && (wantsHtml || isProductPage)) {
-      const html = isProductPage ? await productPageHtml(app, request, indexHtml) : indexHtml;
+      let product;
+      if (isProductPage) {
+        const match = PRODUCT_PAGE_RE.exec(url);
+        let ref;
+        try { ref = decodeURIComponent(match[1]); } catch { return reply.code(400).send("URL inválida"); }
+        product = await app.stock.getProductByRef(ref);
+        if (!product) return reply.code(404).type("text/html").send(await productPageHtml(app, request, indexHtml, null));
+        const current = new URL(url, baseUrl(app));
+        if (current.pathname !== product.path) return reply.code(301).redirect(product.path + current.search);
+      }
+      const html = await productPageHtml(app, request, indexHtml, product);
       return reply.code(200).header("Cache-Control", "no-cache").type("text/html; charset=utf-8").send(html);
     }
     return reply.code(404).send({ code: "NOT_FOUND", message: `Rota ${request.method} ${url} não encontrada` });

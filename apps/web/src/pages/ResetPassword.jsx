@@ -36,19 +36,19 @@ export default function ResetPassword({ auth, onOpenLogin }) {
       <div className="box">
         {!token ? (
           <>
-            <h2>Link <em>inválido</em></h2>
+            <h1>Link <em>inválido</em></h1>
             <p>Este link não tem o código de redefinição. Peça um novo em “Esqueci minha senha”.</p>
             <button className="btn-full" onClick={onOpenLogin}>Ir para o login</button>
           </>
         ) : done ? (
           <>
-            <h2>Senha <em>redefinida</em></h2>
+            <h1>Senha <em>redefinida</em></h1>
             <p>Pronto! Sua senha foi alterada e as sessões antigas foram encerradas. Entre com a nova senha.</p>
             <button className="btn-full" onClick={() => { navigate("/"); onOpenLogin(); }}>Entrar</button>
           </>
         ) : (
           <>
-            <h2>Nova <em>senha</em></h2>
+            <h1>Nova <em>senha</em></h1>
             <p>Escolha uma senha nova para a sua conta Kulture. O link vale uma vez só.</p>
             <form onSubmit={submit}>
               <PasswordInput label="Nova senha" value={pw} onChange={(e) => setPw(e.target.value)} placeholder="mínimo 8 caracteres" autoFocus autoComplete="new-password" />
