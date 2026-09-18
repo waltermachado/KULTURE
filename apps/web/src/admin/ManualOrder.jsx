@@ -29,6 +29,7 @@ const fmtMoneyInput = (v) => (v == null || v === "" ? "" : String(Number(v).toFi
 const maskCep = (v) => { const d = String(v || "").replace(/\D/g, "").slice(0, 8); return d.length > 5 ? `${d.slice(0, 5)}-${d.slice(5)}` : d; };
 const localNow = () => { const d = new Date(); d.setMinutes(d.getMinutes() - d.getTimezoneOffset()); return d.toISOString().slice(0, 16); };
 const round2 = (n) => Math.round(n * 100) / 100;
+const normalizeText = (v) => String(v || "").normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase();
 
 /** Rótulo "BR 41 (US M 9.5)" como o servidor vai gravar (prévia). */
 function previewLabel({ br, us, gender }) {
@@ -330,6 +331,7 @@ export default function ManualOrder({ auth, notify }) {
 function ItemPicker({ auth, stockProducts, onAdd }) {
   const [tab, setTab] = useState("stock");
   // pronta entrega
+  const [stockQuery, setStockQuery] = useState("");
   const [stockId, setStockId] = useState("");
   const [stockSize, setStockSize] = useState("");
   const [stockGenderPick, setStockGenderPick] = useState("M");
@@ -350,6 +352,15 @@ function ItemPicker({ auth, stockProducts, onAdd }) {
 
   const product = useMemo(() => (stockProducts || []).find((p) => p.id === stockId) || null, [stockProducts, stockId]);
   const size = product?.sizes.find((s) => s.br === stockSize) || null;
+  const filteredStockProducts = useMemo(() => {
+    const query = normalizeText(stockQuery).trim();
+    if (!query) return stockProducts || [];
+    const matches = (stockProducts || []).filter((p) =>
+      normalizeText([p.name, p.colorDescription, p.code, p.sectionLabel].filter(Boolean).join(" ")).includes(query)
+    );
+    if (product && !matches.some((p) => p.id === product.id)) return [product, ...matches];
+    return matches;
+  }, [product, stockProducts, stockQuery]);
 
   useEffect(() => {
     if (!product) return;
@@ -418,11 +429,28 @@ function ItemPicker({ auth, stockProducts, onAdd }) {
         <>
           {stockProducts && stockProducts.length === 0 && <div className="adm-note" style={{ marginBottom: 10 }}>Nenhum produto de pronta entrega cadastrado — use as abas Nike ou Outro.</div>}
           <div className="form-grid">
+            <div className="field span2">
+              <label>Buscar tênis</label>
+              <input
+                type="search"
+                value={stockQuery}
+                onChange={(e) => setStockQuery(e.target.value)}
+                placeholder="Digite nome, cor, código ou seção"
+              />
+              {stockProducts && stockProducts.length > 0 && (
+                <div className="adm-note" style={{ marginTop: 6 }}>
+                  {filteredStockProducts.length} resultado(s){stockQuery.trim() ? ` para "${stockQuery.trim()}"` : ""}
+                </div>
+              )}
+            </div>
             <div className="field span2"><label>Produto</label>
               <select value={stockId} onChange={(e) => setStockId(e.target.value)}>
                 <option value="">— escolher —</option>
-                {(stockProducts || []).map((p) => <option key={p.id} value={p.id}>{p.sectionLabel ? `[${p.sectionLabel}] ` : ""}{p.name}{p.colorDescription ? ` · ${p.colorDescription}` : ""} · {p.code} · {p.totalQty} par(es){p.active ? "" : " · inativo"}</option>)}
+                {filteredStockProducts.map((p) => <option key={p.id} value={p.id}>{p.sectionLabel ? `[${p.sectionLabel}] ` : ""}{p.name}{p.colorDescription ? ` · ${p.colorDescription}` : ""} · {p.code} · {p.totalQty} par(es){p.active ? "" : " · inativo"}</option>)}
               </select>
+              {stockProducts && stockProducts.length > 0 && filteredStockProducts.length === 0 && (
+                <div className="adm-note" style={{ marginTop: 6 }}>Nenhum produto encontrado com esse termo.</div>
+              )}
             </div>
           </div>
           {product && (

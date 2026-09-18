@@ -5,7 +5,7 @@ import { normalizeQuery } from "../../lib/normalize-query.js";
 import { cutoutUrls } from "./nike-image.js";
 import { toProduct, BY_YOU_CUSTOMIZATION } from "./normalize.js";
 import { isTestTerm, isTestStyleColor, buildTestProduct } from "./test-product.js";
-import { convertUsToBr, parseUsSizes, sizeGroupsOf, standardSizes } from "@kulture/shared/sizes";
+import { convertUsToBr, parseUsSizes, sizeGroupsOf, standardSizes, standardKidsSizes } from "@kulture/shared/sizes";
 
 const RATE_KEY = "rate:USD-BRL:v2"; // v2 = traz `tourism` (dólar turismo)
 const MAX_IMAGES = 8; // galeria do produto: até 8 ângulos (o resto é marketing)
@@ -13,8 +13,8 @@ const MAX_IMAGES = 8; // galeria do produto: até 8 ângulos (o resto é marketi
 // senão cards/busca ficariam até 1h servindo os PNGs opacos antigos.
 // v3 só calçados · v4 launch · v5 nova precificação (turismo, 7%, ↑99) · v6 LeBron 23 +R$300 ·
 // v7 acréscimos editáveis no painel: o namespace ganha a VERSÃO das regras (salvou → chaves novas → preço recalculado) ·
-// v8 escala feminina derivada da masculina (BR único por par físico)
-const BASE_NS = "v8";
+// v8 escala feminina derivada da masculina (BR único por par físico) · v9 pré-venda com todos os tamanhos liberados
+const BASE_NS = "v9";
 
 /**
  * `stock` (opcional) = serviço de pronta entrega: códigos PE-XXXXXX são respondidos do banco em
@@ -173,6 +173,11 @@ export function createCatalogService({ scraper, cache, sizesCache, images, rules
         // busca → pega o produto (nome, preço) por lá e oferece a tabela padrão de tamanhos; o cliente escolhe o
         // seu número e personaliza (texto/número por pé); o dono confirma na Nike By You antes de comprar.
         const { product: found } = await findOne(styleColor);
+        // pré-venda sem SKU publicado na Nike: vende com a tabela padrão (compramos assim que a Nike libera)
+        if (found?.launch?.comingSoon && !found.byYou) {
+          const sizes = presaleSizes(found);
+          return { ...found, sizes, sizeGroups: sizeGroupsOf(sizes), sizesSynthetic: true };
+        }
         if (!found?.byYou) throw err;
         const sizes = standardSizes();
         return { ...found, sizes, sizeGroups: sizeGroupsOf(sizes), sizesSynthetic: true, customization: BY_YOU_CUSTOMIZATION };
@@ -196,6 +201,13 @@ export function createCatalogService({ scraper, cache, sizesCache, images, rules
           us
         };
       });
+      // PRÉ-VENDA: a Nike ainda não abriu a venda, então nenhum tamanho vem "disponível" (ou nem vem tamanho) e o
+      // seletor mostrava "Esgotado". Na pré-venda o site vende todos os tamanhos — a compra é feita na abertura.
+      if (enriched.launch?.comingSoon && !sizes.some((s) => s.brLabel && s.available)) {
+        const usable = sizes.filter((s) => s.brLabel);
+        const open = usable.length ? usable.map((s) => ({ ...s, available: true })) : presaleSizes({ ...enriched, genders: raw.genders });
+        return { ...enriched, sizes: open, sizeGroups: sizeGroupsOf(open), ...(usable.length ? {} : { sizesSynthetic: true }) };
+      }
       return { ...enriched, sizes, sizeGroups: sizeGroupsOf(sizes) };
     });
     if (value && restricted && (await restricted.isBlocked(value))) return { cached, stale, product: null }; // restrito: página/checkout respondem 404
@@ -203,6 +215,14 @@ export function createCatalogService({ scraper, cache, sizesCache, images, rules
   }
 
   return { search, findOne, getProductSizes, top8, warmTop8, getRate };
+}
+
+/** Tabela padrão para pré-venda sem tamanhos na Nike: infantil (Big Kids/GS) ou adulto. */
+function presaleSizes(product) {
+  const genders = product?.genders || [];
+  const kids = /\b(big|little) kids\b|\bgrade school\b|\(GS\)/i.test(`${product?.subtitle || ""} ${product?.name || ""}`)
+    || ((genders.includes("BOYS") || genders.includes("GIRLS")) && !genders.includes("MEN") && !genders.includes("WOMEN"));
+  return kids ? standardKidsSizes() : standardSizes();
 }
 
 /** 404 do scraper em /product/:styleColor ("Sizes unavailable") — produto sem SKU na Nike (By You, descontinuado…). */

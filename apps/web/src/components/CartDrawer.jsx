@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import ProductMedia from "./ProductMedia.jsx";
 import { api } from "../lib/api.js";
-import { brl, sizeText, customText, isHypadosItem } from "../lib/format.js";
+import { brl, sizeText, customText, isHypadosItem, deliveryOf, deliveryOfCart } from "../lib/format.js";
 
 export default function CartDrawer({ open, onClose, cart, onCheckout }) {
   const { list, total, changeQty, coupon, setCoupon } = cart;
@@ -55,6 +55,7 @@ export default function CartDrawer({ open, onClose, cart, onCheckout }) {
                 <b>{item.name}{item.launch?.comingSoon ? <em className="tag-pre">Pré-venda</em> : null}{item.stock ? (isHypadosItem(item) ? <em className="tag-pre tag-hypados">Hypados</em> : <em className="tag-pre tag-stock">Pronta entrega</em>) : null}</b>
                 <span>TAM {sizeText(sizeInfo)} · QTD {qty}</span>
                 {customText(sizeInfo?.customization) && <span className="cart-custom">By You · {customText(sizeInfo.customization)}</span>}
+                <span className="cart-delivery">Entrega: {deliveryOf(item).label}</span>
                 <span className="line-price">{brl(item.price * qty)}</span>
               </div>
               <div className="qty">
@@ -92,6 +93,12 @@ export default function CartDrawer({ open, onClose, cart, onCheckout }) {
           <span>Frete</span>
           <span style={{ color: 'var(--k-green)' }}>Grátis</span>
         </div>
+        {list.length > 0 && (
+          <div className="total-row" style={{ color: '#888', fontSize: '0.9rem', marginBottom: 4 }}>
+            <span>Prazo de entrega</span>
+            <span style={{ color: '#fff' }}>{deliveryOfCart(list.map((l) => l.item))?.label}</span>
+          </div>
+        )}
         {discount > 0 && (
           <div className="total-row" style={{ color: 'var(--k-green)', fontSize: '0.9rem', marginBottom: 4 }}>
             <span>Desconto ({coupon})</span>

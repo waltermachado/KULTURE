@@ -8,22 +8,7 @@ const PROMISES = [
 
 import { CATEGORIES } from "../lib/format.js";
 
-const CATEGORY_COPY = {
-  basketball: {
-    eyebrow: "Domine a quadra",
-    desc: "GT Cut, Sabrina, Ja e pares com resposta rápida para jogo e estilo."
-  },
-  lifestyle: {
-    eyebrow: "Seu estilo, todo dia",
-    desc: "Silhuetas versáteis para montar look com presença sem perder conforto."
-  },
-  running: {
-    eyebrow: "Encontre seu ritmo",
-    desc: "Modelos para treinar, correr leve ou encaixar performance na rotina."
-  }
-};
-
-const CATS = CATEGORIES.map((c) => ({ ...c, ...CATEGORY_COPY[c.key] }));
+const CATS = CATEGORIES.map((c, i) => ({ ...c, n: String(i + 1).padStart(2, "0") }));
 
 /** Blocos Basquete / Casual / Corrida — `onCategory(cat)` decide se filtra a pronta entrega ou busca nos importados. */
 export default function Features({ onCategory }) {
@@ -32,15 +17,11 @@ export default function Features({ onCategory }) {
       <div className="cats">
         {CATS.map((c) => (
           <button key={c.label} onClick={() => onCategory?.(c)}>
-            <div className="cats-copy">
-              <span className="n">{c.eyebrow}</span>
+            <div>
+              <span className="n">{c.n}</span>
               <span className="t">{c.label}</span>
-              <small>{c.desc}</small>
             </div>
-            <div className="cats-foot">
-              <span>Explorar seleção</span>
-              <span className="arr">↗</span>
-            </div>
+            <span className="arr">↗</span>
           </button>
         ))}
       </div>
@@ -48,16 +29,13 @@ export default function Features({ onCategory }) {
         <div>
           <div className="kicker">Garantia Kulture</div>
           <h2>
-            Seu estilo.
+            100% original,
             <br />
-            Nossa palavra.
+            importado dos EUA,
+            <br />
+            na sua porta.
           </h2>
           <p>Cada par sai da loja oficial e chega com numeração BR e preço final fechado. Se não for original, devolvemos o valor integral.</p>
-          <div className="features-badges">
-            <span>Loja oficial nos EUA</span>
-            <span>Preço final transparente</span>
-            <span>Suporte no WhatsApp</span>
-          </div>
         </div>
         <div className="features-inner">
           {PROMISES.map((pr) => (

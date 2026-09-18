@@ -15,7 +15,7 @@ import { NavLink, useLocation } from "react-router-dom";
  */
 export const MODES = [
   { to: "/", key: "import", flag: "EUA", label: "Importados", sub: "direto dos EUA" },
-  { to: "/hypados", key: "hypados", flag: "ball", label: "Hypados", sub: "Pares fora do óbvio" },
+  { to: "/hypados", key: "hypados", flag: "ball", label: "Hypados", sub: "drops mais quentes dos EUA 🇺🇸" },
   { to: "/pronta-entrega", key: "stock", flag: "BR", label: "Pronta entrega", sub: "estoque no Brasil" }
 ];
 const ORDER = { import: 0, hypados: 1, stock: 2 };

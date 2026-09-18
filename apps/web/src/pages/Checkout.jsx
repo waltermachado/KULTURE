@@ -3,7 +3,7 @@ import { useEffect, useState, useRef } from "react";
 import { useNavigate } from "react-router-dom";
 import { api } from "../lib/api.js";
 import PasswordInput from "../components/PasswordInput.jsx";
-import { brl, sizeText, customText, isHypadosItem } from "../lib/format.js";
+import { brl, sizeText, customText, isHypadosItem, deliveryOf, deliveryOfCart } from "../lib/format.js";
 
 export default function Checkout({ cart, auth, notify, onOpenLogin }) {
   const navigate = useNavigate();
@@ -277,6 +277,7 @@ export default function Checkout({ cart, auth, notify, onOpenLogin }) {
                 <div style={{ fontWeight: 600 }}>{item.name}{item.launch?.comingSoon ? <em className="tag-pre">Pré-venda</em> : null}{item.stock ? (isHypadosItem(item) ? <em className="tag-pre tag-hypados">Hypados</em> : <em className="tag-pre tag-stock">Pronta entrega</em>) : null}</div>
                 <div style={{ color: "#888", fontSize: 12 }}>Tam: {sizeText(sizeInfo)} × {qty}</div>
                 {customText(sizeInfo?.customization) && <div style={{ color: "#888", fontSize: 12 }}>By You · {customText(sizeInfo.customization)}</div>}
+                <div style={{ color: "#bbb", fontSize: 12 }}>Entrega: {deliveryOf(item).label}</div>
                 <div style={{ color: "var(--k-yellow)", fontWeight: 700 }}>{brl((item.price || 0) * qty)}</div>
               </div>
             </div>
@@ -291,6 +292,10 @@ export default function Checkout({ cart, auth, notify, onOpenLogin }) {
           <div style={{ display: "flex", justifyContent: "space-between" }}>
             <span>Frete</span>
             <span style={{ color: "var(--k-green)" }}>Grátis</span>
+          </div>
+          <div style={{ display: "flex", justifyContent: "space-between" }}>
+            <span>Prazo de entrega</span>
+            <span>{deliveryOfCart(lines.map((l) => l.item))?.label}</span>
           </div>
           {cart.coupon && (
             couponInfo?.ok ? (

@@ -22,6 +22,21 @@ import Coupons from "./Coupons.jsx";
 import Restricted from "./Restricted.jsx";
 import Bling from "./Bling.jsx";
 
+const NAV_ITEMS = [
+  { to: "/admin", label: "Dashboard", hint: "Visão financeira e operacional" },
+  { to: "/admin/pedidos", label: "Pedidos", hint: "Fluxo, pagamento e venda externa", badge: "pending" },
+  { to: "/admin/entregas", label: "Entregas", hint: "Fila de envio e etapas do importado", badge: "toShip" },
+  { to: "/admin/clientes", label: "Clientes", hint: "Base, histórico e detalhes" },
+  { to: "/admin/estoque", label: "Pronta entrega", hint: "Catálogo e disponibilidade" },
+  { to: "/admin/hypados", label: "Hypados", hint: "Curadoria e estoque especial" },
+  { to: "/admin/vitrine", label: "Vitrine", hint: "Hero e slots por categoria" },
+  { to: "/admin/restritos", label: "Restritos", hint: "Produtos privados e acesso" },
+  { to: "/admin/marketing", label: "Marketing", hint: "Conteúdo e publicação" },
+  { to: "/admin/precos", label: "Preços", hint: "Regras e fórmulas comerciais" },
+  { to: "/admin/cupons", label: "Cupons", hint: "Descontos e validade" },
+  { to: "/admin/bling", label: "Bling", hint: "Integração e conferência" }
+];
+
 export default function AdminApp({ auth, onOpenLogin, notify }) {
   const navigate = useNavigate();
   const [counts, setCounts] = useState(null);
@@ -66,62 +81,77 @@ export default function AdminApp({ auth, onOpenLogin, notify }) {
 
   const toShip = counts ? (counts.paid || 0) + (counts.sourcing || 0) + (counts.in_transit || 0) + (counts.arrived_br || 0) : null;
   const pending = counts ? counts.pending_payment || 0 : null;
+  const navBadges = { pending, toShip };
 
   return (
-    <div className="adm">
-      <aside className="adm-side">
-        <div className="adm-brand">
-          <img src="/logo.png" alt="Kulture" />
-          <span>Backoffice</span>
-        </div>
-        <nav className="adm-nav">
-          <NavLink to="/admin" end>Dashboard</NavLink>
-          <NavLink to="/admin/pedidos">Pedidos {pending ? <span className="n">{pending}</span> : null}</NavLink>
-          <NavLink to="/admin/entregas">Entregas {toShip ? <span className="n">{toShip}</span> : null}</NavLink>
-          <NavLink to="/admin/clientes">Clientes</NavLink>
-          <NavLink to="/admin/estoque">Pronta entrega</NavLink>
-          <NavLink to="/admin/hypados">Hypados</NavLink>
-          <NavLink to="/admin/vitrine">Vitrine</NavLink>
-          <NavLink to="/admin/restritos">Restritos</NavLink>
-          <NavLink to="/admin/marketing">Marketing</NavLink>
-          <NavLink to="/admin/precos">Preços</NavLink>
-          <NavLink to="/admin/cupons">Cupons</NavLink>
-          <NavLink to="/admin/bling">Bling</NavLink>
-        </nav>
-        <div className="adm-side-foot">
-          <b title={auth.user.email}>{auth.user.name}</b>
-          <span>{auth.user.email}</span>
-          <div className="links">
-            <a href="/" onClick={(e) => { e.preventDefault(); navigate("/"); }}>Loja</a>
-            <a href="/conta" onClick={(e) => { e.preventDefault(); navigate("/conta"); }}>Minha conta</a>
-            <button onClick={async () => { await auth.logout(); navigate("/"); }}>Sair</button>
+    <div className="adm-shell">
+      <div className="adm-noise" aria-hidden="true" />
+      <div className="adm">
+        <aside className="adm-side">
+          <div className="adm-side-scroll">
+            <div className="adm-brand">
+              <img src="/logo.png" alt="Kulture" />
+              <div className="adm-brand-copy">
+                <span>Backoffice</span>
+                <b>Operação Kulture</b>
+                <p>Pedidos, estoque, clientes e marketing na mesma linguagem visual da loja.</p>
+              </div>
+            </div>
+            <nav className="adm-nav">
+              {NAV_ITEMS.map((item) => (
+                <NavLink
+                  key={item.to}
+                  to={item.to}
+                  end={item.to === "/admin"}
+                  className={({ isActive }) => isActive ? "active" : ""}
+                >
+                  <span className="txt">
+                    <strong>{item.label}</strong>
+                    <small>{item.hint}</small>
+                  </span>
+                  {navBadges[item.badge] ? <span className="n">{navBadges[item.badge]}</span> : null}
+                </NavLink>
+              ))}
+            </nav>
+            <div className="adm-side-foot">
+              <small className="adm-side-kicker">Sessão ativa</small>
+              <b title={auth.user.email}>{auth.user.name}</b>
+              <span>{auth.user.email}</span>
+              <div className="links">
+                <a href="/" onClick={(e) => { e.preventDefault(); navigate("/"); }}>Loja</a>
+                <a href="/conta" onClick={(e) => { e.preventDefault(); navigate("/conta"); }}>Minha conta</a>
+                <button onClick={async () => { await auth.logout(); navigate("/"); }}>Sair</button>
+              </div>
+            </div>
           </div>
-        </div>
-      </aside>
-      <main className="adm-main">
-        <Routes>
-          <Route index element={<Dashboard auth={auth} />} />
-          <Route path="pedidos" element={<Orders auth={auth} />} />
-          <Route path="pedidos/nova" element={<ManualOrder auth={auth} notify={notify} />} />
-          <Route path="pedidos/:number" element={<OrderDetail auth={auth} notify={notify} />} />
-          <Route path="entregas" element={<Deliveries auth={auth} notify={notify} />} />
-          <Route path="clientes" element={<Customers auth={auth} />} />
-          <Route path="clientes/:id" element={<CustomerDetail auth={auth} notify={notify} />} />
-          <Route path="estoque" element={<Stock auth={auth} section="stock" />} />
-          <Route path="estoque/novo" element={<StockForm auth={auth} notify={notify} section="stock" />} />
-          <Route path="estoque/:id" element={<StockForm auth={auth} notify={notify} section="stock" />} />
-          <Route path="hypados" element={<Stock auth={auth} section="hypados" />} />
-          <Route path="hypados/novo" element={<StockForm auth={auth} notify={notify} section="hypados" />} />
-          <Route path="hypados/:id" element={<StockForm auth={auth} notify={notify} section="hypados" />} />
-          <Route path="vitrine" element={<Featured auth={auth} notify={notify} />} />
-          <Route path="restritos" element={<Restricted auth={auth} notify={notify} />} />
-          <Route path="marketing" element={<Marketing auth={auth} notify={notify} />} />
-          <Route path="precos" element={<Pricing auth={auth} notify={notify} />} />
-          <Route path="cupons" element={<Coupons auth={auth} notify={notify} />} />
-          <Route path="bling" element={<Bling auth={auth} notify={notify} />} />
-          <Route path="*" element={<Navigate to="/admin" replace />} />
-        </Routes>
-      </main>
+        </aside>
+        <main className="adm-main">
+          <div className="adm-main-inner">
+            <Routes>
+              <Route index element={<Dashboard auth={auth} />} />
+              <Route path="pedidos" element={<Orders auth={auth} />} />
+              <Route path="pedidos/nova" element={<ManualOrder auth={auth} notify={notify} />} />
+              <Route path="pedidos/:number" element={<OrderDetail auth={auth} notify={notify} />} />
+              <Route path="entregas" element={<Deliveries auth={auth} notify={notify} />} />
+              <Route path="clientes" element={<Customers auth={auth} />} />
+              <Route path="clientes/:id" element={<CustomerDetail auth={auth} notify={notify} />} />
+              <Route path="estoque" element={<Stock auth={auth} section="stock" />} />
+              <Route path="estoque/novo" element={<StockForm auth={auth} notify={notify} section="stock" />} />
+              <Route path="estoque/:id" element={<StockForm auth={auth} notify={notify} section="stock" />} />
+              <Route path="hypados" element={<Stock auth={auth} section="hypados" />} />
+              <Route path="hypados/novo" element={<StockForm auth={auth} notify={notify} section="hypados" />} />
+              <Route path="hypados/:id" element={<StockForm auth={auth} notify={notify} section="hypados" />} />
+              <Route path="vitrine" element={<Featured auth={auth} notify={notify} />} />
+              <Route path="restritos" element={<Restricted auth={auth} notify={notify} />} />
+              <Route path="marketing" element={<Marketing auth={auth} notify={notify} />} />
+              <Route path="precos" element={<Pricing auth={auth} notify={notify} />} />
+              <Route path="cupons" element={<Coupons auth={auth} notify={notify} />} />
+              <Route path="bling" element={<Bling auth={auth} notify={notify} />} />
+              <Route path="*" element={<Navigate to="/admin" replace />} />
+            </Routes>
+          </div>
+        </main>
+      </div>
     </div>
   );
 }

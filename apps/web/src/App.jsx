@@ -139,22 +139,22 @@ export default function App() {
     // resolve quando a animação termina OU por tempo — numa aba oculta o navegador não dispara o "finish"
     const settle = (anim, ms) => Promise.race([anim.finished.catch(() => {}), new Promise((r) => setTimeout(r, ms))]);
     const dx = dir === "east" ? -1 : 1; // sai para a esquerda quando vai para o Brasil (leste na barra)
-    const dist = window.innerWidth < 640 ? 12 : 20;
-    const easing = "cubic-bezier(0.23,1,0.32,1)";
+    const dist = window.innerWidth < 640 ? 36 : 48;
+    const easing = "cubic-bezier(.4,0,.2,1)";
     const out = el.animate(
       [{ transform: "translateX(0)", opacity: 1 }, { transform: `translateX(${dx * dist}px)`, opacity: 0 }],
-      { duration: 120, easing, fill: "forwards" }
+      { duration: 260, easing, fill: "forwards" }
     );
     pageAnims.current.push(out);
-    await settle(out, 160);
+    await settle(out, 320);
     if (stale()) return;
     goTo();
     const inn = el.animate(
       [{ transform: `translateX(${-dx * dist}px)`, opacity: 0 }, { transform: "translateX(0)", opacity: 1 }],
-      { duration: 220, easing, fill: "both" }
+      { duration: 400, easing, fill: "both" }
     );
     pageAnims.current.push(inn);
-    await settle(inn, 260);
+    await settle(inn, 460);
     if (stale()) return;
     // libera o transform/opacity (fill) — não deixa containing block em position:fixed nem página presa invisível
     try { out.cancel(); inn.cancel(); } catch { /* ok */ }

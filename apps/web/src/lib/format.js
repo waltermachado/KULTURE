@@ -69,6 +69,25 @@ export function sizeText(size) {
 /** Nike By You: prazo de entrega prometido ao cliente (card e seletor). Sob encomenda na Nike → maior que o de linha. */
 export const BY_YOU_DELIVERY_DAYS = 35;
 
+/** Prazos de entrega prometidos ao cliente (sacola e resumo do checkout) — definidos pelo dono, em dias úteis. */
+export const DELIVERY = {
+  byYou: { label: "até 35 dias úteis", max: 35 },
+  imported: { label: "15 a 20 dias úteis", max: 20 }, // importados e hypados
+  stock: { label: "2 a 7 dias úteis", max: 7 } // pronta entrega
+};
+
+/** Prazo de entrega de um item da sacola: By You > importados/hypados > pronta entrega. */
+export function deliveryOf(item) {
+  if (item?.byYou) return DELIVERY.byYou;
+  if (item?.stock && !isHypadosItem(item)) return DELIVERY.stock;
+  return DELIVERY.imported;
+}
+
+/** Prazo do pedido inteiro = o do item mais demorado (tudo segue junto na conta do cliente). */
+export function deliveryOfCart(items = []) {
+  return items.map(deliveryOf).reduce((a, b) => (!a || b.max > a.max ? b : a), null);
+}
+
 /** É item de hypados? (carrinho antigo pode não ter `section` — o código HY- desempata) */
 export const isHypadosItem = (it) => it?.section === "hypados" || String(it?.styleColor || "").toUpperCase().startsWith("HY-");
 

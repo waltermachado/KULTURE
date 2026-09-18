@@ -489,6 +489,7 @@ footer a:hover,footer .foot-link:hover{color:var(--yellow)}
 .sp-foot input:focus{border-color:var(--yellow)}
 .sp-byyou-note{margin-top:12px;font-size:12px;line-height:1.55;color:var(--muted)}
 .cart-custom{display:block;font-size:11px;color:var(--yellow);letter-spacing:.04em;margin-top:2px}
+.cart-delivery{display:block;font-size:11px;color:#bbb;letter-spacing:.04em;margin-top:2px}
 @media(max-width:640px){
   .sp-byyou{margin:6px 16px 0;padding:14px}
   .sp-byyou-grid{grid-template-columns:1fr}
@@ -603,3 +604,7 @@ h1,h2,h3{text-wrap:balance;overflow-wrap:anywhere}
   .wa-pill,.wa-btn{max-width:100%;white-space:normal;overflow-wrap:anywhere}
   .wa-banner{min-width:0}
 }
+
+/* Accessibility retained while the fresh design is parked. */
+.skip-link{position:fixed;top:8px;left:16px;transform:translateY(-160%);z-index:110;padding:12px 18px;background:var(--yellow);color:var(--ink)}
+.skip-link:focus{transform:none}

@@ -156,6 +156,28 @@ export function convertUsToBr(nikeSize, localizedSize, genders = []) {
  * com o US feminino equivalente (M + 1,5, até W 12) para o seletor mostrar as duas modelagens. `synthetic: true`
  * avisa que a disponibilidade não foi consultada — o dono confirma na Nike By You antes de comprar.
  */
+/**
+ * Tabela padrão INFANTIL (Big Kids / GS: 3.5Y–7Y) — mesma ideia de `standardSizes()`, para pré-venda de modelo
+ * infantil em que a Nike ainda não publicou os tamanhos.
+ */
+export function standardKidsSizes() {
+  const rows = [...Object.entries(KIDS_TABLE).map(([us, br]) => [us, br, false]), ...Object.entries(KIDS_APPROX).map(([us, br]) => [us, br, true])]
+    .filter(([us]) => us.endsWith('Y') && parseFloat(us) >= 3.5)
+    .sort((a, b) => parseFloat(a[0]) - parseFloat(b[0]));
+  return rows.map(([us, br, approximate]) => ({
+    nikeSize: us,
+    localizedSize: us,
+    brSize: br,
+    brLabel: String(br),
+    available: true,
+    level: 'UNKNOWN',
+    approximate,
+    scale: 'K',
+    us: { K: us },
+    synthetic: true
+  }));
+}
+
 export function standardSizes() {
   const rows = [...Object.entries(MENS_TABLE).map(([us, br]) => [us, br, false]), ...Object.entries(MENS_APPROX).map(([us, br]) => [us, br, true])]
     .filter(([us]) => Number(us) <= 14 || Number.isInteger(Number(us))) // acima de 14 a Nike só faz inteiros (15, 16, 17, 18)
