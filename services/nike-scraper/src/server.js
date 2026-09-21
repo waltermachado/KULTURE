@@ -1,7 +1,7 @@
 import 'dotenv/config';
 import express from 'express';
 import cors from 'cors';
-import { searchProducts, normalizeCount, getProductSizes } from './services/nike.js';
+import { searchProducts, normalizeCount, getProductSizes, getCatalogPage } from './services/nike.js';
 import { getUsdBrlRate, convertPrice } from './services/currency.js';
 import { cacheStats } from './cache.js';
 
@@ -66,6 +66,14 @@ app.get('/search', async (req, res) => {
           : undefined,
     });
   }
+});
+
+// Catalog refresh uses a complete paginated feed, never the search cache.
+app.get('/catalog', async (req, res) => {
+  const anchor = Number(req.query.anchor || 0);
+  if (!Number.isSafeInteger(anchor) || anchor < 0) return res.status(400).json({ error: 'anchor inválido' });
+  try { res.json(await getCatalogPage(anchor)); }
+  catch (err) { res.status(502).json({ error: 'Falha ao atualizar catálogo Nike', detail: err.message }); }
 });
 
 // --- Detalhes do produto e tamanhos ------------------------------------------

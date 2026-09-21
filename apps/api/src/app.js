@@ -21,6 +21,8 @@ import { getPrisma } from "./lib/prisma.js";
 import { createSwrCache } from "./lib/swr-cache.js";
 import { createImageMirror } from "./modules/catalog/images.js";
 import { createScraperClient } from "./modules/catalog/scraper-client.js";
+import { createLocalCatalog } from "./modules/catalog/local-catalog.js";
+import { importedAdminRoutes } from "./modules/catalog/admin-routes.js";
 import { createCatalogService } from "./modules/catalog/service.js";
 import { catalogRoutes } from "./modules/catalog/routes.js";
 import { healthRoutes } from "./modules/health/routes.js";
@@ -98,7 +100,9 @@ export async function buildApp(overrides = {}) {
   const stock = prisma ? createStockService({ prisma, log: app.log }) : null;
   // modelos restritos (/admin/restritos): nunca aparecem na busca/top8/vitrine nem vendem
   const restricted = createRestrictedFilter({ prisma, log: app.log });
-  const catalog = createCatalogService({ scraper, cache, sizesCache, images, rules, top8Terms: env.TOP8_TERMS, testProduct: env.TEST_PRODUCT_ENABLED, stock, restricted, log: app.log });
+  const localCatalog = prisma ? createLocalCatalog({ prisma, scraper, restricted, log: app.log }) : null;
+  app.decorate("localCatalog", localCatalog);
+  const catalog = createCatalogService({ local: localCatalog, scraper, cache, sizesCache, images, rules, top8Terms: env.TOP8_TERMS, testProduct: env.TEST_PRODUCT_ENABLED, stock, restricted, log: app.log });
 
   app.decorate("prisma", prisma);
   app.decorate("cache", cache);
@@ -184,6 +188,7 @@ export async function buildApp(overrides = {}) {
     await app.register(stockRoutes);
     await app.register(stockAdminRoutes);
     await app.register(featuredRoutes);
+    await app.register(importedAdminRoutes);
     await app.register(restrictedRoutes);
     await app.register(marketingRoutes);
     await app.register(invoiceRoutes);
@@ -205,7 +210,7 @@ export async function buildApp(overrides = {}) {
   }
 
   const warm = overrides.warmTop8 ?? env.TOP8_WARM;
-  if (warm) {
+  if (warm && !localCatalog) {
     let timer = null;
     app.addHook("onReady", async () => {
       catalog.warmTop8(); // não bloqueia a subida
@@ -217,6 +222,11 @@ export async function buildApp(overrides = {}) {
     });
   }
 
+  let stopCatalog;
+  if (localCatalog && (overrides.startJobs ?? true)) {
+    app.addHook('onReady', async () => { stopCatalog = localCatalog.start(); });
+  }
+
   if (prisma && (overrides.startJobs ?? true)) {
     const stopAbandonedJob = startAbandonedCheckoutJob(prisma, notifier, app.log, stock);
     app.addHook("onClose", async () => {
@@ -225,6 +235,7 @@ export async function buildApp(overrides = {}) {
   }
 
   app.addHook("onClose", async () => {
+    await stopCatalog?.();
     mailer.close?.(); // fecha o pool SMTP
     if (prisma) await prisma.$disconnect();
   });

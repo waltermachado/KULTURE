@@ -172,6 +172,10 @@ export async function getProductSizes(styleColor) {
     throw Object.assign(new Error('Product info missing'), { status: 404, code: 'SIZES_UNAVAILABLE' });
   }
 
+  return normalizeDetail(obj, info);
+}
+
+export function normalizeDetail(obj, info) {
   const merch = info.merchProduct || {};
   const content = info.productContent || {};
   const price = info.merchPrice || {};
@@ -201,6 +205,9 @@ export async function getProductSizes(styleColor) {
 
   return {
     styleColor: merch.styleColor,
+    productType: merch.productType,
+    productSubType: merch.productSubType,
+    url: info.productUrls?.productUrl || (content.slug ? `https://www.nike.com/t/${content.slug}` : null),
     name: content.title,
     subtitle: content.subtitle,
     colorDescription: content.colorDescription,
@@ -248,4 +255,23 @@ function extractGallery(obj, info, styleColor) {
   }
   if (!out.length && info?.imageUrls?.productImageUrl) push(info.imageUrls.productImageUrl);
   return out;
+}
+
+/** Nike only accepts count=50 here. Traverse ACTIVE threads (including apparel),
+ * then select footwear locally: the feed rejects productType as a query filter.
+ * Every colorway is retained with its live SKU availability. */
+export async function getCatalogPage(anchor = 0, count = 50) {
+  const channel = process.env.NIKE_CHANNEL_ID || 'd9a5bc42-4b9c-4976-858a-f159cf99c647';
+  const url = new URL('https://api.nike.com/product_feed/threads/v3/');
+  for (const filter of ['marketplace(US)', 'language(en)', `channelId(${channel})`, 'productInfo.merchProduct.status(ACTIVE)']) url.searchParams.append('filter', filter);
+  url.searchParams.set('anchor', String(anchor));
+  url.searchParams.set('count', String(count));
+  const data = await fetchWall(url);
+  if (!Array.isArray(data.objects) || !Number.isFinite(data.pages?.totalResources)) throw new Error('Formato inválido do catálogo Nike');
+  const products = data.objects.flatMap(obj => (obj.productInfo || [])
+    .filter(info => info.merchProduct?.productType === 'FOOTWEAR')
+    .map(info => normalizeDetail(obj, info)));
+  if (products.some(p => !p.styleColor || !p.name || !Number.isFinite(p.priceUsd))) throw new Error('Produto inválido no catálogo Nike');
+  return { products, total: data.pages.totalResources, received: data.objects.length,
+    nextAnchor: anchor + data.objects.length < data.pages.totalResources ? anchor + data.objects.length : null };
 }

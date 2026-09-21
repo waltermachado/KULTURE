@@ -207,7 +207,7 @@ export function createOrderService(env, prisma, catalog, gateway, notifier, log,
         const rate = await catalog.getRate();
 
         for (const item of items) {
-          const { product } = await catalog.getProductSizes(item.styleColor);
+          const { product } = await catalog.getProductSizes(item.styleColor, { fresh: true });
           if (!product) throw AppError.badRequest(`Produto ${item.styleColor} não encontrado`);
 
           const sizeInfo = product.sizes.find(s => s.nikeSize === item.nikeSize);

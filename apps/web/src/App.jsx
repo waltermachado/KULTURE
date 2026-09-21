@@ -20,8 +20,6 @@ import WhatsappFab from "./components/WhatsappFab.jsx";
 import { SizePicker } from "./components/SizePicker.jsx";
 import { useCart } from "./hooks/useCart.js";
 import { useAuth } from "./hooks/useAuth.js";
-import { api, SEED } from "./lib/api.js";
-import { toCard } from "./lib/format.js";
 
 const TOP8_TITLE = (
   <>
@@ -54,48 +52,10 @@ export default function App() {
     toastTimer.current = setTimeout(() => setToast((t) => ({ ...t, visible: false })), 2200);
   }, []);
 
-  const loadTop8 = useCallback(async () => {
-    setGrid((g) => ({ ...g, status: "loading", title: TOP8_TITLE, sub: TOP8_SUB, query: "" }));
-    try {
-      const d = await api.top8();
-      const products = (d.products || []).map(toCard);
-      if (!products.length) throw new Error("vazio");
-      setGrid({ status: "ok", products, title: TOP8_TITLE, sub: TOP8_SUB, query: "" });
-    } catch {
-      setGrid({ status: "ok", products: SEED.map(toCard), title: TOP8_TITLE, sub: "Destaques da curadoria. Consulte a disponibilidade.", query: "" });
-    }
+  const search = useCallback((q) => {
+    setGrid({ status: "loading", products: [], query: q.trim() });
+    document.getElementById("drops")?.scrollIntoView({ behavior: window.matchMedia("(prefers-reduced-motion: reduce)").matches ? "instant" : "smooth", block: "start" });
   }, []);
-
-  const search = useCallback(
-    async (q) => {
-      if (!q) return loadTop8();
-      const title = (
-        <>
-          Resultados para <em>{q}</em>
-        </>
-      );
-      setGrid({ status: "loading", products: [], title, sub: "Procurando seu próximo par…", query: q });
-      document.getElementById("drops")?.scrollIntoView({ behavior: window.matchMedia("(prefers-reduced-motion: reduce)").matches ? "instant" : "smooth", block: "start" });
-      try {
-        const d = await api.search(q);
-        const products = (d.products || []).map(toCard);
-        setGrid({
-          status: products.length ? "ok" : "empty",
-          products,
-          title,
-          sub: `${products.length} modelos para explorar`,
-          query: q
-        });
-      } catch {
-        setGrid({ status: "error", products: [], title, sub: "Não conseguimos buscar agora. Tente novamente.", query: q });
-      }
-    },
-    [loadTop8]
-  );
-
-  useEffect(() => {
-    loadTop8();
-  }, [loadTop8]);
 
   // Esc fecha tudo
   useEffect(() => {
@@ -176,8 +136,8 @@ export default function App() {
       return;
     }
     search(cat?.q || "");
-    navigate("/");
-  }, [location.pathname, navigate, search]);
+    navigate(location.pathname === "/" ? `/${location.search}` : "/");
+  }, [location.pathname, location.search, navigate, search]);
 
   const handleLogout = async () => {
     await auth.logout();
@@ -194,7 +154,7 @@ export default function App() {
           cartCount={cart.count}
           onOpenCart={() => { setModal((m) => ({ ...m, open: false })); setDrawerOpen(true); }}
           onOpenLogin={() => openModal("login")}
-          onSearch={(q) => { search(q); navigate('/'); }}
+          onSearch={(q) => { search(q); navigate(location.pathname === "/" ? `/${location.search}` : "/"); }}
           onCategory={pickCategory}
           user={auth.user}
           isAdmin={auth.isAdmin}
@@ -222,7 +182,7 @@ export default function App() {
       </Routes>
       </Suspense>
       </main>
-      {!isAdminArea && <Footer onOpenModal={openModal} onCategory={pickCategory} onSearch={(q) => { search(q); navigate('/'); }} />}
+      {!isAdminArea && <Footer onOpenModal={openModal} onCategory={pickCategory} onSearch={(q) => { search(q); navigate(location.pathname === "/" ? `/${location.search}` : "/"); }} />}
       {!isAdminArea && <WhatsappFab />}
 
       <div className={`overlay${overlayOpen ? " open" : ""}`} onClick={closeAll} />

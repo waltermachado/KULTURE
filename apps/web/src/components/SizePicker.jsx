@@ -1,6 +1,6 @@
 import { useState, useEffect, useMemo } from 'react';
 import { api } from '../lib/api';
-import { launchDateLabel, sizeText, customKey, BY_YOU_DELIVERY_DAYS } from '../lib/format.js';
+import { launchDateLabel, sizeText, customKey, BY_YOU_DELIVERY_DAYS, toCard } from '../lib/format.js';
 
 // A Nike By You hoje tem UM campo por pé (até 8 caracteres, letras e números juntos — ex.: "MAMBA 24");
 // o campo de número separado saiu do site da Nike (pedidos antigos com número continuam sendo exibidos).
@@ -49,17 +49,12 @@ export function SizePicker({ item, onClose, onAdd }) {
   }, [gallery.length]);
 
   useEffect(() => {
-    const fetchSizes = async () => {
-      try {
-        const data = await api.product(item.styleColor);
-        setProduct(data.product);
-      } catch (err) {
-        setError(err.message || 'Falha ao buscar tamanhos disponíveis.');
-      } finally {
-        setLoading(false);
-      }
-    };
-    fetchSizes();
+    let alive = true;
+    setLoading(true); setProduct(null); setError(null); setSelectedSize(null); setPhoto(0);
+    api.product(item.styleColor, { all: true }).then(data => { if (alive) setProduct(data.product); })
+      .catch(err => { if (alive) setError(err.message || 'Falha ao buscar tamanhos disponíveis.'); })
+      .finally(() => { if (alive) setLoading(false); });
+    return () => { alive = false; };
   }, [item.styleColor]);
 
   const handleAdd = () => {
@@ -70,7 +65,7 @@ export function SizePicker({ item, onClose, onAdd }) {
       sizeLabel: sizeText(selectedSize), // "BR 38" — só o BR na sacola/checkout; o US entra no pedido pela api (escala do SKU)
       ...(customization ? { customization, customKey: customKey(customization) } : {})
     };
-    onAdd(item, picked);
+    onAdd({ ...item, ...toCard(product) }, picked);
     onClose();
   };
 
@@ -124,13 +119,13 @@ export function SizePicker({ item, onClose, onAdd }) {
                   <span className="card-brand">{item.brand || "Nike"}</span>
                   <h4>{product.name}</h4>
                   {product.subtitle && <span className="sp-sub">{product.subtitle}</span>}
-                  {item.price != null && (
+                  {product.price?.brl != null && (
                     <span className="price">
-                      {Number(item.price).toLocaleString("pt-BR", { style: "currency", currency: "BRL" })}
+                      {Number(product.price.brl).toLocaleString("pt-BR", { style: "currency", currency: "BRL" })}
                     </span>
                   )}
-                  {(item.installmentsLabel || product.price?.installments?.label) && (
-                    <span className="sp-inst">ou {item.installmentsLabel || product.price.installments.label}</span>
+                  {(product.price?.installments?.label || item.installmentsLabel) && (
+                    <span className="sp-inst">ou {product.price?.installments?.label || item.installmentsLabel}</span>
                   )}
                   {product.source === "stock" && (
                     <span className={`sp-launch ${product.section === "hypados" ? "sp-hypados" : "sp-stock"}`}>

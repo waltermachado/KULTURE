@@ -25,7 +25,8 @@ const BASE_NS = "v9";
  * `restricted` (opcional) = filtro de modelos restritos (/admin/restritos): aplicado DEPOIS do cache em
  * search/top8/findOne/getProductSizes, então salvar no painel vale na hora (o cache guarda a lista cheia).
  */
-export function createCatalogService({ scraper, cache, sizesCache, images, rules, top8Terms = [], testProduct = false, stock = null, restricted = null, log = null }) {
+export function createCatalogService({ scraper, cache, sizesCache, images, rules, top8Terms = [], testProduct = false, stock = null, restricted = null, local = null, log = null }) {
+  const liveRequests = new Map();
   const validRate = (r) => r && typeof r === "object" && Number.isFinite(Number(r.ask)) && Number(r.ask) > 0;
   // `rules` = lista fixa (testes/fallback) ou o serviço de preços ({ runtime() → { rules, version } }) com os
   // acréscimos editáveis em /admin/precos
@@ -60,6 +61,7 @@ export function createCatalogService({ scraper, cache, sizesCache, images, rules
       const rate = await getRate().catch(() => null);
       return { term, cached: false, stale: false, total: 1, products: [buildTestProduct(rate)] };
     }
+    if (local) return browse({ q: query });
     const key = `search:${await ns()}:${term}`;
     const fetchSearch = async () => {
       const [{ products, total }, rate] = await Promise.all([scraper.search(query), getRate()]);
@@ -80,8 +82,24 @@ export function createCatalogService({ scraper, cache, sizesCache, images, rules
     return { term, cached, stale, total: products.length, products };
   }
 
+  async function browse({ q = "", size = "", offset = 0, limit = 48 } = {}) {
+    if (testProduct && isTestTerm(q)) return search(q);
+    if (!local) return search(q);
+    const { products: raws, sizes } = await local.list({ q, size });
+    const page = raws.slice(offset, offset + limit);
+    const rate = page.length ? await getRate() : null;
+    const products = await Promise.all(page.map(raw => enrich(raw, rate)));
+    const sync = await local.status();
+    return { term: normalizeQuery(q), cached: true, stale: !sync.lastSuccessAt || Date.now() - new Date(sync.lastSuccessAt) > 90 * 60_000,
+      total: raws.length, products, sizes, offset, limit, updatedAt: sync.lastSuccessAt || null };
+  }
+
   async function findOne(termOrStyleColor) {
     const term = normalizeQuery(termOrStyleColor);
+    if (local) {
+      const raw = await local.get(String(termOrStyleColor).toUpperCase());
+      if (raw && (!restricted || !(await restricted.isBlocked(raw)))) return { cached: true, stale: false, product: await enrich(raw, await getRate()) };
+    }
     const key = `product:${await ns()}:${term}`;
     const fetchOne = async () => {
       const [raw, rate] = await Promise.all([scraper.findOne(String(termOrStyleColor).replace(/-/g, " ")), getRate()]);
@@ -125,6 +143,20 @@ export function createCatalogService({ scraper, cache, sizesCache, images, rules
   }
 
   async function top8() {
+    if (local) {
+      const refs = await local.top8Refs();
+      let raws;
+      if (refs) raws = (await Promise.all(refs.map(ref => local.get(ref)))).filter(Boolean);
+      else {
+        const { products } = await local.list();
+        const selected = top8Terms.map(term => products.find(p => normalizeQuery(p.name).includes(normalizeQuery(term)))).filter(Boolean);
+        raws = [...new Map([...selected, ...products].map(p => [p.styleColor, p])).values()].slice(0, 8);
+      }
+      if (restricted) raws = await restricted.filter(raws);
+      const rate = raws.length ? await getRate() : null;
+      const products = await Promise.all(raws.map(raw => enrich(raw, rate)));
+      return { cached: true, stale: false, total: products.length, products };
+    }
     const key = `top8:${await ns()}`;
     const { value, cached, stale } = await cache.getOrFetch(key, buildTop8);
     if (Array.isArray(value) && value.length) {
@@ -153,7 +185,7 @@ export function createCatalogService({ scraper, cache, sizesCache, images, rules
     }
   }
 
-  async function getProductSizes(styleColor) {
+  async function getProductSizes(styleColor, { fresh = false } = {}) {
     if (testProduct && isTestStyleColor(styleColor)) {
       const rate = await getRate().catch(() => null);
       return { cached: false, stale: false, product: buildTestProduct(rate) };
@@ -163,10 +195,16 @@ export function createCatalogService({ scraper, cache, sizesCache, images, rules
       const product = await stock.getProductByCode(styleColor);
       return { cached: false, stale: false, product };
     }
-    const { value, cached, stale } = await sizesCache.getOrFetch(`sizes:${await ns()}:${styleColor}`, async () => {
+    const key = `sizes:${await ns()}:${styleColor}`;
+    const fetchSizes = async () => {
       let raw;
       try {
-        raw = await scraper.getProductDetail(styleColor);
+        raw = !fresh && local ? await local.get(styleColor) : null;
+        if (!raw) {
+          raw = await scraper.getProductDetail(styleColor);
+          if (local && raw.styleColor === styleColor && (!raw.productType || raw.productType === 'FOOTWEAR')) await local.upsert(raw);
+        }
+        if ((/^[A-Z0-9]{6}-[0-9]{3}$/i.test(styleColor) && raw.styleColor.toUpperCase() !== styleColor.toUpperCase()) || (raw.productType && raw.productType !== 'FOOTWEAR')) throw new Error('Produto Nike inválido');
       } catch (err) {
         if (!isSizesUnavailable(err)) throw err;
         // Nike By You (customizado): não existe SKU/tamanhos na API da Nike. O id do design é pesquisável na
@@ -178,7 +216,7 @@ export function createCatalogService({ scraper, cache, sizesCache, images, rules
           const sizes = presaleSizes(found);
           return { ...found, sizes, sizeGroups: sizeGroupsOf(sizes), sizesSynthetic: true };
         }
-        if (!found?.byYou) throw err;
+        if (!found?.byYou) { if (local) await local.retire(styleColor); throw err; }
         const sizes = standardSizes();
         return { ...found, sizes, sizeGroups: sizeGroupsOf(sizes), sizesSynthetic: true, customization: BY_YOU_CUSTOMIZATION };
       }
@@ -209,12 +247,23 @@ export function createCatalogService({ scraper, cache, sizesCache, images, rules
         return { ...enriched, sizes: open, sizeGroups: sizeGroupsOf(open), ...(usable.length ? {} : { sizesSynthetic: true }) };
       }
       return { ...enriched, sizes, sizeGroups: sizeGroupsOf(sizes) };
-    });
+    };
+    // Explicit refresh waits for Nike; an upstream failure must never look like fresh stock.
+    const refreshNow = () => {
+      if (!liveRequests.has(styleColor)) {
+        liveRequests.set(styleColor, fetchSizes().finally(() => liveRequests.delete(styleColor)));
+      }
+      return liveRequests.get(styleColor);
+    };
+    const { value, cached, stale } = fresh
+      ? { value: await refreshNow(), cached: false, stale: false }
+      : await sizesCache.getOrFetch(key, fetchSizes);
+    if (fresh) await sizesCache.set(key, value);
     if (value && restricted && (await restricted.isBlocked(value))) return { cached, stale, product: null }; // restrito: página/checkout respondem 404
     return { cached, stale, product: value };
   }
 
-  return { search, findOne, getProductSizes, top8, warmTop8, getRate };
+  return { search, browse, findOne, getProductSizes, top8, warmTop8, getRate };
 }
 
 /** Tabela padrão para pré-venda sem tamanhos na Nike: infantil (Big Kids/GS) ou adulto. */

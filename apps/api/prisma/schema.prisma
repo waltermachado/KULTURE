@@ -404,3 +404,13 @@ model Coupon {
 
   @@map("coupons")
 }
+
+/// Permanent local mirror of Nike US footwear. Raw USD data is priced on read.
+model ImportedProduct {
+  styleColor String @id @map("style_color")
+  raw Json
+  active Boolean @default(true)
+  checkedAt DateTime @map("checked_at")
+  @@index([active])
+  @@map("imported_products")
+}

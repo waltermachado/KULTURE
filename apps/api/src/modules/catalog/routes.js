@@ -61,6 +61,17 @@ export async function catalogRoutes(app) {
     }
   );
 
+  app.get('/api/imported', {
+    schema: { querystring: { type: 'object', properties: {
+      q: { type: 'string', maxLength: 80, default: '' }, size: { type: 'string', maxLength: 6, default: '' },
+      offset: { type: 'integer', minimum: 0, default: 0 }, limit: { type: 'integer', minimum: 1, maximum: 96, default: 48 }
+    } } }
+  }, async (req, reply) => {
+    reply.header('Cache-Control', 'no-store');
+    const result = await catalog.browse(req.query);
+    return { ...result, products: result.products.map(stripInternal) };
+  });
+
   app.get(
     "/api/products/top8",
     { schema: { tags: ["catalog"], summary: "Os 8 destaques da home (pré-aquecidos)" } },
@@ -79,14 +90,15 @@ export async function catalogRoutes(app) {
         params: { type: "object", properties: { term: { type: "string", minLength: 1 } } }
       }
     },
-    async (req) => {
+    async (req, reply) => {
+      reply.header("Cache-Control", "no-store");
       // Usaremos o novo getProductSizes que traz os tamanhos
-      const result = await catalog.getProductSizes(req.params.term);
+      const result = await catalog.getProductSizes(req.params.term, { fresh: true });
       if (!result.product) throw AppError.notFound("Produto não encontrado");
       
       // Filtra os indisponíveis a menos que ?all=true
       if (req.query.all !== 'true') {
-        result.product.sizes = result.product.sizes.filter(s => s.available);
+        result.product = { ...result.product, sizes: result.product.sizes.filter(s => s.available) };
       }
       return { ...result, product: stripInternal(result.product) };
     }

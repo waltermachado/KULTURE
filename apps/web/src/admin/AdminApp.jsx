@@ -15,6 +15,7 @@ import Customers from "./Customers.jsx";
 import CustomerDetail from "./CustomerDetail.jsx";
 import Stock from "./Stock.jsx";
 import StockForm from "./StockForm.jsx";
+import Imported from "./Imported.jsx";
 import Featured from "./Featured.jsx";
 import Marketing from "./Marketing.jsx";
 import Pricing from "./Pricing.jsx";
@@ -29,6 +30,7 @@ const NAV_ITEMS = [
   { to: "/admin/clientes", label: "Clientes", hint: "Base, histórico e detalhes" },
   { to: "/admin/estoque", label: "Pronta entrega", hint: "Catálogo e disponibilidade" },
   { to: "/admin/hypados", label: "Hypados", hint: "Curadoria e estoque especial" },
+  { to: "/admin/importados", label: "Importados", hint: "Catálogo Nike e seleção do Top 8" },
   { to: "/admin/vitrine", label: "Vitrine", hint: "Hero e slots por categoria" },
   { to: "/admin/restritos", label: "Restritos", hint: "Produtos privados e acesso" },
   { to: "/admin/marketing", label: "Marketing", hint: "Conteúdo e publicação" },
@@ -141,6 +143,7 @@ export default function AdminApp({ auth, onOpenLogin, notify }) {
               <Route path="hypados" element={<Stock auth={auth} section="hypados" />} />
               <Route path="hypados/novo" element={<StockForm auth={auth} notify={notify} section="hypados" />} />
               <Route path="hypados/:id" element={<StockForm auth={auth} notify={notify} section="hypados" />} />
+              <Route path="importados" element={<Imported auth={auth} notify={notify} />} />
               <Route path="vitrine" element={<Featured auth={auth} notify={notify} />} />
               <Route path="restritos" element={<Restricted auth={auth} notify={notify} />} />
               <Route path="marketing" element={<Marketing auth={auth} notify={notify} />} />

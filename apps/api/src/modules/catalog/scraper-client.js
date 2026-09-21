@@ -103,5 +103,5 @@ export function createScraperClient({ baseUrl, timeoutMs = 20_000, fetchImpl = f
     return get("/health");
   }
 
-  return { search, findOne, rate, getProductDetail, health, baseUrl: base };
+  return { search, findOne, rate, getProductDetail, catalogPage: (anchor = 0) => get(`/catalog?anchor=${anchor}`), health, baseUrl: base };
 }

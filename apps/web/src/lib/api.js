@@ -24,9 +24,10 @@ async function get(path) {
 }
 
 export const api = {
+  imported: ({ q = "", size = "", offset = 0, limit = 48 } = {}) => get(`/api/imported?${new URLSearchParams({ q, size, offset, limit })}`),
   top8: () => get("/api/products/top8"),
   search: (q) => get(`/api/search?q=${encodeURIComponent(q)}`),
-  product: (term) => get(`/api/product/${encodeURIComponent(term)}`),
+  product: (term, { all = false } = {}) => get(`/api/product/${encodeURIComponent(term)}${all ? "?all=true" : ""}`),
   rate: () => get("/api/rate"),
   health: () => get("/health"),
   /** estoque próprio: pronta entrega (padrão) ou hypados (cadastrados no backoffice; sem Nike) */
