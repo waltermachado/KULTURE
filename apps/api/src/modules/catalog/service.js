@@ -2,6 +2,7 @@
  * Serviço de catálogo: orquestra scraper → precificação → espelho de imagens → cache SWR.
  */
 import { normalizeQuery } from "../../lib/normalize-query.js";
+import { AppError } from "../../lib/errors.js";
 import { cutoutUrls } from "./nike-image.js";
 import { toProduct, BY_YOU_CUSTOMIZATION } from "./normalize.js";
 import { isTestTerm, isTestStyleColor, buildTestProduct } from "./test-product.js";
@@ -82,14 +83,53 @@ export function createCatalogService({ scraper, cache, sizesCache, images, rules
     return { term, cached, stale, total: products.length, products };
   }
 
+  // The feed rejects anchors above 1000. Until a complete mirror exists, recover
+  // queried models through the search endpoint instead of reporting false misses.
+  async function recoverQuery(q) {
+    const key = `catalog-recovery:v1:${normalizeQuery(q)}`;
+    await cache.getOrFetch(key, async () => {
+      const candidates = new Map();
+      // Match the original live-search page size. A visitor must not wait for an
+      // entire category crawl (Nike's total also includes apparel/recommendations).
+      const result = await scraper.search(q, { count: 50, anchor: 0 });
+      for (const raw of result.products) if (raw.styleColor) candidates.set(raw.styleColor, raw);
+      const pending = [...candidates.keys()];
+      // Bound Nike/detail and database concurrency; dropdown and grid share this
+      // single-flight cache entry. Only full details may enter the durable mirror.
+      let failed = false;
+      await Promise.all(Array.from({ length: Math.min(5, pending.length) }, async () => {
+        while (pending.length) {
+          const sku = pending.shift();
+          if (await local.get(sku)) continue;
+          try {
+            const raw = await scraper.getProductDetail(sku);
+            if (raw.styleColor !== sku || !raw.name || !Number.isFinite(raw.priceUsd) || !Array.isArray(raw.sizes)) throw new Error('Detalhe Nike incompleto');
+            await local.upsert(raw);
+          } catch (err) {
+            failed = true;
+            log?.warn({ err, sku }, 'Falha ao recuperar produto da busca Nike');
+          }
+        }
+      }));
+      if (failed) throw AppError.upstream('Não foi possível completar a busca Nike. Tente novamente.');
+      return { total: candidates.size };
+    });
+  }
+
   async function browse({ q = "", size = "", offset = 0, limit = 48 } = {}) {
     if (testProduct && isTestTerm(q)) return search(q);
     if (!local) return search(q);
+    const sync = await local.status();
+    let recoveryError;
+    if (q.trim() && (!sync.lastSuccessAt || Date.now() - new Date(sync.lastSuccessAt) > 90 * 60_000)) {
+      try { await recoverQuery(q); }
+      catch (err) { recoveryError = err; log?.warn({ err, q }, 'Busca Nike indisponível; preservando resultados locais'); }
+    }
     const { products: raws, sizes } = await local.list({ q, size });
+    if (recoveryError && !raws.length) throw recoveryError;
     const page = raws.slice(offset, offset + limit);
     const rate = page.length ? await getRate() : null;
     const products = await Promise.all(page.map(raw => enrich(raw, rate)));
-    const sync = await local.status();
     return { term: normalizeQuery(q), cached: true, stale: !sync.lastSuccessAt || Date.now() - new Date(sync.lastSuccessAt) > 90 * 60_000,
       total: raws.length, products, sizes, offset, limit, updatedAt: sync.lastSuccessAt || null };
   }

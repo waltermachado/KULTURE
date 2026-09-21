@@ -26,6 +26,16 @@ do backoffice e o câmbio vigente. Os arquivos de imagem continuam usando o espe
 
 ## Loja e backoffice
 
+- Recuperação de busca: se o espelho nunca concluiu uma rodada ou está há mais de
+  90 minutos sem sucesso, uma consulta por termo também consulta a primeira página
+  da busca Nike (50 grupos, incluindo suas cores). Os detalhes dos SKUs ausentes são
+  carregados com concorrência máxima de cinco e persistidos com seus tamanhos reais.
+  Grid e dropdown compartilham a mesma consulta em cache. Falhas preservam resultados
+  locais; sem resultados locais, a API retorna erro em vez de um falso “não encontrado”.
+  Isso recupera buscas durante a falha conhecida do feed, que rejeita `anchor > 1000`;
+  não significa que o espelho inteiro esteja completo. Consultas só por tamanho
+  continuam limitadas aos produtos já importados.
+
 - `GET /api/imported?q=&size=&offset=0&limit=48`: busca local paginada, filtro BR,
   contagens de tamanhos disponíveis para a busca e data da última rodada completa.
   O filtro é aplicado antes da paginação. Modelos restritos são excluídos também das contagens.

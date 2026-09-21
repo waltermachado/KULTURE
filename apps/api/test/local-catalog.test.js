@@ -117,6 +117,45 @@ function catalogFixture() {
   return { scraper, local, catalog };
 }
 describe('live refresh and curation', () => {
+  it('recovers missing models and BR sizes from an incomplete mirror, sharing concurrent searches', async () => {
+    const { scraper, local, catalog } = catalogFixture();
+    scraper.search = vi.fn(async () => ({ totalRaw: 1, products: [raw(undefined, { name: 'LeBron 23' })] }));
+    scraper.getProductDetail.mockResolvedValue(raw(undefined, { name: 'LeBron 23' }));
+    const br = availableSizes(raw())[0];
+    const [grid, dropdown] = await Promise.all([catalog.browse({ q: 'Nike LeBron', size: br }), catalog.browse({ q: 'Nike LeBron', limit: 1 })]);
+    expect(grid.total).toBe(1);
+    expect(dropdown.sizes).toEqual([{ br, count: 1 }]);
+    expect(scraper.search).toHaveBeenCalledTimes(1);
+    expect(scraper.getProductDetail).toHaveBeenCalledTimes(1);
+    expect((await local.get('AA0001-100')).name).toBe('LeBron 23');
+    await catalog.browse({ q: 'Nike LeBron', size: '99' });
+    expect(scraper.search).toHaveBeenCalledTimes(1);
+  });
+  it('propagates failed recovery instead of presenting a false empty result', async () => {
+    const { scraper, catalog } = catalogFixture();
+    scraper.search = vi.fn(async () => { throw new Error('Nike down'); });
+    await expect(catalog.browse({ q: 'LeBron' })).rejects.toThrow('Nike down');
+  });
+  it('preserves matching local products if the recovery fails', async () => {
+    const { scraper, local, catalog } = catalogFixture();
+    await local.upsert(raw());
+    scraper.search = vi.fn(async () => { throw new Error('Nike down'); });
+    expect((await catalog.browse({ q: 'Test' })).total).toBe(1);
+  });
+  it('bounds recovery to the live search page instead of crawling a category per visitor', async () => {
+    const { scraper, catalog } = catalogFixture();
+    scraper.search = vi.fn().mockResolvedValue({ totalRaw: 925, products: [raw()] });
+    expect((await catalog.browse({ q: 'Test' })).total).toBe(1);
+    expect(scraper.search.mock.calls.map(call => call[1].anchor)).toEqual([0]);
+  });
+  it('does not query Nike for a healthy mirror or size-only browsing', async () => {
+    const { scraper, local, catalog } = catalogFixture();
+    scraper.search = vi.fn();
+    await catalog.browse({ size: '41' });
+    local.status = async () => ({ lastSuccessAt: new Date().toISOString() });
+    await catalog.browse({ q: 'Test' });
+    expect(scraper.search).not.toHaveBeenCalled();
+  });
   it('bypasses a fresh cache on each click, persists fresh sizes, and propagates failures', async () => {
     const { scraper, local, catalog } = catalogFixture();
     await catalog.getProductSizes('AA0001-100', { fresh: true });
