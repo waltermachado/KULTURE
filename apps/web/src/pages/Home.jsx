@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { useSearchParams } from "react-router-dom";
 import Hero from "../components/Hero.jsx";
+import ImportedSizeFilter from "../components/ImportedSizeFilter.jsx";
 import Marquee from "../components/Marquee.jsx";
 import ProductGrid from "../components/ProductGrid.jsx";
 import Features from "../components/Features.jsx";
@@ -55,19 +56,9 @@ export default function Home({ grid, setSelectedProductForSize, onCategory }) {
     title: filtered ? <>Tênis {size ? <em>no tamanho {size}</em> : <em>para você</em>}</> : <>Top 8 <em>mais vendidos</em></>,
     sub: filtered ? `${result.total} modelo(s)${q ? ` · ${q}` : ''}` : 'Os favoritos da quadra, selecionados para você.' };
   return <>
-    <div className="import-size-filter">
-      <label htmlFor="import-size">Encontre seu tamanho <span>Numeração BR</span></label>
-      <select id="import-size" value={size} onChange={e => setSize(e.target.value)} disabled={sizeStatus === 'loading' && !sizes.length} aria-describedby="import-size-note">
-        <option value="">Todos os tamanhos</option>
-        {sizes.map(s => <option key={s.br} value={s.br}>BR {s.br} · {s.count} modelo(s)</option>)}
-        {size && !sizes.some(s => s.br === size) && <option value={size}>BR {size} · sem disponibilidade</option>}
-      </select>
-      <span id="import-size-note" role="status">{sizeStatus === 'loading' ? 'Carregando tamanhos…' : sizeStatus === 'error' ? 'Não foi possível atualizar os tamanhos.' : sizes.length ? 'Escolha antes de buscar seu próximo par.' : 'Nenhum tamanho disponível no momento.'}</span>
-      {size && <button className="cat-chip" onClick={() => setSize('')}>Limpar tamanho</button>}
-      {sizeStatus === 'error' && <button className="cat-chip" onClick={() => setRefresh(n => n + 1)}>Tentar novamente</button>}
-    </div>
     <Hero featured={featured} onPick={setSelectedProductForSize} />
     <Marquee />
+    <ImportedSizeFilter size={size} sizes={sizes} sizeStatus={sizeStatus} onSelectSize={setSize} onRetry={() => setRefresh(n => n + 1)} />
     <ProductGrid state={state} onAdd={setSelectedProductForSize} loadingMsg="Carregando tênis…" emptyMsg={filtered ? 'Nenhum tênis disponível para esses filtros. Experimente outro tamanho ou busca.' : 'A seleção de importados está sendo atualizada. Volte em instantes.'} />
     {result.status === 'error' && <div className="import-pagination"><button className="cat-chip" onClick={() => setRefresh(n => n + 1)}>Tentar novamente</button></div>}
     {filtered && result.total > 48 && <nav className="import-pagination" aria-label="Páginas de tênis">
