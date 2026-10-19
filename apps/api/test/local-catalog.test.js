@@ -8,6 +8,7 @@ import { normalizeDetail, getCatalogPage } from '../../../services/nike-scraper/
 
 const raw = (styleColor = 'AA0001-100', extra = {}) => ({ styleColor, name: 'Nike Air Test', subtitle: "Men's Basketball Shoes", priceUsd: 100, genders: ['MEN'], productType: 'FOOTWEAR', sizes: [{ nikeSize: '9', localizedSize: 'M 9', available: true }], ...extra });
 const byYou = () => ({ styleColor: '1685956779', name: 'Nike Air Force 1 Mid By You', subtitle: "Custom Men's Shoes", productType: 'FOOTWEAR', productSubType: 'CUSTOMIZED', priceUsd: 145, image: 'https://example.test/byyou.jpg', url: 'https://www.nike.com/u/custom-air-force-1/1685956779' });
+const basketballByYou = () => ({ ...byYou(), styleColor: '2953029153', name: 'Ja 4 By You', subtitle: 'Custom Basketball Shoes' });
 const at = time => new Date(`2026-09-21T${time}-03:00`);
 function database() {
   const products = new Map(), settings = new Map();
@@ -64,6 +65,15 @@ describe('permanent Nike mirror', () => {
     await local.sync();
     expect((await local.get('1685956779')).productSubType).toBe('CUSTOMIZED');
     expect(scraper.search).toHaveBeenCalledTimes(2);
+  });
+  it('shows only basketball designs on the By You basketball page', async () => {
+    const local = createLocalCatalog({ prisma: database(), scraper: {} });
+    await local.upsert(byYou());
+    await local.upsert(basketballByYou());
+    await local.upsert(raw('NOT-CUSTOM', { name: 'Ja 4', subtitle: 'Basketball Shoes' }));
+    const result = await local.list({ q: 'Nike By You basketball shoes' });
+    expect(result.products.map(p => p.styleColor)).toEqual(['2953029153']);
+    expect(result.sizes.length).toBeGreaterThan(0);
   });
   it('keeps ordinary shoes if the feed has no footwear despite finding By You', async () => {
     const prisma = database();
@@ -164,6 +174,14 @@ describe('live refresh and curation', () => {
     expect(result.products[0].byYou).toBe(true);
     expect((await catalog.browse({ q: 'Nike By You', size: '38' })).products.map(p => p.styleColor)).toEqual(['1685956779']);
     expect(scraper.getProductDetail).not.toHaveBeenCalled();
+  });
+  it('recovers basketball By You through Nike’s broad design search', async () => {
+    const { scraper, local, catalog } = catalogFixture();
+    local.status = async () => ({ lastSuccessAt: new Date().toISOString() });
+    scraper.search = vi.fn(async () => ({ products: [byYou(), basketballByYou()] }));
+    const result = await catalog.browse({ q: 'Nike By You basketball shoes' });
+    expect(scraper.search).toHaveBeenCalledWith('Nike By You', { count: 50, anchor: 0 });
+    expect(result.products.map(p => p.styleColor)).toEqual(['2953029153']);
   });
   it('propagates failed recovery instead of presenting a false empty result', async () => {
     const { scraper, catalog } = catalogFixture();

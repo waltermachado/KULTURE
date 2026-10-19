@@ -91,7 +91,8 @@ export function createCatalogService({ scraper, cache, sizesCache, images, rules
       const candidates = new Map();
       // Match the original live-search page size. A visitor must not wait for an
       // entire category crawl (Nike's total also includes apparel/recommendations).
-      const result = await scraper.search(q, { count: 50, anchor: 0 });
+      const nikeQuery = /\bby\s+you\b/i.test(q) && /\bbasketball\b/i.test(q) ? 'Nike By You' : q;
+      const result = await scraper.search(nikeQuery, { count: 50, anchor: 0 });
       for (const raw of result.products) if (raw.styleColor) candidates.set(raw.styleColor, raw);
       const pending = [...candidates.keys()];
       // Bound Nike/detail and database concurrency; dropdown and grid share this

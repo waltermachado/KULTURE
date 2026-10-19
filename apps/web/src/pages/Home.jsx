@@ -13,7 +13,7 @@ export default function Home({ grid, setSelectedProductForSize, onCategory }) {
   const { pathname } = useLocation();
   const byYouPage = pathname === '/nike-by-you';
   const size = params.get('tam') || '';
-  const q = byYouPage ? 'Nike By You' : grid.query || '';
+  const q = byYouPage ? 'Nike By You basketball shoes' : grid.query || '';
   const heroCat = CATEGORIES.find(c => c.q === q)?.key || null;
   const [pinned, setPinned] = useState(null);
   const [sizes, setSizes] = useState([]);
@@ -56,7 +56,7 @@ export default function Home({ grid, setSelectedProductForSize, onCategory }) {
   const featured = (!q || heroCat || byYouPage) && !size ? (byYouPage ? result.products[0] : pinned || result.products[0]) : null;
   const state = { ...result, query: q,
     title: byYouPage ? <>Nike <em>By You</em></> : filtered ? <>Tênis {size ? <em>no tamanho {size}</em> : <em>para você</em>}</> : <>Top 8 <em>mais vendidos</em></>,
-    sub: byYouPage ? `${result.total} modelo(s) para personalizar` : filtered ? `${result.total} modelo(s)${q ? ` · ${q}` : ''}` : 'Os favoritos da quadra, selecionados para você.' };
+    sub: byYouPage ? `${result.total} tênis de basquete para personalizar` : filtered ? `${result.total} modelo(s)${q ? ` · ${q}` : ''}` : 'Os favoritos da quadra, selecionados para você.' };
   return <>
     <Hero featured={featured} onPick={setSelectedProductForSize} />
     <Marquee />
