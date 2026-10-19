@@ -158,9 +158,11 @@ describe('live refresh and curation', () => {
     const { scraper, local, catalog } = catalogFixture();
     local.status = async () => ({ lastSuccessAt: new Date().toISOString() });
     scraper.search = vi.fn(async () => ({ products: [byYou()] }));
-    const result = await catalog.browse({ q: 'Nike By You', size: '38' });
+    await local.upsert(raw('BB0002-100', { name: 'Jordan Play Your Way', subtitle: 'Basketball Shoes', colorDescription: 'Blue By You' }));
+    const result = await catalog.browse({ q: 'Nike By You' });
     expect(result.products.map(p => p.styleColor)).toEqual(['1685956779']);
     expect(result.products[0].byYou).toBe(true);
+    expect((await catalog.browse({ q: 'Nike By You', size: '38' })).products.map(p => p.styleColor)).toEqual(['1685956779']);
     expect(scraper.getProductDetail).not.toHaveBeenCalled();
   });
   it('propagates failed recovery instead of presenting a false empty result', async () => {

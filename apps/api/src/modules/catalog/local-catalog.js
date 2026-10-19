@@ -38,8 +38,9 @@ export function createLocalCatalog({ prisma, scraper, restricted, log, now = () 
     let products = (await prisma.importedProduct.findMany({ where: { active: true }, orderBy: { styleColor: 'asc' } })).map(r => r.raw);
     if (restricted) products = await restricted.filter(products);
     const category = { 'basketball shoes': 'basketball', 'running shoes': 'running', 'lifestyle shoes': 'lifestyle' }[q.toLowerCase()];
+    const byYouOnly = /\bby\s+you\b/i.test(q);
     const tokens = normalizeQuery(q).split(/-+/).filter(Boolean);
-    products = products.filter(p => category ? inferCategory(p.subtitle) === category : tokens.every(t => normalizeQuery(`Nike ${p.name} ${p.subtitle || ''} ${p.styleColor} ${p.colorDescription || ''}`).includes(t)));
+    products = products.filter(p => (!byYouOnly || isByYou(p)) && (category ? inferCategory(p.subtitle) === category : tokens.every(t => normalizeQuery(`Nike ${p.name} ${p.subtitle || ''} ${p.styleColor} ${p.colorDescription || ''}`).includes(t))));
     const counts = new Map();
     for (const p of products) for (const br of availableSizes(p)) counts.set(br, (counts.get(br) || 0) + 1);
     const sizes = [...counts].sort((a, b) => Number(a[0]) - Number(b[0])).map(([br, count]) => ({ br, count }));
