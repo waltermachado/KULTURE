@@ -2,7 +2,7 @@ import { useState } from "react";
 import { useNavigate, useLocation } from "react-router-dom";
 import { CATEGORIES } from "../lib/format.js";
 
-const TABS = [{ label: "Início", q: "", key: null }, ...CATEGORIES.map((c) => ({ label: c.label, q: c.q, key: c.key }))];
+const TABS = [{ label: "Início", q: "", key: null }, ...CATEGORIES.map((c) => ({ label: c.label, q: c.q, key: c.key })), { label: "Nike By You", q: "Nike By You", key: "byyou" }];
 
 /**
  * Topo: logo · abas (Início / Basquete / Casual / Corrida) · busca · conta · sacola.
@@ -28,7 +28,8 @@ export default function Header({ cartCount, onOpenCart, onOpenLogin, onSearch, o
     if (location.pathname !== "/") navigate("/");
     onSearch(t.q);
   }
-  const isActive = (t) => (onStock ? (stockCat ? t.key === stockCat : t.key === null) : location.pathname === "/" && active === t.label);
+  const isActive = (t) => t.key === 'byyou' ? location.pathname === '/nike-by-you' :
+    (onStock ? (stockCat ? t.key === stockCat : t.key === null) : location.pathname === "/" && active === t.label);
 
   return (
     <header className="nav">

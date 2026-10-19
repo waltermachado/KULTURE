@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { useSearchParams } from "react-router-dom";
+import { useLocation, useSearchParams } from "react-router-dom";
 import Hero from "../components/Hero.jsx";
 import ImportedSizeFilter from "../components/ImportedSizeFilter.jsx";
 import Marquee from "../components/Marquee.jsx";
@@ -10,8 +10,10 @@ import { toCard, CATEGORIES } from "../lib/format.js";
 
 export default function Home({ grid, setSelectedProductForSize, onCategory }) {
   const [params, setParams] = useSearchParams();
+  const { pathname } = useLocation();
+  const byYouPage = pathname === '/nike-by-you';
   const size = params.get('tam') || '';
-  const q = grid.query || '';
+  const q = byYouPage ? 'Nike By You' : grid.query || '';
   const heroCat = CATEGORIES.find(c => c.q === q)?.key || null;
   const [pinned, setPinned] = useState(null);
   const [sizes, setSizes] = useState([]);
@@ -51,10 +53,10 @@ export default function Home({ grid, setSelectedProductForSize, onCategory }) {
     if (value) next.set('tam', value); else next.delete('tam');
     setPage(0); setParams(next);
   };
-  const featured = (!q || heroCat) && !size ? pinned || result.products[0] : null;
+  const featured = (!q || heroCat || byYouPage) && !size ? (byYouPage ? result.products[0] : pinned || result.products[0]) : null;
   const state = { ...result, query: q,
-    title: filtered ? <>Tênis {size ? <em>no tamanho {size}</em> : <em>para você</em>}</> : <>Top 8 <em>mais vendidos</em></>,
-    sub: filtered ? `${result.total} modelo(s)${q ? ` · ${q}` : ''}` : 'Os favoritos da quadra, selecionados para você.' };
+    title: byYouPage ? <>Nike <em>By You</em></> : filtered ? <>Tênis {size ? <em>no tamanho {size}</em> : <em>para você</em>}</> : <>Top 8 <em>mais vendidos</em></>,
+    sub: byYouPage ? `${result.total} modelo(s) para personalizar` : filtered ? `${result.total} modelo(s)${q ? ` · ${q}` : ''}` : 'Os favoritos da quadra, selecionados para você.' };
   return <>
     <Hero featured={featured} onPick={setSelectedProductForSize} />
     <Marquee />

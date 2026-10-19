@@ -39,6 +39,10 @@ do backoffice e o câmbio vigente. Os arquivos de imagem continuam usando o espe
 - `GET /api/imported?q=&size=&offset=0&limit=48`: busca local paginada, filtro BR,
   contagens de tamanhos disponíveis para a busca e data da última rodada completa.
   O filtro é aplicado antes da paginação. Modelos restritos são excluídos também das contagens.
+- Designs Nike By You vêm da busca Nike, pois não possuem SKU no feed de produtos.
+  A sincronização os grava antes de percorrer o feed e a busca `By You` os recupera
+  sob demanda. O filtro BR usa a tabela padrão de tamanhos. A loja os reúne em
+  `/nike-by-you`; antes da compra, o design e o preço são conferidos na Nike.
 - O dropdown fica antes do hero de Importados. Pode ser usado sem busca e é preservado
   ao buscar um modelo ou trocar de categoria. `?tam=41` permite compartilhar o tamanho.
   As opções atualizam a cada minuto e ao retornar à janela.

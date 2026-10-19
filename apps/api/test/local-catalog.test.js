@@ -7,6 +7,7 @@ import { createRestrictedFilter } from '../src/modules/restricted/routes.js';
 import { normalizeDetail, getCatalogPage } from '../../../services/nike-scraper/src/services/nike.js';
 
 const raw = (styleColor = 'AA0001-100', extra = {}) => ({ styleColor, name: 'Nike Air Test', subtitle: "Men's Basketball Shoes", priceUsd: 100, genders: ['MEN'], productType: 'FOOTWEAR', sizes: [{ nikeSize: '9', localizedSize: 'M 9', available: true }], ...extra });
+const byYou = () => ({ styleColor: '1685956779', name: 'Nike Air Force 1 Mid By You', subtitle: "Custom Men's Shoes", productType: 'FOOTWEAR', productSubType: 'CUSTOMIZED', priceUsd: 145, image: 'https://example.test/byyou.jpg', url: 'https://www.nike.com/u/custom-air-force-1/1685956779' });
 const at = time => new Date(`2026-09-21T${time}-03:00`);
 function database() {
   const products = new Map(), settings = new Map();
@@ -50,6 +51,28 @@ describe('permanent Nike mirror', () => {
     expect((await afterRestart.list()).products).toHaveLength(2);
     await afterRestart.sync();
     expect(scraper.catalogPage).toHaveBeenCalledTimes(2);
+  });
+  it('imports By You designs from search before the SKU feed and retains them across scans', async () => {
+    const prisma = database();
+    const scraper = { search: vi.fn(async () => ({ products: [byYou()] })), catalogPage: vi.fn(async () => page([raw()])) };
+    let time = at('06:00:00');
+    const local = createLocalCatalog({ prisma, scraper, now: () => time });
+    await local.sync();
+    expect((await local.list({ q: 'Nike By You' })).products.map(p => p.styleColor)).toEqual(['1685956779']);
+    expect((await local.list({ size: '38' })).products.some(p => p.styleColor === '1685956779')).toBe(true);
+    time = at('07:00:00');
+    await local.sync();
+    expect((await local.get('1685956779')).productSubType).toBe('CUSTOMIZED');
+    expect(scraper.search).toHaveBeenCalledTimes(2);
+  });
+  it('keeps ordinary shoes if the feed has no footwear despite finding By You', async () => {
+    const prisma = database();
+    prisma.products.set('old', { styleColor: 'old', raw: raw('old'), checkedAt: at('05:00:00'), active: true });
+    const scraper = { search: async () => ({ products: [byYou()] }), catalogPage: async () => ({ products: [], received: 1, total: 1, nextAnchor: null }) };
+    const local = createLocalCatalog({ prisma, scraper, now: () => at('06:00:00') });
+    await local.sync();
+    expect((await local.status()).state).toBe('error');
+    expect((await local.get('old')).styleColor).toBe('old');
   });
   it('does not crawl overnight; resumes at 06h and repeats hourly', async () => {
     let time = at('05:59:59');
@@ -130,6 +153,15 @@ describe('live refresh and curation', () => {
     expect((await local.get('AA0001-100')).name).toBe('LeBron 23');
     await catalog.browse({ q: 'Nike LeBron', size: '99' });
     expect(scraper.search).toHaveBeenCalledTimes(1);
+  });
+  it('finds By You in a healthy mirror without requesting unavailable SKU details', async () => {
+    const { scraper, local, catalog } = catalogFixture();
+    local.status = async () => ({ lastSuccessAt: new Date().toISOString() });
+    scraper.search = vi.fn(async () => ({ products: [byYou()] }));
+    const result = await catalog.browse({ q: 'Nike By You', size: '38' });
+    expect(result.products.map(p => p.styleColor)).toEqual(['1685956779']);
+    expect(result.products[0].byYou).toBe(true);
+    expect(scraper.getProductDetail).not.toHaveBeenCalled();
   });
   it('propagates failed recovery instead of presenting a false empty result', async () => {
     const { scraper, catalog } = catalogFixture();

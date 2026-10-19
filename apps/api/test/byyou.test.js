@@ -51,6 +51,15 @@ describe("Nike By You", { timeout: 60000 }, () => {
     expect(p.price.breakdown).toBeUndefined();
   });
 
+  it("aparece na vitrine e no filtro de tamanhos mesmo sem SKU Nike", async () => {
+    const grid = await app.inject({ method: 'GET', url: '/api/imported?q=Nike%20By%20You' });
+    expect(grid.statusCode).toBe(200);
+    expect(grid.json().products).toEqual(expect.arrayContaining([expect.objectContaining({ styleColor: DESIGN, byYou: true })]));
+    expect(grid.json().sizes).toEqual(expect.arrayContaining([expect.objectContaining({ br: '38', count: 1 })]));
+    const sized = await app.inject({ method: 'GET', url: '/api/imported?q=Nike%20By%20You&size=38' });
+    expect(sized.json().products.some(p => p.styleColor === DESIGN)).toBe(true);
+  });
+
   it("checkout grava modelagem + personalização; recusa texto > 8", async () => {
     const base = { customer: { name: "Cliente By You", email: `test-byyou-${STAMP}@kulture.test`, cpf: "12345678909" }, address: { cep: "01000-000", city: "SP", state: "SP" } };
     const bad = await app.inject({ method: "POST", url: "/api/checkout", headers: { "idempotency-key": `test-byyou-${STAMP}-bad` }, payload: { ...base, items: [{ styleColor: DESIGN, nikeSize: "7", quantity: 1, customization: { textLeft: "MUITOLONGO9" } }] } });

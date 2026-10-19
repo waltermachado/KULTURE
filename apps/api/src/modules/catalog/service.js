@@ -4,7 +4,7 @@
 import { normalizeQuery } from "../../lib/normalize-query.js";
 import { AppError } from "../../lib/errors.js";
 import { cutoutUrls } from "./nike-image.js";
-import { toProduct, BY_YOU_CUSTOMIZATION } from "./normalize.js";
+import { toProduct, isByYou, BY_YOU_CUSTOMIZATION } from "./normalize.js";
 import { isTestTerm, isTestStyleColor, buildTestProduct } from "./test-product.js";
 import { convertUsToBr, parseUsSizes, sizeGroupsOf, standardSizes, standardKidsSizes } from "@kulture/shared/sizes";
 
@@ -95,13 +95,17 @@ export function createCatalogService({ scraper, cache, sizesCache, images, rules
       for (const raw of result.products) if (raw.styleColor) candidates.set(raw.styleColor, raw);
       const pending = [...candidates.keys()];
       // Bound Nike/detail and database concurrency; dropdown and grid share this
-      // single-flight cache entry. Only full details may enter the durable mirror.
+      // single-flight cache entry. By You designs have no SKU detail endpoint.
       let failed = false;
       await Promise.all(Array.from({ length: Math.min(5, pending.length) }, async () => {
         while (pending.length) {
           const sku = pending.shift();
           if (await local.get(sku)) continue;
           try {
+            if (isByYou(candidates.get(sku))) {
+              await local.upsert(candidates.get(sku));
+              continue;
+            }
             const raw = await scraper.getProductDetail(sku);
             if (raw.styleColor !== sku || !raw.name || !Number.isFinite(raw.priceUsd) || !Array.isArray(raw.sizes)) throw new Error('Detalhe Nike incompleto');
             await local.upsert(raw);
@@ -121,7 +125,7 @@ export function createCatalogService({ scraper, cache, sizesCache, images, rules
     if (!local) return search(q);
     const sync = await local.status();
     let recoveryError;
-    if (q.trim() && (!sync.lastSuccessAt || Date.now() - new Date(sync.lastSuccessAt) > 90 * 60_000)) {
+    if (q.trim() && (/\bby\s+you\b/i.test(q) || !sync.lastSuccessAt || Date.now() - new Date(sync.lastSuccessAt) > 90 * 60_000)) {
       try { await recoverQuery(q); }
       catch (err) { recoveryError = err; log?.warn({ err, q }, 'Busca Nike indisponível; preservando resultados locais'); }
     }
@@ -247,9 +251,8 @@ export function createCatalogService({ scraper, cache, sizesCache, images, rules
         if ((/^[A-Z0-9]{6}-[0-9]{3}$/i.test(styleColor) && raw.styleColor.toUpperCase() !== styleColor.toUpperCase()) || (raw.productType && raw.productType !== 'FOOTWEAR')) throw new Error('Produto Nike inválido');
       } catch (err) {
         if (!isSizesUnavailable(err)) throw err;
-        // Nike By You (customizado): não existe SKU/tamanhos na API da Nike. O id do design é pesquisável na
-        // busca → pega o produto (nome, preço) por lá e oferece a tabela padrão de tamanhos; o cliente escolhe o
-        // seu número e personaliza (texto/número por pé); o dono confirma na Nike By You antes de comprar.
+        // By You designs have no SKU details. Find the item, then verify its
+        // exact design ID against Nike's live search before offering it for sale.
         const { product: found } = await findOne(styleColor);
         // pré-venda sem SKU publicado na Nike: vende com a tabela padrão (compramos assim que a Nike libera)
         if (found?.launch?.comingSoon && !found.byYou) {
@@ -257,8 +260,15 @@ export function createCatalogService({ scraper, cache, sizesCache, images, rules
           return { ...found, sizes, sizeGroups: sizeGroupsOf(sizes), sizesSynthetic: true };
         }
         if (!found?.byYou) { if (local) await local.retire(styleColor); throw err; }
+        const live = await scraper.findOne(styleColor);
+        if (live?.styleColor !== styleColor || !isByYou(live)) {
+          if (local) await local.retire(styleColor);
+          throw AppError.notFound('Design Nike By You indisponível');
+        }
+        if (local) await local.upsert(live);
+        const current = await enrich(live, await getRate());
         const sizes = standardSizes();
-        return { ...found, sizes, sizeGroups: sizeGroupsOf(sizes), sizesSynthetic: true, customization: BY_YOU_CUSTOMIZATION };
+        return { ...current, sizes, sizeGroups: sizeGroupsOf(sizes), sizesSynthetic: true, customization: BY_YOU_CUSTOMIZATION };
       }
       const rate = await getRate();
       const enriched = await enrich(raw, rate);

@@ -1,6 +1,6 @@
 import { randomUUID } from 'node:crypto';
-import { convertUsToBr } from '@kulture/shared/sizes';
-import { inferCategory } from './normalize.js';
+import { convertUsToBr, standardSizes } from '@kulture/shared/sizes';
+import { inferCategory, isByYou } from './normalize.js';
 import { normalizeQuery } from '../../lib/normalize-query.js';
 
 export const SYNC_KEY = 'imported-catalog-sync';
@@ -12,6 +12,7 @@ export function inCatalogWindow(date = new Date()) {
   return Number(new Intl.DateTimeFormat('en', { timeZone: 'America/Sao_Paulo', hour: 'numeric', hourCycle: 'h23' }).format(date)) >= 6;
 }
 export function availableSizes(raw) {
+  if (isByYou(raw)) return [...new Set(standardSizes().map(s => String(s.brLabel)))];
   return [...new Set((raw.sizes || []).filter(s => s.available).map(s => {
     const { brSize } = convertUsToBr(s.nikeSize, s.localizedSize, raw.genders || []);
     return brSize == null ? null : String(brSize);
@@ -58,15 +59,31 @@ export function createLocalCatalog({ prisma, scraper, restricted, log, now = () 
     const started = now();
     const attempt = { ...previous, lastAttemptAt: started.toISOString(), state: 'running', error: null };
     const seen = new Set();
+    let feedCount = 0;
     try {
       await setStatus(attempt);
+      // Designs By You live in Nike's search wall, not the SKU feed below.
+      // Fetch them first so they remain visible even if the feed crawl fails.
+      if (typeof scraper.search === 'function') {
+        const { products } = await scraper.search('Nike By You', { count: 100, anchor: 0 });
+        const designs = new Map(products.filter(isByYou).map(raw => [raw.styleColor, raw]));
+        if (!designs.size) throw new Error('Busca Nike By You vazia; catálogo anterior preservado');
+        for (const raw of designs.values()) {
+          if (!raw.styleColor || !raw.name || !Number.isFinite(raw.priceUsd)) throw new Error('Design Nike By You incompleto');
+          seen.add(raw.styleColor);
+        }
+        await prisma.$transaction([
+          prisma.importedProduct.createMany({ data: [...designs.values()].map(raw => ({ styleColor: raw.styleColor, raw, active: true, checkedAt: started })), skipDuplicates: true }),
+          ...[...designs.values()].map(raw => prisma.importedProduct.updateMany({ where: { styleColor: raw.styleColor, checkedAt: { lt: started } }, data: { raw, active: true, checkedAt: started } }))
+        ]);
+      }
       let anchor = 0;
       for (let pages = 0; ; pages++) {
         if (stopped || !inCatalogWindow(now())) { await setStatus({ ...attempt, state: 'paused' }); return; }
         if (pages >= 10000) throw new Error('Paginação Nike excedeu o limite de segurança');
         const page = await scraper.catalogPage(anchor);
         if (!Array.isArray(page.products) || !Number.isFinite(page.total) || !Number.isInteger(page.received) || page.received < 0 || !('nextAnchor' in page)) throw new Error('Resposta incompleta do catálogo Nike');
-        if (!page.received && (page.total > anchor || !seen.size)) throw new Error('Catálogo Nike vazio ou incompleto');
+        if (!page.received && (page.total > anchor || pages === 0)) throw new Error('Catálogo Nike vazio ou incompleto');
         if (page.nextAnchor !== null && (!Number.isInteger(page.nextAnchor) || page.nextAnchor <= anchor)) throw new Error('Paginação Nike não avançou');
         const expectedNext = anchor + page.received < page.total ? anchor + page.received : null;
         if (page.nextAnchor !== expectedNext) throw new Error('Paginação Nike incompleta');
@@ -78,6 +95,7 @@ export function createLocalCatalog({ prisma, scraper, restricted, log, now = () 
           if (!raw.styleColor || !raw.name || !Number.isFinite(raw.priceUsd) || !Array.isArray(raw.sizes)) throw new Error('Produto incompleto no catálogo Nike');
           seen.add(raw.styleColor); valid.set(raw.styleColor, raw);
         }
+        feedCount += valid.size;
         // Never overwrite a product refreshed by a customer's click after this scan started.
         if (valid.size) await prisma.$transaction([
           prisma.importedProduct.createMany({ data: [...valid.values()].map(raw => ({ styleColor: raw.styleColor, raw, active: true, checkedAt: started })), skipDuplicates: true }),
@@ -86,7 +104,7 @@ export function createLocalCatalog({ prisma, scraper, restricted, log, now = () 
         if (page.nextAnchor === null) break;
         anchor = page.nextAnchor;
       }
-      if (!seen.size) throw new Error('Catálogo Nike sem calçados; espelho anterior preservado');
+      if (!feedCount) throw new Error('Catálogo Nike sem calçados; espelho anterior preservado');
       // Retire missing products only after a complete, successful traversal.
       const completed = { lastAttemptAt: started.toISOString(), lastSuccessAt: now().toISOString(), total: seen.size, state: 'ok', error: null };
       await prisma.$transaction([

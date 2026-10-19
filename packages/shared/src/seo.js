@@ -1,6 +1,7 @@
 /** Shared metadata for the initial HTML and client-side navigation. */
 export const PUBLIC_PAGES = {
   '/': ['Tênis importados originais dos EUA | Kulture BR', 'Encontre sneakers originais de basquete, corrida e casual. Importados dos EUA, com numeração BR, preço final fechado e frete grátis.'],
+  '/nike-by-you': ['Nike By You personalizado | Kulture BR', 'Escolha um tênis Nike By You, selecione sua numeração BR e personalize seu par. Feito sob encomenda com preço final fechado.'],
   '/pronta-entrega': ['Tênis originais à pronta entrega no Brasil | Kulture BR', 'Compre tênis originais em estoque no Brasil, com envio imediato após o pagamento, numeração brasileira e frete grátis. Confira os pares disponíveis.'],
   '/hypados': ['Sneakers hypados e raros importados | Kulture BR', 'Descubra sneakers originais difíceis de encontrar, garimpados nos EUA e importados para você. Numeração BR, preço final fechado e frete grátis.']
 };

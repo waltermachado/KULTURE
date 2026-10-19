@@ -1,5 +1,5 @@
 import { lazy, Suspense, useCallback, useEffect, useRef, useState } from "react";
-import { Routes, Route, useNavigate, useLocation } from "react-router-dom";
+import { Routes, Route, NavLink, useNavigate, useLocation } from "react-router-dom";
 import Header from "./components/Header.jsx";
 import Home from "./pages/Home.jsx";
 import Stock from "./pages/Stock.jsx";
@@ -33,7 +33,7 @@ export default function App() {
   const location = useLocation();
   const isAdminArea = location.pathname === "/admin" || location.pathname.startsWith("/admin/");
   // seletor Importados × Pronta entrega × Hypados só nas vitrines — a página própria do tênis (/pronta-entrega/:ref) fica limpa
-  const showModeBar = ["/", "/pronta-entrega", "/hypados"].includes(location.pathname.replace(/\/+$/, "") || "/");
+  const showModeBar = ["/", "/nike-by-you", "/pronta-entrega", "/hypados"].includes(location.pathname.replace(/\/+$/, "") || "/");
   const cart = useCart();
   const auth = useAuth();
   const [grid, setGrid] = useState({ status: "loading", products: [], title: TOP8_TITLE, sub: TOP8_SUB, query: "" });
@@ -128,6 +128,7 @@ export default function App() {
    */
   const pickCategory = useCallback((cat) => {
     const key = cat?.key ?? null;
+    if (key === 'byyou') { navigate('/nike-by-you'); return; }
     // nas seções de estoque próprio (pronta entrega e hypados) o filtro fica na própria página (?cat=…)
     const stockBase = location.pathname.startsWith("/pronta-entrega") ? "/pronta-entrega" : location.pathname.startsWith("/hypados") ? "/hypados" : null;
     if (stockBase) {
@@ -162,11 +163,13 @@ export default function App() {
         />
       )}
       {showModeBar && <ModeBar onSwitch={switchMode} />}
+      {showModeBar && <NavLink to="/nike-by-you" className="byyou-mobile-link">Nike By You <span>Crie seu par →</span></NavLink>}
       <main id="main-content" className="page-view" ref={pageRef} tabIndex={-1}>
       <Seo />
       <Suspense fallback={<p className="grid-msg">Carregando…</p>}>
       <Routes>
         <Route path="/" element={<Home grid={grid} setSelectedProductForSize={setSelectedProductForSize} onCategory={pickCategory} />} />
+        <Route path="/nike-by-you" element={<Home grid={grid} setSelectedProductForSize={setSelectedProductForSize} onCategory={pickCategory} />} />
         <Route path="/pronta-entrega" element={<Stock section="stock" setSelectedProductForSize={setSelectedProductForSize} onCategory={pickCategory} />} />
         <Route path="/hypados" element={<Stock section="hypados" setSelectedProductForSize={setSelectedProductForSize} onCategory={pickCategory} />} />
         {/* página própria do tênis de estoque (link do Instagram): sem modal, com tamanhos e compra direta */}

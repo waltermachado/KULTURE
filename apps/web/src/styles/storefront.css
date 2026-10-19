@@ -39,6 +39,8 @@
 .storefront .mode-text b{font-size:13px;text-transform:none;letter-spacing:0}
 .storefront .mode-text small{font-size:11px;letter-spacing:0;text-transform:none;opacity:.8}
 .storefront .mode-flag{font-size:10px;border:1px solid currentColor;border-radius:4px;background:transparent;letter-spacing:.03em;min-width:33px}
+.storefront .byyou-mobile-link{display:none}
+@media(max-width:1024px){.storefront .byyou-mobile-link{display:flex;justify-content:space-between;align-items:center;margin:10px var(--gutter) 0;padding:12px 16px;border:1px solid var(--yellow);border-radius:8px;color:var(--yellow);font-size:13px;font-weight:800;text-decoration:none}.storefront .byyou-mobile-link span{font-size:12px;font-weight:600}}
 .storefront .page-view{outline:none}
 .fresh-hero{max-width:1536px;margin:auto;padding:32px var(--gutter) 44px;display:grid;grid-template-columns:1fr 1.05fr;gap:clamp(32px,5vw,80px);align-items:center}
 .fresh-hero-copy{padding:32px 0;min-width:0}

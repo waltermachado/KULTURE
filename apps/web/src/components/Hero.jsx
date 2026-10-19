@@ -1,4 +1,4 @@
-import { brl } from "../lib/format.js";
+import { brl, BY_YOU_DELIVERY_DAYS } from "../lib/format.js";
 import SneakerSvg from "./SneakerSvg.jsx";
 
 /**
@@ -17,12 +17,12 @@ export default function Hero({ featured, onPick, variant = "import" }) {
   const line2 = p ? (colorway && colorway.length <= 18 ? colorway : (p.subtitle || "Original")) : isStock ? "no Brasil" : "atitude de rua";
   const cat = (p?.subtitle || "basketball shoes").replace(/shoes/i, "").trim().toUpperCase() || "BASQUETE";
 
-  const drop = p ? (isHypados ? "HYPADOS" : isStock ? "PRONTA ENTREGA" : "DROP 01") : "KULTURE BR";
+  const drop = p ? (p.byYou ? "NIKE BY YOU" : isHypados ? "HYPADOS" : isStock ? "PRONTA ENTREGA" : "DROP 01") : "KULTURE BR";
   const dropSub = p
-    ? (isHypados ? `${cat} / garimpando direto dos EUA` : isStock ? `${cat} / em estoque no Brasil` : `${cat} / importado dos EUA`)
+    ? (p.byYou ? 'Personalizado por você / feito sob encomenda' : isHypados ? `${cat} / garimpando direto dos EUA` : isStock ? `${cat} / em estoque no Brasil` : `${cat} / importado dos EUA`)
     : (isHypados ? "Garimpados nos EUA · importados pra você" : isStock ? "Estoque próprio · envio imediato" : "Importados originais dos EUA");
   const desc = p
-    ? (isHypados
+    ? (p.byYou ? `Escolha seu número e personalize o par. Feito sob encomenda pela Nike, com entrega em até ${BY_YOU_DELIVERY_DAYS} dias úteis.` : isHypados
         ? "O par mais hypado e difícil de achar — original, garimpado nos EUA pelos contatos Kulture BR e importado pra você. Numeração BR e preço final fechado."
         : isStock
         ? "Par original já no Brasil: sai do nosso estoque assim que o pagamento cai, sem esperar importação. Numeração BR e preço final fechado."
@@ -32,7 +32,7 @@ export default function Hero({ featured, onPick, variant = "import" }) {
         : isStock
         ? "Pares originais em estoque aqui no Brasil, prontos para sair. Sem espera de importação, numeração BR e frete grátis."
         : "Os drops mais quentes de basquete, corrida e casual, importados dos EUA com preço final fechado, numeração BR e frete grátis.");
-  const priceSmall = `${p?.installmentsLabel ? `ou ${p.installmentsLabel} · ` : ""}${isHypados ? "importado pra você" : isStock ? "envio imediato" : "numeração BR"}`;
+  const priceSmall = `${p?.installmentsLabel ? `ou ${p.installmentsLabel} · ` : ""}${p?.byYou ? `até ${BY_YOU_DELIVERY_DAYS} dias úteis` : isHypados ? "importado pra você" : isStock ? "envio imediato" : "numeração BR"}`;
 
   return (
     <section className={`hero${isStock ? " hero-stock" : ""}${isHypados ? " hero-hypados" : ""}`} id="top">
