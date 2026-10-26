@@ -16,7 +16,7 @@ import { requireAdmin } from "../../lib/guards.js";
 
 export const RESTRICTED_KEY = "restricted";
 /** Lista inicial (vale até o primeiro salvamento no painel). */
-export const DEFAULT_RESTRICTED = ["Nike Mind 001", "Nike Mind 002"];
+export const DEFAULT_RESTRICTED = ["Nike Mind 001", "Nike Mind 002", "IB0018-600"];
 const MAX_TERMS = 200;
 const MAX_TERM_LEN = 120;
 const MEMO_TTL_MS = 30_000; // busca é frequente; a lista muda raramente
