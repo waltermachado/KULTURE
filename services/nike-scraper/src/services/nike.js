@@ -2,6 +2,7 @@
 // ATENÇÃO: por serem não-oficiais, a Nike pode mudar o formato. O normalizador abaixo é
 // defensivo e as URLs/headers ficam no .env para ajuste rápido sem tocar no código.
 import { cacheGet, cacheSet } from '../cache.js';
+import { verifyStorefront } from './availability.js';
 
 const SEARCH_URL =
   process.env.NIKE_SEARCH_URL ||
@@ -165,14 +166,17 @@ export async function getProductSizes(styleColor) {
     throw Object.assign(new Error('Sizes unavailable for this styleColor'), { status: 404, code: 'SIZES_UNAVAILABLE' });
   }
 
-  // um thread pode agrupar várias cores: escolhe o productInfo do styleColor pedido (fallback: o 1º)
-  const obj = objects.find((o) => (o.productInfo || []).some((pi) => pi?.merchProduct?.styleColor === styleColor)) || objects[0];
-  const info = (obj.productInfo || []).find((pi) => pi?.merchProduct?.styleColor === styleColor) || obj.productInfo?.[0];
+  // A thread can group colors; never substitute another SKU for a missing one.
+  const obj = objects.find((o) => (o.productInfo || []).some((pi) => pi?.merchProduct?.styleColor?.toUpperCase() === styleColor.toUpperCase()));
+  const info = obj?.productInfo?.find((pi) => pi?.merchProduct?.styleColor?.toUpperCase() === styleColor.toUpperCase());
   if (!info) {
     throw Object.assign(new Error('Product info missing'), { status: 404, code: 'SIZES_UNAVAILABLE' });
   }
 
-  return normalizeDetail(obj, info);
+  const product = normalizeDetail(obj, info);
+  if (info.merchProduct?.status !== 'ACTIVE') throw Object.assign(new Error('Produto Nike inativo'), { status: 404, code: 'PRODUCT_UNAVAILABLE' });
+  if (!product.sizes.some(s => s.available === true)) throw Object.assign(new Error('Produto sem estoque na Nike US'), { status: 404, code: 'PRODUCT_UNAVAILABLE' });
+  return verifyStorefront(product);
 }
 
 export function normalizeDetail(obj, info) {
@@ -190,7 +194,7 @@ export function normalizeDetail(obj, info) {
     const availGtin = availableGtins.find(g => g.gtin === sku.gtin);
     const availSku = availableSkus.find(s => s.skuId === sku.id || s.skuId === sku.stockKeepingUnitId);
     
-    const available = availGtin ? availGtin.available : (availSku ? availSku.available : false);
+    const available = (availGtin ? availGtin.available : availSku?.available) === true;
     const level = availGtin ? availGtin.level : (availSku ? availSku.level : 'OOS');
     
     return {
@@ -269,9 +273,18 @@ export async function getCatalogPage(anchor = 0, count = 50) {
   const data = await fetchWall(url);
   if (!Array.isArray(data.objects) || !Number.isFinite(data.pages?.totalResources)) throw new Error('Formato inválido do catálogo Nike');
   const products = data.objects.flatMap(obj => (obj.productInfo || [])
-    .filter(info => info.merchProduct?.productType === 'FOOTWEAR')
+    .filter(info => info.merchProduct?.productType === 'FOOTWEAR' && info.merchProduct?.status === 'ACTIVE')
     .map(info => normalizeDetail(obj, info)));
   if (products.some(p => !p.styleColor || !p.name || !Number.isFinite(p.priceUsd))) throw new Error('Produto inválido no catálogo Nike');
-  return { products, total: data.pages.totalResources, received: data.objects.length,
+  const verified = [];
+  const pending = products.filter(p => p.sizes.some(s => s.available === true));
+  await Promise.all(Array.from({ length: Math.min(10, pending.length) }, async () => {
+    while (pending.length) {
+      const product = pending.shift();
+      try { verified.push(await verifyStorefront(product)); }
+      catch (err) { if (err.status !== 404) throw err; }
+    }
+  }));
+  return { products: verified, total: data.pages.totalResources, received: data.objects.length,
     nextAnchor: anchor + data.objects.length < data.pages.totalResources ? anchor + data.objects.length : null };
 }

@@ -1,3 +1,4 @@
+import { isVerifiedAvailable } from './availability.js';
 import { randomUUID } from 'node:crypto';
 import { convertUsToBr, standardSizes } from '@kulture/shared/sizes';
 import { inferCategory, isByYou } from './normalize.js';
@@ -36,6 +37,7 @@ export function createLocalCatalog({ prisma, scraper, restricted, log, now = () 
   }
   async function list({ q = '', size = '' } = {}) {
     let products = (await prisma.importedProduct.findMany({ where: { active: true }, orderBy: { styleColor: 'asc' } })).map(r => r.raw);
+    products = products.filter(p => isByYou(p) || isVerifiedAvailable(p));
     if (restricted) products = await restricted.filter(products);
     const category = { 'basketball shoes': 'basketball', 'running shoes': 'running', 'lifestyle shoes': 'lifestyle' }[q.toLowerCase()];
     const byYouOnly = /\bby\s+you\b/i.test(q);

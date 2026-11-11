@@ -1,12 +1,13 @@
 /**
  * Serviço de catálogo: orquestra scraper → precificação → espelho de imagens → cache SWR.
  */
+import { isVerifiedAvailable } from './availability.js';
 import { normalizeQuery } from "../../lib/normalize-query.js";
 import { AppError } from "../../lib/errors.js";
 import { cutoutUrls } from "./nike-image.js";
 import { toProduct, isByYou, BY_YOU_CUSTOMIZATION } from "./normalize.js";
 import { isTestTerm, isTestStyleColor, buildTestProduct } from "./test-product.js";
-import { convertUsToBr, parseUsSizes, sizeGroupsOf, standardSizes, standardKidsSizes } from "@kulture/shared/sizes";
+import { convertUsToBr, parseUsSizes, sizeGroupsOf, standardSizes } from "@kulture/shared/sizes";
 
 const RATE_KEY = "rate:USD-BRL:v2"; // v2 = traz `tourism` (dólar turismo)
 const MAX_IMAGES = 8; // galeria do produto: até 8 ângulos (o resto é marketing)
@@ -15,7 +16,7 @@ const MAX_IMAGES = 8; // galeria do produto: até 8 ângulos (o resto é marketi
 // v3 só calçados · v4 launch · v5 nova precificação (turismo, 7%, ↑99) · v6 LeBron 23 +R$300 ·
 // v7 acréscimos editáveis no painel: o namespace ganha a VERSÃO das regras (salvou → chaves novas → preço recalculado) ·
 // v8 escala feminina derivada da masculina (BR único por par físico) · v9 pré-venda com todos os tamanhos liberados
-const BASE_NS = "v9";
+const BASE_NS = "v10"; // exact storefront verification; discard old size caches
 
 /**
  * `stock` (opcional) = serviço de pronta entrega: códigos PE-XXXXXX são respondidos do banco em
@@ -55,6 +56,12 @@ export function createCatalogService({ scraper, cache, sizesCache, images, rules
     return toProduct(raw, { rate, rules: current, images: mirrored, imageSource });
   }
 
+  async function publishedProduct(raw) {
+    if (!raw || isByYou(raw)) return raw;
+    try { return await scraper.getProductDetail(raw.styleColor); }
+    catch (err) { if (isSizesUnavailable(err)) return null; throw err; }
+  }
+
   async function search(query) {
     const term = normalizeQuery(query);
     if (testProduct && isTestTerm(query)) {
@@ -66,7 +73,8 @@ export function createCatalogService({ scraper, cache, sizesCache, images, rules
     const key = `search:${await ns()}:${term}`;
     const fetchSearch = async () => {
       const [{ products, total }, rate] = await Promise.all([scraper.search(query), getRate()]);
-      const enriched = await Promise.all(products.map((p) => enrich(p, rate)));
+      const verified = (await Promise.all(products.map(publishedProduct))).filter(Boolean);
+      const enriched = await Promise.all(verified.map((p) => enrich(p, rate)));
       return { total: total ?? enriched.length, products: enriched };
     };
     let { value, cached, stale } = await cache.getOrFetch(key, fetchSearch);
@@ -86,7 +94,7 @@ export function createCatalogService({ scraper, cache, sizesCache, images, rules
   // The feed rejects anchors above 1000. Until a complete mirror exists, recover
   // queried models through the search endpoint instead of reporting false misses.
   async function recoverQuery(q) {
-    const key = `catalog-recovery:v1:${normalizeQuery(q)}`;
+    const key = `catalog-recovery:v2:${normalizeQuery(q)}`;
     await cache.getOrFetch(key, async () => {
       const candidates = new Map();
       // Match the original live-search page size. A visitor must not wait for an
@@ -101,7 +109,8 @@ export function createCatalogService({ scraper, cache, sizesCache, images, rules
       await Promise.all(Array.from({ length: Math.min(5, pending.length) }, async () => {
         while (pending.length) {
           const sku = pending.shift();
-          if (await local.get(sku)) continue;
+          const existing = await local.get(sku);
+          if (existing && (isByYou(existing) || isVerifiedAvailable(existing))) continue;
           try {
             if (isByYou(candidates.get(sku))) {
               await local.upsert(candidates.get(sku));
@@ -111,6 +120,7 @@ export function createCatalogService({ scraper, cache, sizesCache, images, rules
             if (raw.styleColor !== sku || !raw.name || !Number.isFinite(raw.priceUsd) || !Array.isArray(raw.sizes)) throw new Error('Detalhe Nike incompleto');
             await local.upsert(raw);
           } catch (err) {
+            if (isSizesUnavailable(err)) { await local.retire(sku); continue; }
             failed = true;
             log?.warn({ err, sku }, 'Falha ao recuperar produto da busca Nike');
           }
@@ -143,12 +153,13 @@ export function createCatalogService({ scraper, cache, sizesCache, images, rules
     const term = normalizeQuery(termOrStyleColor);
     if (local) {
       const raw = await local.get(String(termOrStyleColor).toUpperCase());
-      if (raw && (!restricted || !(await restricted.isBlocked(raw)))) return { cached: true, stale: false, product: await enrich(raw, await getRate()) };
+      if (raw && (isByYou(raw) || isVerifiedAvailable(raw)) && (!restricted || !(await restricted.isBlocked(raw)))) return { cached: true, stale: false, product: await enrich(raw, await getRate()) };
     }
     const key = `product:${await ns()}:${term}`;
     const fetchOne = async () => {
       const [raw, rate] = await Promise.all([scraper.findOne(String(termOrStyleColor).replace(/-/g, " ")), getRate()]);
-      return raw ? await enrich(raw, rate) : null;
+      const verified = await publishedProduct(raw);
+      return verified ? await enrich(verified, rate) : null;
     };
     let { value, cached, stale } = await cache.getOrFetch(key, fetchOne);
     // "não achei" vindo do cache (Nike/scraper fora na hora) não pode colar por 60 min: tenta de novo agora
@@ -168,7 +179,7 @@ export function createCatalogService({ scraper, cache, sizesCache, images, rules
     const results = await Promise.all(
       top8Terms.map(async (term) => {
         try {
-          const raw = await scraper.findOne(term);
+          const raw = await publishedProduct(await scraper.findOne(term));
           return raw ? await enrich(raw, rate) : null;
         } catch (err) {
           log?.warn({ term, err: err.message }, "top8: falha em um termo");
@@ -197,6 +208,7 @@ export function createCatalogService({ scraper, cache, sizesCache, images, rules
         const selected = top8Terms.map(term => products.find(p => normalizeQuery(p.name).includes(normalizeQuery(term)))).filter(Boolean);
         raws = [...new Map([...selected, ...products].map(p => [p.styleColor, p])).values()].slice(0, 8);
       }
+      raws = raws.filter(raw => isByYou(raw) || isVerifiedAvailable(raw));
       if (restricted) raws = await restricted.filter(raws);
       const rate = raws.length ? await getRate() : null;
       const products = await Promise.all(raws.map(raw => enrich(raw, rate)));
@@ -244,7 +256,7 @@ export function createCatalogService({ scraper, cache, sizesCache, images, rules
     const fetchSizes = async () => {
       let raw;
       try {
-        raw = !fresh && local ? await local.get(styleColor) : null;
+        raw = null; // Size selection and checkout always verify Nike, never the local snapshot.
         if (!raw) {
           raw = await scraper.getProductDetail(styleColor);
           if (local && raw.styleColor === styleColor && (!raw.productType || raw.productType === 'FOOTWEAR')) await local.upsert(raw);
@@ -252,14 +264,13 @@ export function createCatalogService({ scraper, cache, sizesCache, images, rules
         if ((/^[A-Z0-9]{6}-[0-9]{3}$/i.test(styleColor) && raw.styleColor.toUpperCase() !== styleColor.toUpperCase()) || (raw.productType && raw.productType !== 'FOOTWEAR')) throw new Error('Produto Nike inválido');
       } catch (err) {
         if (!isSizesUnavailable(err)) throw err;
+        if (/^[A-Z0-9]{6}-[0-9]{3}$/i.test(styleColor)) {
+          if (local) await local.retire(styleColor);
+          throw AppError.notFound('Este modelo ou cor não está disponível para compra na Nike US');
+        }
         // By You designs have no SKU details. Find the item, then verify its
         // exact design ID against Nike's live search before offering it for sale.
         const { product: found } = await findOne(styleColor);
-        // pré-venda sem SKU publicado na Nike: vende com a tabela padrão (compramos assim que a Nike libera)
-        if (found?.launch?.comingSoon && !found.byYou) {
-          const sizes = presaleSizes(found);
-          return { ...found, sizes, sizeGroups: sizeGroupsOf(sizes), sizesSynthetic: true };
-        }
         if (!found?.byYou) { if (local) await local.retire(styleColor); throw err; }
         const live = await scraper.findOne(styleColor);
         if (live?.styleColor !== styleColor || !isByYou(live)) {
@@ -290,13 +301,6 @@ export function createCatalogService({ scraper, cache, sizesCache, images, rules
           us
         };
       });
-      // PRÉ-VENDA: a Nike ainda não abriu a venda, então nenhum tamanho vem "disponível" (ou nem vem tamanho) e o
-      // seletor mostrava "Esgotado". Na pré-venda o site vende todos os tamanhos — a compra é feita na abertura.
-      if (enriched.launch?.comingSoon && !sizes.some((s) => s.brLabel && s.available)) {
-        const usable = sizes.filter((s) => s.brLabel);
-        const open = usable.length ? usable.map((s) => ({ ...s, available: true })) : presaleSizes({ ...enriched, genders: raw.genders });
-        return { ...enriched, sizes: open, sizeGroups: sizeGroupsOf(open), ...(usable.length ? {} : { sizesSynthetic: true }) };
-      }
       return { ...enriched, sizes, sizeGroups: sizeGroupsOf(sizes) };
     };
     // Explicit refresh waits for Nike; an upstream failure must never look like fresh stock.
@@ -306,10 +310,10 @@ export function createCatalogService({ scraper, cache, sizesCache, images, rules
       }
       return liveRequests.get(styleColor);
     };
-    const { value, cached, stale } = fresh
-      ? { value: await refreshNow(), cached: false, stale: false }
-      : await sizesCache.getOrFetch(key, fetchSizes);
-    if (fresh) await sizesCache.set(key, value);
+    // Availability is never served stale, including callers that omit `fresh`.
+    const value = await refreshNow();
+    const cached = false, stale = false;
+    await sizesCache.set(key, value);
     if (value && restricted && (await restricted.isBlocked(value))) return { cached, stale, product: null }; // restrito: página/checkout respondem 404
     return { cached, stale, product: value };
   }
@@ -317,17 +321,9 @@ export function createCatalogService({ scraper, cache, sizesCache, images, rules
   return { search, browse, findOne, getProductSizes, top8, warmTop8, getRate };
 }
 
-/** Tabela padrão para pré-venda sem tamanhos na Nike: infantil (Big Kids/GS) ou adulto. */
-function presaleSizes(product) {
-  const genders = product?.genders || [];
-  const kids = /\b(big|little) kids\b|\bgrade school\b|\(GS\)/i.test(`${product?.subtitle || ""} ${product?.name || ""}`)
-    || ((genders.includes("BOYS") || genders.includes("GIRLS")) && !genders.includes("MEN") && !genders.includes("WOMEN"));
-  return kids ? standardKidsSizes() : standardSizes();
-}
-
 /** 404 do scraper em /product/:styleColor ("Sizes unavailable") — produto sem SKU na Nike (By You, descontinuado…). */
 function isSizesUnavailable(err) {
   const msg = String(err?.message || "");
   const body = String(err?.details?.body || "");
-  return err?.status === 404 || /respondeu 404/.test(msg) || /SIZES_UNAVAILABLE/.test(body) || /SIZES_UNAVAILABLE/.test(msg);
+  return err?.status === 404 || /respondeu 404/.test(msg) || /SIZES_UNAVAILABLE|PRODUCT_UNAVAILABLE/.test(body) || /SIZES_UNAVAILABLE/.test(msg);
 }

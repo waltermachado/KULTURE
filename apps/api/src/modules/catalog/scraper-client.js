@@ -8,16 +8,17 @@
  * Pedimos SEMPRE convert=false: a precificação é responsabilidade do core (@kulture/shared).
  */
 import { AppError } from "../../lib/errors.js";
+import { isVerifiedAvailable } from './availability.js';
 
 export function createScraperClient({ baseUrl, timeoutMs = 20_000, fetchImpl = fetch }) {
   const base = String(baseUrl).replace(/\/$/, "");
 
-  async function get(pathAndQuery) {
+  async function get(pathAndQuery, requestTimeout = timeoutMs) {
     let res;
     try {
       res = await fetchImpl(`${base}${pathAndQuery}`, {
         headers: { Accept: "application/json" },
-        signal: AbortSignal.timeout(timeoutMs)
+        signal: AbortSignal.timeout(requestTimeout)
       });
     } catch (err) {
       // undici esconde o motivo real em err.cause (ECONNREFUSED, ENOTFOUND, ETIMEDOUT…)
@@ -96,12 +97,16 @@ export function createScraperClient({ baseUrl, timeoutMs = 20_000, fetchImpl = f
   }
 
   async function getProductDetail(styleColor) {
-    return get(`/product/${encodeURIComponent(styleColor)}`);
+    const product = await get(`/product/${encodeURIComponent(styleColor)}`, Math.max(timeoutMs, 40_000));
+    if (String(product?.styleColor).toUpperCase() !== String(styleColor).toUpperCase() || !isVerifiedAvailable(product)) {
+      throw AppError.upstream('A Nike não confirmou a disponibilidade do produto solicitado');
+    }
+    return product;
   }
 
   async function health() {
     return get("/health");
   }
 
-  return { search, findOne, rate, getProductDetail, catalogPage: (anchor = 0) => get(`/catalog?anchor=${anchor}`), health, baseUrl: base };
+  return { search, findOne, rate, getProductDetail, catalogPage: (anchor = 0) => get(`/catalog?anchor=${anchor}`, Math.max(timeoutMs, 120_000)), health, baseUrl: base };
 }

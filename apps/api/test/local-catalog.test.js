@@ -6,7 +6,7 @@ import { createSwrCache } from '../src/lib/swr-cache.js';
 import { createRestrictedFilter } from '../src/modules/restricted/routes.js';
 import { normalizeDetail, getCatalogPage } from '../../../services/nike-scraper/src/services/nike.js';
 
-const raw = (styleColor = 'AA0001-100', extra = {}) => ({ styleColor, name: 'Nike Air Test', subtitle: "Men's Basketball Shoes", priceUsd: 100, genders: ['MEN'], productType: 'FOOTWEAR', sizes: [{ nikeSize: '9', localizedSize: 'M 9', available: true }], ...extra });
+const raw = (styleColor = 'AA0001-100', extra = {}) => ({ storefrontVerifiedAt: new Date().toISOString(), styleColor, name: 'Nike Air Test', subtitle: "Men's Basketball Shoes", priceUsd: 100, genders: ['MEN'], productType: 'FOOTWEAR', sizes: [{ nikeSize: '9', localizedSize: 'M 9', available: true }], ...extra });
 const byYou = () => ({ styleColor: '1685956779', name: 'Nike Air Force 1 Mid By You', subtitle: "Custom Men's Shoes", productType: 'FOOTWEAR', productSubType: 'CUSTOMIZED', priceUsd: 145, image: 'https://example.test/byyou.jpg', url: 'https://www.nike.com/u/custom-air-force-1/1685956779' });
 const basketballByYou = () => ({ ...byYou(), styleColor: '2953029153', name: 'Ja 4 By You', subtitle: 'Custom Basketball Shoes' });
 const at = time => new Date(`2026-09-21T${time}-03:00`);
@@ -230,9 +230,17 @@ describe('live refresh and curation', () => {
 });
 
 it('scraper normalizes live GTIN availability and every footwear colorway', async () => {
-  const info = sku => ({ merchProduct: { styleColor: sku, productType: 'FOOTWEAR', genders: ['MEN'] }, productContent: { title: 'Nike Test' }, merchPrice: { currentPrice: 99 }, skus: [{ nikeSize: '9', gtin: '123', countrySpecifications: [{ localizedSize: 'M 9' }] }], availableGtins: [{ gtin: '123', available: true, level: 'HIGH' }] });
+  const info = sku => ({ merchProduct: { styleColor: sku, status: 'ACTIVE', productType: 'FOOTWEAR', genders: ['MEN'] }, productContent: { title: 'Nike Test' }, productUrls: { productUrl: 'https://www.nike.com/t/test/test' }, merchPrice: { currentPrice: 99 }, skus: [{ nikeSize: '9', gtin: '123', countrySpecifications: [{ localizedSize: 'M 9' }] }], availableGtins: [{ gtin: '123', available: true, level: 'HIGH' }] });
   expect(normalizeDetail({}, info('AA0001-100')).sizes[0].available).toBe(true);
-  const fetcher = vi.fn(async () => ({ ok: true, json: async () => ({ pages: { totalResources: 2 }, objects: [{ productInfo: [info('AA0001-100'), info('AA0001-200')] }] }) }));
+  const fetcher = vi.fn(async url => {
+    if (String(url).startsWith('https://www.nike.com/')) {
+      const styleColor = String(url).split('/').at(-1);
+      const selectedProduct = { styleColor, statusModifier: 'BUYABLE_BUY', sizes: [{ status: 'ACTIVE', gtins: [{ gtin: '123' }] }] };
+      const data = { props: { pageProps: { marketPlace: 'US', styleColor, selectedProduct } } };
+      return { ok: true, url: String(url), text: async () => `<script id="__NEXT_DATA__">${JSON.stringify(data)}</script>` };
+    }
+    return { ok: true, json: async () => ({ pages: { totalResources: 2 }, objects: [{ productInfo: [info('AA0001-100'), info('AA0001-200')] }] }) };
+  });
   vi.stubGlobal('fetch', fetcher);
   try {
     const p = await getCatalogPage();
