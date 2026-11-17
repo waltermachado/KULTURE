@@ -1,3 +1,4 @@
+import { orderEmailRecipient } from "../../lib/order-email.js";
 import { validatedCpf } from "../../lib/cpf.js";
 /**
  * Serviço do backoffice (admin). Só é chamado por rotas protegidas por requireAdmin.
@@ -58,13 +59,16 @@ export function createAdminService({ prisma, env, mailer, gateway, orders, stock
   const siteUrl = canonicalWebUrl(env); // nunca o domínio do Railway
 
   async function sendMail(order, build, extra = {}) {
-    if (!mailer || !order?.customerEmail) return { ok: false, skipped: true };
+    if (!mailer) return { ok: false, skipped: true };
+    let to;
     try {
+      to = await orderEmailRecipient(prisma, order);
+      if (!to) return { ok: false, skipped: true };
       const msg = build(order, { siteUrl, ...extra });
-      return await mailer.send({ to: order.customerEmail, toName: order.customerName, ...msg });
+      return { ...await mailer.send({ to, toName: order.customerName, ...msg }), to };
     } catch (err) {
       log?.warn({ err: err.message, order: order.number }, "admin: falha ao enviar e-mail (ignorada)");
-      return { ok: false, error: err.message };
+      return { ok: false, error: err.message, to };
     }
   }
 
@@ -281,6 +285,7 @@ export function createAdminService({ prisma, env, mailer, gateway, orders, stock
     );
     return {
       ...order,
+      notificationEmail: order.user?.email || order.customerEmail,
       invoice,
       channelLabel: SALE_CHANNELS[order.channel] || order.channel,
       external: order.channel !== "site",
@@ -300,6 +305,15 @@ export function createAdminService({ prisma, env, mailer, gateway, orders, stock
 
     const data = {};
     const events = [];
+    if (patch.customerEmail !== undefined) {
+      if (order.userId) throw AppError.badRequest("Altere o e-mail no cadastro do cliente vinculado");
+      const email = String(patch.customerEmail).trim().toLowerCase();
+      if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) throw AppError.badRequest("Informe um e-mail válido");
+      if (email !== order.customerEmail) {
+        data.customerEmail = email;
+        events.push({ type: "customer_email_updated", payload: { from: order.customerEmail, to: email, adminId: admin?.id ?? null, adminEmail: admin?.email ?? null } });
+      }
+    }
     const actor = { adminId: admin?.id ?? null, adminEmail: admin?.email ?? null };
 
     for (const f of ["carrier", "trackingCode", "trackingUrl", "internalNotes"]) {
@@ -374,7 +388,7 @@ export function createAdminService({ prisma, env, mailer, gateway, orders, stock
         : buildOrderCancelledEmail;
       const result = await sendMail(updated, build, { refunded: mailKind === "refunded" });
       await prisma.orderEvent.create({
-        data: { orderId: order.id, type: `email_${mailKind}`, payload: { ok: Boolean(result?.ok), provider: mailer?.provider ?? null, error: result?.error ?? null } }
+        data: { orderId: order.id, type: `email_${mailKind}`, payload: { to: result?.to ?? null, ok: Boolean(result?.ok), provider: mailer?.provider ?? null, error: result?.error ?? null } }
       }).catch(() => {});
     }
 
@@ -410,8 +424,8 @@ export function createAdminService({ prisma, env, mailer, gateway, orders, stock
       : kind === "registered" || order.paymentProvider === "manual" ? buildOrderRegisteredEmail
       : buildOrderPaidEmail;
     const result = await sendMail(order, build);
-    await prisma.orderEvent.create({ data: { orderId: order.id, type: `email_${kind}_resent`, payload: { ok: Boolean(result?.ok), error: result?.error ?? null } } });
-    return { ok: Boolean(result?.ok), provider: mailer?.provider ?? null, error: result?.error ?? null };
+    await prisma.orderEvent.create({ data: { orderId: order.id, type: `email_${kind}_resent`, payload: { to: result?.to ?? null, ok: Boolean(result?.ok), error: result?.error ?? null } } });
+    return { to: result?.to ?? null, ok: Boolean(result?.ok), provider: mailer?.provider ?? null, error: result?.error ?? null };
   }
 
   // ─── Venda externa (registrada no painel) ─────────────────────────────
@@ -642,7 +656,7 @@ export function createAdminService({ prisma, env, mailer, gateway, orders, stock
     if (body.notifyCustomer !== false) {
       const result = await sendMail(order, buildOrderRegisteredEmail);
       await prisma.orderEvent.create({
-        data: { orderId: order.id, type: "email_registered", payload: { ok: Boolean(result?.ok), provider: mailer?.provider ?? null, error: result?.error ?? null } }
+        data: { orderId: order.id, type: "email_registered", payload: { to: result?.to ?? null, ok: Boolean(result?.ok), provider: mailer?.provider ?? null, error: result?.error ?? null } }
       }).catch(() => {});
     }
 

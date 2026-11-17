@@ -1,3 +1,4 @@
+import { orderEmailRecipient } from "../../lib/order-email.js";
 import { validatedCpf } from "../../lib/cpf.js";
 import { AppError } from '../../lib/errors.js';
 import { pricingRateOf } from '../catalog/normalize.js';
@@ -68,10 +69,12 @@ function normalizeCustomization(raw) {
 export function createOrderService(env, prisma, catalog, gateway, notifier, log, mailer = null, stock = null, coupons = null) {
   /** E-mail de confirmação ao cliente (não bloqueia; falha só loga). */
   async function emailPaid(order) {
-    if (!mailer || !order?.customerEmail) return;
+    if (!mailer) return;
     try {
+      const to = await orderEmailRecipient(prisma, order);
+      if (!to) return;
       const { subject, text, html } = buildOrderPaidEmail(order, { siteUrl: canonicalWebUrl(env) });
-      await mailer.send({ to: order.customerEmail, toName: order.customerName, subject, text, html });
+      await mailer.send({ to, toName: order.customerName, subject, text, html });
     } catch (err) {
       log?.warn({ err: err.message, order: order.number }, "mail: falha ao enviar confirmação");
     }

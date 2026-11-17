@@ -1,3 +1,4 @@
+import { orderEmailRecipient } from "../../lib/order-email.js";
 /**
  * Nota fiscal do pedido.
  *
@@ -119,7 +120,7 @@ export function createInvoiceService({ prisma, env, mailer, log }) {
     const inv = order.invoice;
     if (!inv) throw AppError.badRequest("Anexe a nota antes de enviar");
     if (!inv.pdfData && !inv.externalUrl && !inv.accessKey) throw AppError.badRequest("A nota precisa ter o PDF (ou um link/chave) para ser enviada");
-    const recipient = String(to || order.customerEmail || "").trim().toLowerCase();
+    const recipient = String(to || await orderEmailRecipient(prisma, order) || "").trim().toLowerCase();
     if (!recipient.includes("@")) throw AppError.badRequest("Pedido sem e-mail do cliente");
     if (!mailer || mailer.provider === "log") throw AppError.badRequest("E-mail não configurado (MAIL_PROVIDER=log): configure a MailerSend antes de enviar a nota");
 

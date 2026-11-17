@@ -167,6 +167,7 @@ export async function adminRoutes(app) {
           carrier: { type: ["string", "null"] },
           trackingCode: { type: ["string", "null"] },
           trackingUrl: { type: ["string", "null"] },
+          customerEmail: { type: "string", format: "email" },
           internalNotes: { type: ["string", "null"] },
           note: { type: "string" },
           paymentMethod: { type: "string" },

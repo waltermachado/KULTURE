@@ -4,6 +4,7 @@ import { ErrorBox, Loading, StatusPill, ChannelPill, STATUS_LABELS, METHOD_LABEL
 import { customText } from "../lib/format.js";
 
 const EVENT_LABELS = {
+  customer_email_updated: "E-mail do pedido corrigido",
   created: "Pedido criado",
   link_created: "Link de pagamento gerado",
   payment_link_failed: "Não foi possível gerar o link de pagamento",
@@ -76,7 +77,7 @@ function InvoiceCard({ order, auth, notify, busy, setBusy, setMsg, reload }) {
     } catch (e) { setMsg({ ok: false, text: e.message }); } finally { setBusy(false); }
   }
   async function send() {
-    if (!window.confirm(`Enviar a nota fiscal por e-mail para ${order.customerEmail}?`)) return;
+    if (!window.confirm(`Enviar a nota fiscal por e-mail para ${order.notificationEmail}?`)) return;
     setBusy(true); setMsg(null);
     try {
       const r = await auth.request(`/api/admin/orders/${encodeURIComponent(order.number)}/invoice/send`, { method: "POST", body: JSON.stringify({}) });
@@ -159,6 +160,8 @@ function describeEvent(ev) {
   const p = ev.payload || {};
   const who = p.adminEmail ? ` · por ${p.adminEmail}` : "";
   switch (ev.type) {
+    case "customer_email_updated":
+      return `${p.from} → ${p.to}${who}`;
     case "status_changed":
       return `${STATUS_LABELS[p.from] || p.from} → ${STATUS_LABELS[p.to] || p.to}${p.note ? ` — "${p.note}"` : ""}${who}`;
     case "tracking_updated":
@@ -184,7 +187,7 @@ function describeEvent(ev) {
     case "abandoned":
       return p.reason ? `motivo: ${p.reason}` : "";
     default:
-      if (ev.type.startsWith("email_")) return p.ok ? `enviado (${p.provider || "mail"})` : `falhou${p.error ? `: ${p.error}` : ""}`;
+      if (ev.type.startsWith("email_")) return p.ok ? `enviado${p.to ? ` para ${p.to}` : ""} (${p.provider || "mail"})` : `falhou${p.error ? `: ${p.error}` : ""}`;
       return "";
   }
 }
@@ -277,7 +280,7 @@ export default function OrderDetail({ auth, notify }) {
     setBusy(true);
     try {
       const r = await auth.request(`/api/admin/orders/${encodeURIComponent(number)}/resend-email`, { method: "POST", body: JSON.stringify({ kind }) });
-      setMsg({ ok: r.ok, text: r.ok ? `E-mail reenviado (${r.provider})` : `Falha no e-mail: ${r.error || r.provider}` });
+      setMsg({ ok: r.ok, text: r.ok ? `E-mail reenviado para ${r.to} (${r.provider})` : `Falha no e-mail: ${r.error || r.provider}` });
       await load();
     } catch (e) {
       setMsg({ ok: false, text: e.message });
@@ -348,11 +351,19 @@ export default function OrderDetail({ auth, notify }) {
             <h3>Cliente &amp; entrega</h3>
             <dl className="kv">
               <dt>Nome</dt><dd>{order.customerName}{order.user ? <> · <Link to={`/admin/clientes/${order.user.id}`}>ver cadastro →</Link></> : <span style={{ color: "var(--muted)" }}> · convidado</span>}</dd>
-              <dt>E-mail</dt><dd><a href={`mailto:${order.customerEmail}`}>{order.customerEmail}</a></dd>
+              <dt>E-mail da compra</dt><dd>{order.customerEmail}</dd>
+              <dt>Destinatário das notificações</dt><dd><a href={`mailto:${order.notificationEmail}`}>{order.notificationEmail}</a></dd>
               <dt>Telefone</dt><dd>{order.customerPhone ? <a href={`https://wa.me/55${String(order.customerPhone).replace(/\D/g, "")}`} target="_blank" rel="noreferrer">{fmtPhone(order.customerPhone)} (WhatsApp)</a> : "—"}</dd>
               <dt>CPF</dt><dd>{fmtCpf(order.customerCpf)}</dd>
               <dt>Endereço</dt><dd>{fmtAddress(a)}</dd>
             </dl>
+            {!order.userId && <form className="adm-toolbar" onSubmit={(e) => {
+              e.preventDefault();
+              patch({ customerEmail: new FormData(e.currentTarget).get("customerEmail") }, "E-mail do pedido corrigido");
+            }}>
+              <input key={order.customerEmail} name="customerEmail" type="email" aria-label="Novo e-mail do pedido" defaultValue={order.customerEmail} required />
+              <button className="btn sm" disabled={busy}>Corrigir e-mail</button>
+            </form>}
           </section>
 
           <section className="adm-card">
